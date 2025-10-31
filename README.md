@@ -1,1 +1,1 @@
-# Shogi_AI_Learning
+# Shogi AI Learning
