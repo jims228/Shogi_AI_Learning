@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+  backend:
+    build: ./backend
+    container_name: shogi-backend
+    environment:
+      ENGINE_URL: "http://shogi-engine:8081/analyze"
+    volumes:
+      - ./backend/app:/app/app        # ホットリロード
+    ports:
+      - "8000:8000"
+    depends_on:
+      - engine
+
+  engine:
+    build: ./engine
+    container_name: shogi-engine
+    volumes:
+      - ./engine:/engine              # ホットリロード
+    ports:
+      - "8081:8081"
