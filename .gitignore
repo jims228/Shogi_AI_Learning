@@ -1,21 +1,14 @@
-# Node/Frontend
-node_modules/
-.next/
-dist/
-out/
-# Python/Backend
+# Python / Node / Docker / VSCode
 __pycache__/
-*.py[cod]
-.venv/
+*.pyc
+node_modules/
 .env
-# Editor/OS
-.vscode/
-.DS_Store
-# Docker/logs
+.env.*
+.env.local
+docker/engine/eval/nn.bin
+docker/engine/book/*.db
 *.log
-# Engine/Binaries
-engine/YaneuraOu/
-engine/bin/
-*.exe
-*.so
-*.dll
+.DS_Store
+.vscode/
+dist/
+build/

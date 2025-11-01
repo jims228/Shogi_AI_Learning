@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.24",
+    "howler": "^2.2.4",
+    "tailwind-merge": "^3.3.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/howler": "^2.2.12"
+  }
+}

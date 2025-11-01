@@ -27,7 +27,7 @@ function useAnalyze() {
       const res = await fetch(`${API_BASE}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ position }),
+        body: JSON.stringify({ position, depth: 16, multipv: 3 }),
       });
       if (!res.ok) throw new Error(await res.text());
       return (await res.json()) as AnalyzeResp;

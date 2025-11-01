@@ -1,9 +1,14 @@
 services:
   engine:
+    volumes:
+      # ホスト側の nn.bin 置き場 → コンテナ内 /usr/local/bin/eval
+      - ./docker/engine/eval:/usr/local/bin/eval:ro
+      - ./docker/engine/book:/usr/local/bin/book:ro
     build:
       context: ./engine
     ports:
       - "8081:8081"
+    command: ["sh","-lc","sleep infinity"] 
 
   backend:
     build:
