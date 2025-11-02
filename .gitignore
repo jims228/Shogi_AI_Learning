@@ -12,3 +12,8 @@ docker/engine/book/*.db
 .vscode/
 dist/
 build/
+
+# ==== engine assets (do NOT commit binaries) ====
+assets/
+!assets/.gitkeep
+!assets/README.md
