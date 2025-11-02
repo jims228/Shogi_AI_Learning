@@ -1,57 +1,62 @@
-# backend/api/main.py
-import subprocess
-import threading
-import queue
-import time
-import os
-from typing import List, Optional
-
+import subprocess, threading, queue, time, os
+from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-
-# ====== 環境変数（デフォルト値あり）======
+# ====== 環境変数 ======
 ENGINE_PATH = os.environ.get("ENGINE_PATH", "/usr/local/bin/yaneuraou")
 DEFAULT_BYOYOMI_MS = int(os.environ.get("DEFAULT_BYOYOMI_MS", "1000"))
-DEFAULT_THREADS = int(os.environ.get("ENGINE_THREADS", "4"))          # 今は未使用だが将来拡張用
-DEFAULT_HASH_MB = int(os.environ.get("ENGINE_HASH_MB", "1024"))       # 今は未使用（起動時に別で設定）
-USE_BOOK = os.environ.get("ENGINE_USE_BOOK", "false").lower() == "true"
-
+DEFAULT_THREADS = int(os.environ.get("ENGINE_THREADS", "4"))
+DEFAULT_HASH_MB = int(os.environ.get("ENGINE_HASH_MB", "1024"))
+ENGINE_USE_BOOK = os.environ.get("ENGINE_USE_BOOK", "false").lower() == "true"
+ENGINE_READY_TIMEOUT = int(os.environ.get("ENGINE_READY_TIMEOUT", "60"))
 
 # ====== リクエスト/レスポンス ======
 class AnalyzeRequest(BaseModel):
     sfen: Optional[str] = None
-    moves: Optional[List[str]] = None      # startpos 前提の指し手配列 ["7g7f", ...]
-    byoyomi_ms: Optional[int] = None
-    multipv: Optional[int] = 1             # 将来拡張（今はbestmoveだけ返す）
+    moves: Optional[List[str]] = None         # ["7g7f", ...]
+    byoyomi_ms: Optional[int] = None          # go byoyomi
+    btime: Optional[int] = None               # go btime
+    wtime: Optional[int] = None               # go wtime
+    binc: Optional[int] = None
+    winc: Optional[int] = None
+    multipv: Optional[int] = 1
 
+class PVItem(BaseModel):
+    move: str
+    score_cp: Optional[int] = None
+    score_mate: Optional[int] = None
+    depth: Optional[int] = None
+    pv: List[str] = []
 
 class AnalyzeResponse(BaseModel):
     bestmove: str
-    info: Optional[str] = None             # 解析ログ（末尾数行）
+    candidates: Optional[List[PVItem]] = None
 
+class SettingsRequest(BaseModel):
+    USI_OwnBook: Optional[bool] = None
+    USI_Hash: Optional[int] = None
+    Threads: Optional[int] = None
 
-# ====== USI エンジン管理 ======
+class SettingsResponse(BaseModel):
+    ok: bool
+    applied: Dict[str, Any]
+
+# ====== USIエンジン ======
 class USIEngine:
     def __init__(self, path: str):
         self.path = path
-        self.proc: Optional[subprocess.Popen] = None
+        self.proc = None
         self.lock = threading.Lock()
-        self.q: "queue.Queue[str]" = queue.Queue()
-        self.reader_thread: Optional[threading.Thread] = None
-
-    # 標準出力を読み取り、行ごとにキューへ
-    def _reader(self):
-        assert self.proc and self.proc.stdout
-        for line in self.proc.stdout:
-            self.q.put(line.rstrip("\n"))
+        self.q = queue.Queue()       # stdout
+        self.reader_thread = None
+        self.task_q = queue.Queue()  # 分析 FIFO
+        self.worker = threading.Thread(target=self._worker, daemon=True)
+        self.worker_started = False
 
     def start(self):
-        # 既に生きていれば何もしない
         if self.proc and self.proc.poll() is None:
             return
-
-        # Popen（テキストモード・行バッファ）
         self.proc = subprocess.Popen(
             [self.path],
             stdin=subprocess.PIPE,
@@ -60,36 +65,30 @@ class USIEngine:
             text=True,
             bufsize=1,
         )
-
-        # 読み取りスレッド開始
         self.reader_thread = threading.Thread(target=self._reader, daemon=True)
         self.reader_thread.start()
 
-        # 起動直後の初期化
-        self.send("usi")
+        # USI初期化
+        self._send("usi")
+        # 軽量起動オプション
+        self._send(f"setoption name USI_OwnBook value {'true' if ENGINE_USE_BOOK else 'false'}")
+        self._send(f"setoption name USI_Hash value {DEFAULT_HASH_MB}")
+        self._send(f"setoption name Threads value {DEFAULT_THREADS}")
 
-        # 起動を軽くするためのオプション（環境変数で上書き可）
-        use_book = os.getenv("ENGINE_USE_BOOK", "false").lower() == "true"  # 既定: 定跡OFF
-        hash_mb = int(os.getenv("ENGINE_HASH_MB", "16"))                    # 既定: 16MB（起動高速化用）
-        self.send(f"setoption name USI_OwnBook value {'true' if use_book else 'false'}")
-        self.send(f"setoption name USI_Hash value {hash_mb}")
+        self._wait_for("usiok", timeout=ENGINE_READY_TIMEOUT)
+        self._send("isready")
+        self._wait_for("readyok", timeout=ENGINE_READY_TIMEOUT)
 
-        # usiok / readyok 待ち（タイムアウトは環境変数で延長可）
-        timeout_s = int(os.getenv("ENGINE_READY_TIMEOUT", "60"))
-        self._wait_for("usiok", timeout=timeout_s)
-        self.send("isready")
-        self._wait_for("readyok", timeout=timeout_s)
+        if not self.worker_started:
+            self.worker.start()
+            self.worker_started = True
 
-    def send(self, cmd: str):
-        """USIエンジンへコマンドを送る（末尾に改行を付与）"""
-        if not self.proc or not self.proc.stdin:
-            raise RuntimeError("engine is not started")
-        self.proc.stdin.write(cmd + "\n")
-        self.proc.stdin.flush()
+    def _reader(self):
+        for line in self.proc.stdout:
+            self.q.put(line.rstrip("\n"))
 
     def _drain(self):
-        """未読行をすべて捨てて返す（デバッグ用途）"""
-        lines: List[str] = []
+        lines = []
         while True:
             try:
                 lines.append(self.q.get_nowait())
@@ -97,8 +96,12 @@ class USIEngine:
                 break
         return lines
 
+    def _send(self, cmd: str):
+        assert self.proc and self.proc.stdin
+        self.proc.stdin.write(cmd + "\n")
+        self.proc.stdin.flush()
+
     def _wait_for(self, token: str, timeout: float):
-        """stdout から token が現れるまで待機"""
         end = time.time() + timeout
         while time.time() < end:
             try:
@@ -106,57 +109,117 @@ class USIEngine:
             except queue.Empty:
                 continue
             if token in line:
-                return True
+                return
         raise TimeoutError(f"timeout waiting for {token}")
 
-    def analyze(self, sfen: Optional[str], moves: Optional[List[str]], byoyomi_ms: int) -> AnalyzeResponse:
+    # ====== Public ======
+    def analyze(self, req: AnalyzeRequest) -> AnalyzeResponse:
+        # タスクとして投入し、同期で結果を待つ
+        result_q: "queue.Queue[Any]" = queue.Queue()
+        self.task_q.put((req, result_q))
+        ok, payload = result_q.get()  # (bool, data or Exception)
+        if ok:
+            return payload
+        raise payload
+
+    def set_options(self, opts: SettingsRequest) -> SettingsResponse:
         with self.lock:
-            # エンジン起動確認
+            if not self.proc or self.proc.poll() is not None:
+                self.start()
+            applied: Dict[str, Any] = {}
+            if opts.USI_OwnBook is not None:
+                self._send(f"setoption name USI_OwnBook value {'true' if opts.USI_OwnBook else 'false'}")
+                applied["USI_OwnBook"] = opts.USI_OwnBook
+            if opts.USI_Hash is not None:
+                self._send(f"setoption name USI_Hash value {opts.USI_Hash}")
+                applied["USI_Hash"] = opts.USI_Hash
+            if opts.Threads is not None:
+                self._send(f"setoption name Threads value {opts.Threads}")
+                applied["Threads"] = opts.Threads
+            self._send("isready")
+            self._wait_for("readyok", timeout=ENGINE_READY_TIMEOUT)
+            return SettingsResponse(ok=True, applied=applied)
+
+    def quit(self):
+        try:
+            if self.proc and self.proc.poll() is None:
+                self._send("quit")
+                self.proc.wait(timeout=2)
+        except Exception:
+            pass
+
+    # ====== ワーカ ======
+    def _worker(self):
+        while True:
+            req, result_q = self.task_q.get()
+            try:
+                res = self._do_analyze(req)
+                result_q.put((True, res))
+            except Exception as e:
+                result_q.put((False, e))
+
+    def _do_analyze(self, req: AnalyzeRequest) -> AnalyzeResponse:
+        with self.lock:
             if not self.proc or self.proc.poll() is not None:
                 self.start()
 
-            # 余分な出力を捨てる
             self._drain()
 
+            # MultiPV設定
+            mpv = max(1, int(req.multipv or 1))
+            self._send(f"setoption name MultiPV value {mpv}")
+
             # 局面セット
-            if sfen:
-                self.send(f"position sfen {sfen}")
-            elif moves:
-                seq = " ".join(moves)
-                self.send(f"position startpos moves {seq}")
+            if req.sfen:
+                self._send(f"position sfen {req.sfen}")
+            elif req.moves:
+                seq = " ".join(req.moves)
+                self._send(f"position startpos moves {seq}")
             else:
-                self.send("position startpos")
+                self._send("position startpos")
 
-            # 思考開始
-            self.send(f"go byoyomi {byoyomi_ms}")
+            # go コマンド
+            if req.btime is not None and req.wtime is not None:
+                go = f"go btime {req.btime} wtime {req.wtime} byoyomi {int(req.byoyomi_ms or 0)}"
+                if req.binc is not None: go += f" binc {req.binc}"
+                if req.winc is not None: go += f" winc {req.winc}"
+            else:
+                go = f"go byoyomi {int(req.byoyomi_ms or DEFAULT_BYOYOMI_MS)}"
+            self._send(go)
 
-            bestmove: Optional[str] = None
-            info_log: List[str] = []
-            # byoyomi + バッファ時間（最低5秒）
-            deadline = time.time() + max(5.0, byoyomi_ms / 1000.0 + 2.0)
+            bestmove = None
+            # multipv集計
+            pvmap: Dict[int, PVItem] = {}
+            deadline = time.time() + 8.0  # セーフティ（適宜調整）
             while time.time() < deadline:
                 try:
                     line = self.q.get(timeout=0.1)
-                    if line.startswith("info "):
-                        info_log.append(line)
-                    if line.startswith("bestmove "):
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            bestmove = parts[1]
-                        break
                 except queue.Empty:
                     continue
 
+                if line.startswith("info "):
+                    item = self._parse_info(line)
+                    if item and item.get("multipv"):
+                        m = int(item["multipv"])
+                        pvmap[m] = PVItem(
+                            move=item.get("pv", [""])[0] if item.get("pv") else None,
+                            score_cp=item.get("score_cp"),
+                            score_mate=item.get("score_mate"),
+                            depth=item.get("depth"),
+                            pv=item.get("pv", []),
+                        )
+
+                if line.startswith("bestmove "):
+                    bestmove = line.split()[1]
+                    break
+
             if not bestmove:
-                # 念のため stop -> bestmove をもう少し待つ
-                self.send("stop")
+                self._send("stop")
                 try:
                     while True:
                         line = self.q.get(timeout=0.2)
                         if line.startswith("bestmove "):
-                            parts = line.split()
-                            if len(parts) >= 2:
-                                bestmove = parts[1]
+                            bestmove = line.split()[1]
                             break
                 except queue.Empty:
                     pass
@@ -164,46 +227,74 @@ class USIEngine:
             if not bestmove:
                 raise RuntimeError("bestmove を取得できませんでした。")
 
-            return AnalyzeResponse(bestmove=bestmove, info="\n".join(info_log[-10:]))
+            candidates: List[PVItem] = []
+            for i in range(1, mpv + 1):
+                if i in pvmap:
+                    candidates.append(pvmap[i])
 
-    def quit(self):
+            return AnalyzeResponse(bestmove=bestmove, candidates=candidates or None)
+
+    def _parse_info(self, line: str) -> Dict[str, Any]:
+        # 例: "info depth 16 seldepth 19 multipv 1 score cp -76 pv 7g7f 3c3d ..."
+        toks = line.split()
+        out: Dict[str, Any] = {}
         try:
-            if self.proc and self.proc.poll() is None:
-                self.send("quit")
-                self.proc.wait(timeout=2)
+            if "depth" in toks:
+                out["depth"] = int(toks[toks.index("depth")+1])
+            if "multipv" in toks:
+                out["multipv"] = int(toks[toks.index("multipv")+1])
+            if "score" in toks:
+                i = toks.index("score")
+                kind = toks[i+1]
+                if kind == "cp":
+                    out["score_cp"] = int(toks[i+2])
+                elif kind == "mate":
+                    out["score_mate"] = int(toks[i+2])
+            if "pv" in toks:
+                pvi = toks.index("pv")
+                out["pv"] = toks[pvi+1:]
         except Exception:
             pass
+        return out
 
-
-# ====== FastAPI アプリ ======
+# ====== FastAPI ======
 engine = USIEngine(ENGINE_PATH)
-app = FastAPI(title="Shogi Analyze API", version="0.1.0")
-
+app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
 @app.on_event("startup")
 def _on_startup():
-    # 起動時にエンジンを立ち上げるのを一旦スキップ
-    print("🟡 Skip engine.start() at startup (lazy load mode)")
-    # engine.start()
-
+    # 起動時の常駐は維持（lazyにしたければコメントアウト）
+    engine.start()
 
 @app.on_event("shutdown")
 def _on_shutdown():
     engine.quit()
 
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+@app.get("/ready")
+def ready():
+    # エンジンに軽くping
+    try:
+        engine._send("isready")
+        engine._wait_for("readyok", timeout=3)
+        return {"ready": True}
+    except Exception:
+        return {"ready": False}
+
+@app.post("/settings", response_model=SettingsResponse)
+def settings(req: SettingsRequest):
+    try:
+        return engine.set_options(req)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest):
-    byoyomi = req.byoyomi_ms if req.byoyomi_ms is not None else DEFAULT_BYOYOMI_MS
     try:
-        if not engine.proc or engine.proc.poll() is not None:
-            engine.start()  # ←ここを追加
-        return engine.analyze(req.sfen, req.moves, byoyomi)
+        return engine.analyze(req)
     except TimeoutError as e:
         raise HTTPException(status_code=504, detail=str(e))
     except Exception as e:
