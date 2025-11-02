@@ -1,6 +1,7 @@
 import subprocess, threading, queue, time, os
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ====== 環境変数 ======
@@ -41,6 +42,116 @@ class SettingsRequest(BaseModel):
 class SettingsResponse(BaseModel):
     ok: bool
     applied: Dict[str, Any]
+
+
+# ====== Annotate 機能用モデル ======
+class AnnotateRequest(BaseModel):
+    # 1) どちらかを必須: (A) usi文字列, (B) moves配列 + sfen or startpos
+    usi: Optional[str] = None
+    moves: Optional[List[str]] = None
+    sfen: Optional[str] = None           # 省略時は startpos 扱い
+    byoyomi_ms: Optional[int] = None     # 省略時は ENGINE_PER_MOVE_MS
+
+
+class MoveNote(BaseModel):
+    ply: int
+    move: str
+    bestmove: Optional[str] = None
+    score_cp: Optional[int] = None       # やねうら王の評価（先手視点）
+    mate: Optional[int] = None
+    pv: Optional[str] = None
+    verdict: Optional[str] = None        # “好手/疑問手/悪手”など
+    comment: Optional[str] = None        # LLM or ルール生成コメント
+
+
+class AnnotateResponse(BaseModel):
+    summary: str
+    notes: List[MoveNote]
+
+
+# ====== Annotate ヘルパー ======
+def _parse_usi_to_moves(usi: str) -> List[str]:
+    """
+    'startpos moves 7g7f 3c3d ...' / 'position sfen <...> moves ...' / 純粋なUSI配列 への軽対応。
+    厳密対応は今後拡張。
+    """
+    usi = usi.strip()
+    if usi.startswith("startpos"):
+        # "startpos moves ..." から moves 部分だけ抜く
+        toks = usi.split()
+        if "moves" in toks:
+            i = toks.index("moves")
+            return toks[i+1:]
+        return []
+    if " position " in usi or usi.startswith("position"):
+        toks = usi.split()
+        if "moves" in toks:
+            i = toks.index("moves")
+            return toks[i+1:]
+        return []
+    # スペース区切りのUSI列とみなす
+    return [t for t in usi.split() if len(t) >= 4]
+
+
+def _classify_by_delta(delta_cp: int) -> str:
+    """評価差でざっくり判定"""
+    if delta_cp <= -150:
+        return "悪手"
+    if delta_cp <= -80:
+        return "疑問手"
+    if delta_cp >= 120:
+        return "好手"
+    return "通常手"
+
+
+def _format_for_llm(moves: List[str], notes: List[MoveNote]) -> str:
+    """LLMプロンプト用の簡易整形（日本語解説を期待）"""
+    lines = [
+        "あなたは将棋の指導者です。以下の各手について、人間にわかる短い講評を与えてください。",
+        "各行は「手数: 指し手 | 評価値cp | 推奨手 | PV」の形式です。評価値は先手視点です。",
+        "専門用語を使いすぎず、改善案も1つ具体的に提案してください。"
+    ]
+    for n in notes:
+        sc = f"{n.score_cp:+d}" if n.score_cp is not None else ("M"+str(n.mate) if n.mate else "?")
+        pv = n.pv or "-"
+        bm = n.bestmove or "-"
+        lines.append(f"{n.ply}: {n.move} | {sc} | best {bm} | pv {pv}")
+    return "\n".join(lines)
+
+
+def _call_openai(prompt: str) -> Optional[List[str]]:
+    """
+    LLM接続（簡易）。OPENAI_API_KEY が無ければ None。
+    返り値は行配列（各手の短評）を想定。
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    try:
+        import json, urllib.request
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            data=json.dumps({
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role":"system","content":"You are a helpful Japanese shogi coach."},
+                    {"role":"user","content": prompt}
+                ],
+                "temperature": 0.4,
+            }).encode("utf-8")
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            obj = json.loads(r.read().decode("utf-8"))
+        text = obj["choices"][0]["message"]["content"]
+        # 行ごとに割る（ざっくり）
+        return [ln.strip("・- ") for ln in text.split("\n") if ln.strip()]
+    except Exception:
+        return None
+
 
 # ====== USIエンジン ======
 class USIEngine:
@@ -261,6 +372,18 @@ class USIEngine:
 engine = USIEngine(ENGINE_PATH)
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
+# CORS ミドルウェアを追加
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
 def _on_startup():
     # 起動時の常駐は維持（lazyにしたければコメントアウト）
@@ -299,3 +422,67 @@ def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=504, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/annotate", response_model=AnnotateResponse)
+def annotate(req: AnnotateRequest):
+    # 1) moves 取り出し
+    if req.usi:
+        moves = _parse_usi_to_moves(req.usi)
+        start_sfen = None
+    else:
+        moves = req.moves or []
+        start_sfen = req.sfen  # None なら startpos
+    if not moves:
+        raise HTTPException(status_code=400, detail="棋譜（USIまたはmoves）が空です。")
+
+    per_ms = int(os.getenv("ENGINE_PER_MOVE_MS", "250"))
+    byoyomi = req.byoyomi_ms if req.byoyomi_ms is not None else per_ms
+
+    # 2) 手前までの局面を順次作って解析
+    notes: List[MoveNote] = []
+    prev_cp: Optional[int] = None
+    seq_so_far: List[str] = []
+
+    for i, mv in enumerate(moves, start=1):
+        seq_so_far.append(mv)
+        # 現状は startpos 前提（usi の startpos moves ... を想定）。sfen + moves の混在は未対応。
+        if start_sfen:
+            raise HTTPException(status_code=400, detail="sfen + moves の組み合わせは未対応です。startpos (usi) を使用してください。")
+
+        try:
+            areq = AnalyzeRequest(moves=list(seq_so_far), byoyomi_ms=byoyomi, multipv=1)
+            res = engine.analyze(areq)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+        # candidates の先頭を評価として扱う
+        score_cp = None
+        mate = None
+        pv = None
+        bestmove = getattr(res, "bestmove", None)
+        if res.candidates and len(res.candidates) > 0:
+            c = res.candidates[0]
+            score_cp = c.score_cp
+            mate = c.score_mate
+            pv = " ".join(c.pv) if c.pv else None
+
+        delta = (score_cp - prev_cp) if (score_cp is not None and prev_cp is not None) else 0
+        verdict = _classify_by_delta(delta) if prev_cp is not None and score_cp is not None else None
+        prev_cp = score_cp if score_cp is not None else prev_cp
+
+        notes.append(MoveNote(
+            ply=i, move=mv, bestmove=bestmove, score_cp=score_cp, mate=mate, pv=pv,
+            verdict=verdict
+        ))
+
+    # 3) LLM 呼び出し（任意）
+    summary = "エンジン短時間解析に基づく自動講評です。評価値は先手視点です。"
+    comments = _call_openai(_format_for_llm(moves, notes))
+    if comments:
+        # 行数に合わせて割当（ズレたらスキップ）
+        for i, n in enumerate(notes):
+            if i < len(comments):
+                n.comment = comments[i]
+
+    return AnnotateResponse(summary=summary, notes=notes)
