@@ -182,6 +182,30 @@ function useAnnotate() {
 function AnnotateView() {
   const [usi, setUsi] = useState("startpos moves 7g7f 3c3d 2g2f 8c8d");
   const { mutateAsync, isPending, data, error } = useAnnotate();
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  function normalizeUsiInput(raw: string): string {
+    let s = (raw ?? "").trim().replace(/\s+/g, " ");
+    if (!s) return "startpos moves";
+    if (s.startsWith("startpos ") || s.startsWith("position ")) return s;
+    if (/^[1-9][a-i][1-9][a-i]/i.test(s)) return `startpos moves ${s}`;
+    return s;
+  }
+
+  const submit = async () => {
+    setLocalError(null);
+    try {
+      const payloadUsi = normalizeUsiInput(usi);
+      // basic validation: ensure there is at least one move when using startpos moves
+      if (payloadUsi === "startpos moves") {
+        setLocalError("棋譜が空です。USI手列を貼り付けてください。");
+        return;
+      }
+      await mutateAsync(payloadUsi);
+    } catch (e: any) {
+      setLocalError(e?.message ?? String(e));
+    }
+  };
 
   return (
     <Card className="mt-4 p-4 rounded-2xl shadow-soft max-w-3xl mx-auto">
@@ -192,10 +216,11 @@ function AnnotateView() {
           className="font-mono min-h-28"
           placeholder='USI棋譜を貼り付け（例: "startpos moves 7g7f 3c3d ..."）'
         />
-        <Button onClick={() => mutateAsync(usi)} disabled={isPending} className="w-full sm:w-auto rounded-2xl">
+        <Button onClick={submit} disabled={isPending} className="w-full sm:w-auto rounded-2xl">
           {isPending ? "注釈生成中…" : "注釈を生成"}
         </Button>
-        {error && <p className="text-sm text-red-600">エラー: {(error as Error).message}</p>}
+        {localError && <p className="text-sm text-red-600 mt-2">エラー: {localError}</p>}
+        {error && <p className="text-sm text-red-600 mt-2">エラー: {(error as Error).message}</p>}
         {data && (
           <div className="mt-2">
             <p className="text-sm text-muted-foreground">{data.summary}</p>
