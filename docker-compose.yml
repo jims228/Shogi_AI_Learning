@@ -19,3 +19,20 @@ services:
       - "8000:8000"
     depends_on:
       - engine
+
+  api:
+    volumes:
+      - ./assets/eval:/usr/local/bin/eval:ro
+      - ./assets/book:/usr/local/bin/book:ro
+    build:
+      context: .
+      dockerfile: backend/api/Dockerfile
+    image: shogi_ai_learning-api:latest
+    ports:
+      - "8000:8000"
+    depends_on:
+      - engine
+    environment:
+      ENGINE_READY_TIMEOUT: "60"   # さらに余裕を見たいなら 90〜120 でもOK
+      ENGINE_USE_BOOK: "false"     # 起動後に ON に切り替えたいときは true に
+      ENGINE_HASH_MB: "16"         # 起動を軽くするため小さめ
