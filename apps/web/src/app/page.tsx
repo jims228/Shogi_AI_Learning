@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Board } from "@/components/Board";
 import { sfenToPlaced, usiMoveToCoords } from "@/lib/sfen";
 import { Textarea } from "@/components/ui/textarea";
+import kifToUsiMoves from "@/lib/convertKif";
 
 const queryClient = new QueryClient();
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -245,7 +246,18 @@ function AnnotateView() {
   const submit = async () => {
     setLocalError(null);
     try {
-      const payloadUsi = normalizeUsiInput(usi);
+      // attempt KIF/CSA -> USI conversion first
+      const conv = kifToUsiMoves(usi);
+      if (conv.errors && conv.errors.length > 0) {
+        // show first non-fatal error as a hint (but still proceed if moves exist)
+        setLocalError(conv.errors[0]);
+      }
+      let payloadUsi = "";
+      if (conv.moves && conv.moves.length > 0) {
+        payloadUsi = `startpos moves ${conv.moves.join(" ")}`;
+      } else {
+        payloadUsi = normalizeUsiInput(usi);
+      }
       // basic validation: ensure there is at least one move when using startpos moves
       if (payloadUsi === "startpos moves") {
         setLocalError("棋譜が空です。USI手列を貼り付けてください。");
