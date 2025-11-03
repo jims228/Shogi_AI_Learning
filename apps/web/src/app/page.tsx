@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Board } from "@/components/Board";
 import { sfenToPlaced, usiMoveToCoords } from "@/lib/sfen";
 import { Textarea } from "@/components/ui/textarea";
-import kifToUsiMoves from "@/lib/convertKif";
+import { kifToUsiMoves } from "@/lib/convertKif";
 
 const queryClient = new QueryClient();
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -246,17 +246,14 @@ function AnnotateView() {
   const submit = async () => {
     setLocalError(null);
     try {
-      // attempt KIF/CSA -> USI conversion first
-      const conv = kifToUsiMoves(usi);
-      if (conv.errors && conv.errors.length > 0) {
-        // show first non-fatal error as a hint (but still proceed if moves exist)
-        setLocalError(conv.errors[0]);
-      }
+        // normalize first, then try KIF/CSA -> USI conversion
+      const norm = normalizeUsiInput(usi);
+      const maybeKifMoves = kifToUsiMoves(norm);
       let payloadUsi = "";
-      if (conv.moves && conv.moves.length > 0) {
-        payloadUsi = `startpos moves ${conv.moves.join(" ")}`;
+      if (maybeKifMoves && maybeKifMoves.length > 0) {
+        payloadUsi = `startpos moves ${maybeKifMoves.join(" ")}`;
       } else {
-        payloadUsi = normalizeUsiInput(usi);
+        payloadUsi = norm;
       }
       // basic validation: ensure there is at least one move when using startpos moves
       if (payloadUsi === "startpos moves") {
