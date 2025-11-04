@@ -17,3 +17,6 @@ build/
 assets/
 !assets/.gitkeep
 !assets/README.md
+
+# Local virtualenv for backend tests
+backend/api/.venv/
