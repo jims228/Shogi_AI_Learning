@@ -2,13 +2,15 @@ name: API Tests
 
 on:
   push:
+    branches: [ main, "feature/**", "feat/**" ]
     paths:
-      - 'backend/**'
-      - '.github/workflows/**'
+      - "backend/**"
+      - ".github/workflows/**"
   pull_request:
+    branches: [ main, "feature/**", "feat/**" ]
     paths:
-      - 'backend/**'
-      - '.github/workflows/**'
+      - "backend/**"
+      - ".github/workflows/**"
 
 jobs:
   test-api:
@@ -16,14 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.11]
+        python-version: [ "3.11" ]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -35,36 +37,9 @@ jobs:
 
       - name: Run pytest for backend/api
         env:
-          OPENAI_API_KEY: ""
-          ENGINE_PER_MOVE_MS: "10"
+          OPENAI_API_KEY: ""         # 外部呼び出し無効化
+          ENGINE_PER_MOVE_MS: "10"   # 軽量
           ENGINE_HASH_MB: "16"
+          PYTHONPATH: .
         run: |
           pytest -q backend/api
-name: API Tests
-
-on:
-  pull_request:
-  push:
-    branches: [ main, 'feature/**', 'feat/**' ]
-
-jobs:
-  test-api:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install deps
-        run: |
-          python -m pip install -U pip
-          pip install -r backend/api/requirements.txt
-          pip install pytest
-
-      - name: Run tests
-        working-directory: backend/api
-        run: |
-          pytest -q
