@@ -37,8 +37,8 @@ jobs:
 
       - name: Run pytest for backend/api
         env:
-          OPENAI_API_KEY: ""         # 外部呼び出し無効化
-          ENGINE_PER_MOVE_MS: "10"   # 軽量
+          OPENAI_API_KEY: ""
+          ENGINE_PER_MOVE_MS: "10"
           ENGINE_HASH_MB: "16"
           PYTHONPATH: .
         run: |
