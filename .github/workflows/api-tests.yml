@@ -41,5 +41,4 @@ jobs:
           ENGINE_PER_MOVE_MS: "10"
           ENGINE_HASH_MB: "16"
           PYTHONPATH: .
-        run: |
-          pytest -q backend/api
+        run: pytest -q backend/api
