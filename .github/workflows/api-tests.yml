@@ -1,6 +1,48 @@
 name: API Tests
 
 on:
+  push:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/**'
+
+jobs:
+  test-api:
+    name: Run backend/api pytest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/api/requirements.txt
+          python -m pip install pytest
+
+      - name: Run pytest for backend/api
+        env:
+          OPENAI_API_KEY: ""
+          ENGINE_PER_MOVE_MS: "10"
+          ENGINE_HASH_MB: "16"
+        run: |
+          pytest -q backend/api
+name: API Tests
+
+on:
   pull_request:
   push:
     branches: [ main, 'feature/**', 'feat/**' ]
