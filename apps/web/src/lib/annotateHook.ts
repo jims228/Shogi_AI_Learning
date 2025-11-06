@@ -3,10 +3,21 @@ import { useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
+export type AnnotationNote = {
+  ply?: number | string;
+  move?: string;
+  bestmove?: string;
+  score_cp?: number | null;
+  mate?: number | null;
+  verdict?: string;
+  pv?: string;
+  comment?: string;
+};
+
 export function useAnnotate() {
   const [usi, setUsi] = useState<string>("startpos moves 7g7f 3c3d 2g2f 8c8d");
   const [isPending, setPending] = useState(false);
-  const [data, setData] = useState<any | null>(null);
+  const [data, setData] = useState<AnnotationNote[] | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
@@ -31,7 +42,7 @@ export function useAnnotate() {
     }
   }
 
-  function downloadCsv(notes: any[]) {
+  function downloadCsv(notes: AnnotationNote[] | null) {
     if (!notes) return;
     const header = ["ply", "move", "bestmove", "score_cp", "mate", "verdict", "pv", "comment"];
     const rows = notes.map((n) => [

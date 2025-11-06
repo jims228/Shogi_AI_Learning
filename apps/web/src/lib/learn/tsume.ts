@@ -15,7 +15,7 @@ export async function loadTsumeDaily(limit = 5): Promise<Puzzle[]> {
   const res = await fetch("/puzzles/tsume.csv");
   const txt = await res.text();
   const rows = parseCsv(txt);
-  const puzzles: Puzzle[] = rows.map((r: any) => ({
+  const puzzles: Puzzle[] = rows.map((r: Record<string, string>) => ({
     id: r.id,
     sfen: r.sfen,
     turn: r.turn,
