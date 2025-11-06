@@ -17,8 +17,9 @@ export default function SettingsPanel() {
         USI_OwnBook: ownBook,
       });
       setMsg(`OK: ${JSON.stringify(res.applied)}`);
-    } catch (e:any) {
-      setMsg(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      if (e instanceof Error) setMsg(`Error: ${e.message}`);
+      else setMsg(`Error: ${String(e)}`);
     }
   }
 

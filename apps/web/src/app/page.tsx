@@ -37,7 +37,7 @@ function useAnalyze() {
   return useMutation({
     mutationFn: async (position: string) => {
       // position には "startpos" か "sfen <...>" を渡す前提
-      const payload: any = { byoyomi_ms: 1000 };
+      const payload: Record<string, unknown> = { byoyomi_ms: 1000 };
 
       if (position && position.startsWith("sfen ")) {
         // 'sfen ' のあとを API の sfen フィールドに渡す
@@ -242,13 +242,14 @@ function AnnotateView() {
             window.clearInterval(progressTimer.current);
             progressTimer.current = null;
           }
-          if (data) {
-            // finish progress and clear timer
-            setProgressIndex((_) => totalMoves || 0);
-            if (progressTimer.current) {
-              window.clearInterval(progressTimer.current);
-              progressTimer.current = null;
-            }
+              if (data) {
+                // finish progress and clear timer
+                // avoid calling setState synchronously inside effect
+                setTimeout(() => setProgressIndex(totalMoves || 0), 0);
+                if (progressTimer.current) {
+                  window.clearInterval(progressTimer.current);
+                  progressTimer.current = null;
+                }
             // auto-scroll: prefer first '悪手', else top of results
             setTimeout(() => {
               const root = resultsRef.current as HTMLElement | null;
@@ -270,7 +271,7 @@ function AnnotateView() {
             progressTimer.current = null;
           }
         };
-      }, [isPending, data]);
+          }, [isPending, data, totalMoves]);
 
   function normalizeUsiInput(raw: string): string {
     // Normalize full-width characters and convert newlines to spaces
@@ -329,12 +330,20 @@ function AnnotateView() {
       const c = new AbortController();
       controllerRef.current = c;
       await mutateAsync({ usi: payloadUsi, signal: c.signal });
-    } catch (e: any) {
+    } catch (e: unknown) {
       // If aborted, show friendly message
-      if (e?.name === "AbortError") {
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        "name" in e &&
+        typeof (e as { name?: unknown }).name === "string" &&
+        (e as { name?: string }).name === "AbortError"
+      ) {
         setLocalError("注釈を中断しました。");
+      } else if (e instanceof Error) {
+        setLocalError(e.message);
       } else {
-        setLocalError(e?.message ?? String(e));
+        setLocalError(String(e));
       }
     }
   };
