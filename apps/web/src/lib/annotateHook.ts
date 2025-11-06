@@ -13,11 +13,15 @@ export type AnnotationNote = {
   pv?: string;
   comment?: string;
 };
+export type AnnotationResponse = {
+  summary?: string;
+  notes?: AnnotationNote[];
+};
 
 export function useAnnotate() {
   const [usi, setUsi] = useState<string>("startpos moves 7g7f 3c3d 2g2f 8c8d");
   const [isPending, setPending] = useState(false);
-  const [data, setData] = useState<AnnotationNote[] | null>(null);
+  const [data, setData] = useState<AnnotationResponse | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
@@ -32,8 +36,8 @@ export function useAnnotate() {
         body: JSON.stringify({ usi }),
       });
       if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-      setData(json);
+        const json = await res.json();
+        setData(json as AnnotationResponse);
     } catch (e: unknown) {
       if (e instanceof Error) setError(e);
       else setLocalError(String(e));
