@@ -1,0 +1,6 @@
+id,sfen,turn,goal,solution,hint,tags,difficulty
+p1,"lnsgkgsnl/1r5b1/p1ppppppp/9/9/9/P1PPPPPPP/1B5R1/LNSGKGSNL b - 1",b,Mate in 1,7g7f,"Focus on king escape squares",tsume,1
+p2,"lnsgkgsnl/1r5b1/p1ppppppp/9/9/9/P1PPPPPPP/1B5R1/LNSGKGSNL b - 1",b,Mate in 2,7g7f 3c3d,"Try cutting escape",tsume,2
+p3,"lnsgkgsnl/1r5b1/p1ppppppp/9/9/9/P1PPPPPPP/1B5R1/LNSGKGSNL b - 1",b,Mate in 1,2g2f,"Single piece solution",tsume,1
+p4,"lnsgkgsnl/1r5b1/p1ppppppp/9/9/9/P1PPPPPPP/1B5R1/LNSGKGSNL b - 1",b,Mate in 3,7g7f 3c3d 2g2f,"Sequence of forcing moves",tsume,3
+p5,"lnsgkgsnl/1r5b1/p1ppppppp/9/9/9/P1PPPPPPP/1B5R1/LNSGKGSNL b - 1",b,Mate in 1,8c8d,"Edge tactic",tsume,1

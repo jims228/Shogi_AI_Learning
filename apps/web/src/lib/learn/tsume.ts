@@ -1,0 +1,29 @@
+import { parseCsv } from "./csv";
+
+export type Puzzle = {
+  id: string;
+  sfen: string;
+  turn: string;
+  goal: string;
+  solution: string;
+  hint?: string;
+  tags?: string;
+  difficulty?: number;
+};
+
+export async function loadTsumeDaily(limit = 5): Promise<Puzzle[]> {
+  const res = await fetch("/puzzles/tsume.csv");
+  const txt = await res.text();
+  const rows = parseCsv(txt);
+  const puzzles: Puzzle[] = rows.map((r: any) => ({
+    id: r.id,
+    sfen: r.sfen,
+    turn: r.turn,
+    goal: r.goal,
+    solution: r.solution,
+    hint: r.hint,
+    tags: r.tags,
+    difficulty: Number(r.difficulty) || 1,
+  }));
+  return puzzles.slice(0, limit);
+}
