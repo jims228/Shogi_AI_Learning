@@ -3,6 +3,9 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useProgress, ProgressProvider } from "@/lib/learn/progress";
+import XPBar from "@/components/learn/XPBar";
+import StreakBar from "@/components/learn/StreakBar";
+import HeartsBadge from "@/components/learn/HeartsBadge";
 import Link from "next/link";
 
 function HubInner() {
@@ -11,9 +14,9 @@ function HubInner() {
   return (
     <div>
       <div className="flex gap-4 items-center mb-4">
-        <div className="px-3 py-2 bg-slate-100 rounded">XP: {state.xp}</div>
-        <div className="px-3 py-2 bg-slate-100 rounded">Streak: {state.streak}</div>
-        <div className="px-3 py-2 bg-slate-100 rounded">Hearts: {state.hearts}</div>
+        <XPBar value={state.xp} max={1000} />
+        <StreakBar value={state.streak} />
+        <HeartsBadge value={state.hearts} max={5} />
       </div>
 
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
