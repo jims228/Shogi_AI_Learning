@@ -46,7 +46,7 @@ export function useAnnotate() {
     }
   }
 
-  function downloadCsv(notes: AnnotationNote[] | null) {
+  function downloadCsv(notes: AnnotationNote[] | null | undefined) {
     if (!notes) return;
     const header = ["ply", "move", "bestmove", "score_cp", "mate", "verdict", "pv", "comment"];
     const rows = notes.map((n) => [
