@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { loadTsumeDaily, Puzzle } from "@/lib/learn/tsume";
+import { loadTsumeDaily, Puzzle, normalizeMove } from "@/lib/learn/tsume";
 import { ProgressProvider, useProgress } from "@/lib/learn/progress";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,17 +19,25 @@ function LessonInner() {
   if (!cur) return <Card className="p-4">Loading...</Card>;
 
   function check() {
-    const first = (cur.solution || "").split(" ")[0];
-    if (!first) return;
-    if (input.trim() === first) {
+    const solRaw = cur.solution || "";
+    let candidates: string[] = [];
+    if (solRaw.includes(";")) {
+      candidates = solRaw.split(/;+\s*/).map((s) => s.trim()).filter(Boolean);
+    } else {
+      // default: take first token of the space-separated solution (first move)
+      const firstTok = solRaw.split(/\s+/).filter(Boolean)[0];
+      if (firstTok) candidates = [firstTok];
+    }
+    if (candidates.length === 0) return;
+
+  const inNorm = normalizeMove(input);
+  const ok = candidates.some((c) => normalizeMove(c) === inNorm);
+
+    if (ok) {
       addXp(10);
       markCleared(cur.id);
-      // next
       if (index + 1 < puzzles.length) setIndex(index + 1);
-      else {
-        // finished
-        nextDayAdjust();
-      }
+      else nextDayAdjust();
     } else {
       loseHeart();
     }

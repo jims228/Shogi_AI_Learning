@@ -27,3 +27,21 @@ export async function loadTsumeDaily(limit = 5): Promise<Puzzle[]> {
   }));
   return puzzles.slice(0, limit);
 }
+
+export function normalizeMove(s: string): string {
+  if (!s) return "";
+  try {
+    // NFKC to convert full-width to half-width
+    s = (s || "").normalize?.("NFKC") ?? s;
+  } catch {
+    // ignore
+  }
+  // remove commas, full-width commas handled by NFKC
+  let t = String(s).replace(/[，,]/g, "");
+  // remove surrounding parentheses
+  t = t.replace(/[（）()]/g, "");
+  // collapse whitespace
+  t = t.replace(/\s+/g, " ").trim();
+  return t.toLowerCase();
+}
+
