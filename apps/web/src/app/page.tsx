@@ -37,7 +37,7 @@ function useAnalyze() {
   return useMutation({
     mutationFn: async (position: string) => {
       // position には "startpos" か "sfen <...>" を渡す前提
-      const payload: any = { byoyomi_ms: 1000 };
+      const payload: Record<string, unknown> = { byoyomi_ms: 1000 };
 
       if (position && position.startsWith("sfen ")) {
         // 'sfen ' のあとを API の sfen フィールドに渡す
@@ -181,7 +181,15 @@ function useAnnotate() {
   });
 }
 function AnnotateView() {
-  const [usi, setUsi] = useState("startpos moves 7g7f 3c3d 2g2f 8c8d");
+  const STORAGE_KEY = "annotate.input.v1";
+  const [usi, setUsi] = useState<string>(() => {
+    try {
+      if (typeof window !== "undefined") return localStorage.getItem(STORAGE_KEY) ?? "";
+    } catch {
+      // ignore
+    }
+    return "";
+  });
   const { mutateAsync, isPending, data, error } = useAnnotate();
   const [localError, setLocalError] = useState<string | null>(null);
   // progress UI state (per-move estimation)
@@ -191,6 +199,42 @@ function AnnotateView() {
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, usi);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [usi]);
+
+  function downloadCsv(notes: MoveNote[]) {
+    const header = ["ply", "move", "bestmove", "score_cp", "mate", "verdict", "pv", "comment"];
+    const rows = notes.map((n) => [
+      String(n.ply ?? ""),
+      n.move ?? "",
+      n.bestmove ?? "",
+      typeof n.score_cp === "number" ? String(n.score_cp) : "",
+      typeof n.mate === "number" ? String(n.mate) : "",
+      n.verdict ?? "",
+      n.pv ?? "",
+      n.comment ?? "",
+    ]);
+
+    const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const csv = [header.map(escape).join(","), ...rows.map((r) => r.map((c) => escape(c)).join(","))].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "annotation.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   const PER_MOVE_MS = Number(process.env.NEXT_PUBLIC_ENGINE_PER_MOVE_MS ?? 250);
       useEffect(() => {
         if (!isPending) {
@@ -198,13 +242,14 @@ function AnnotateView() {
             window.clearInterval(progressTimer.current);
             progressTimer.current = null;
           }
-          if (data) {
-            // finish progress and clear timer
-            setProgressIndex((_) => totalMoves || 0);
-            if (progressTimer.current) {
-              window.clearInterval(progressTimer.current);
-              progressTimer.current = null;
-            }
+              if (data) {
+                // finish progress and clear timer
+                // avoid calling setState synchronously inside effect
+                setTimeout(() => setProgressIndex(totalMoves || 0), 0);
+                if (progressTimer.current) {
+                  window.clearInterval(progressTimer.current);
+                  progressTimer.current = null;
+                }
             // auto-scroll: prefer first '悪手', else top of results
             setTimeout(() => {
               const root = resultsRef.current as HTMLElement | null;
@@ -226,7 +271,7 @@ function AnnotateView() {
             progressTimer.current = null;
           }
         };
-      }, [isPending, data]);
+          }, [isPending, data, totalMoves]);
 
   function normalizeUsiInput(raw: string): string {
     // Normalize full-width characters and convert newlines to spaces
@@ -285,12 +330,20 @@ function AnnotateView() {
       const c = new AbortController();
       controllerRef.current = c;
       await mutateAsync({ usi: payloadUsi, signal: c.signal });
-    } catch (e: any) {
+    } catch (e: unknown) {
       // If aborted, show friendly message
-      if (e?.name === "AbortError") {
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        "name" in e &&
+        typeof (e as { name?: unknown }).name === "string" &&
+        (e as { name?: string }).name === "AbortError"
+      ) {
         setLocalError("注釈を中断しました。");
+      } else if (e instanceof Error) {
+        setLocalError(e.message);
       } else {
-        setLocalError(e?.message ?? String(e));
+        setLocalError(String(e));
       }
     }
   };
@@ -315,12 +368,52 @@ function AnnotateView() {
         <Textarea
           value={usi}
           onChange={(e) => setUsi(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+              e.preventDefault();
+              if (!isPending) submit();
+            }
+          }}
           className="font-mono min-h-28"
-          placeholder='USI棋譜を貼り付け（例: "startpos moves 7g7f 3c3d ..."）'
+          placeholder='USI棋譜を貼り付け（例: "startpos moves 7g7f 3c3d ..."） — Ctrl/⌘+Enter で実行'
         />
-        <Button onClick={submit} disabled={isPending} className="w-full sm:w-auto rounded-2xl">
-          {isPending ? "注釈生成中…" : "注釈を生成"}
-        </Button>
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              className="rounded-2xl"
+              onClick={() => setUsi("startpos moves 7g7f 3c3d 2g2f 8c8d 2b3c 7f7e 3a2b")}
+            >
+              サンプル（USI）
+            </Button>
+            <Button
+              variant="secondary"
+              className="rounded-2xl"
+              onClick={() =>
+                setUsi([
+                  "先手の持駒：",
+                  "後手の持駒：",
+                  "手数----指手---------消費時間--",
+                  "1 ７六歩(77)",
+                  "1...３四歩(33)",
+                  "2 ２六歩(27)",
+                  "2...８四歩(83)",
+                  "3 ２五歩(26)",
+                  "3...３三角(22)",
+                ].join("\n"))
+              }
+            >
+              サンプル（KIF）
+            </Button>
+          </div>
+
+          <div className="flex gap-2">
+            <Button onClick={submit} disabled={isPending} className="w-full sm:w-auto rounded-2xl">
+              {isPending ? "注釈生成中…" : "注釈を生成"}
+            </Button>
+          </div>
+        </div>
         {localError && <p className="text-sm text-red-600 mt-2">エラー: {localError}</p>}
         {error && <p className="text-sm text-red-600 mt-2">エラー: {(error as Error).message}</p>}
         {/* show cancel button while pending */}
@@ -340,6 +433,14 @@ function AnnotateView() {
 
         {data && (
           <div className="mt-2" ref={resultsRef}>
+            <div className="flex justify-end">
+              {data?.notes?.length ? (
+                <Button variant="outline" className="rounded-2xl" onClick={() => downloadCsv(data.notes)}>
+                  CSVとして保存
+                </Button>
+              ) : null}
+            </div>
+
             <p className="text-sm text-muted-foreground">{data.summary}</p>
 
             <ul className="mt-3 space-y-2">

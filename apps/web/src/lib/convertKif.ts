@@ -124,7 +124,7 @@ export function kifLongToUsiMoves(kif: string): string[] {
     const longRe = /^(?:\d+\s*)?([▲△])?\s*([1-9一二三四五六七八九])([1-9一二三四五六七八九])\s*([^\(\n\r]*?)[（(](\d)(\d)[)）]/u;
     const m = longRe.exec(line);
     if (m) {
-      let [ , mark, colRaw, rowRaw, piecePart, fromCol, fromRow ] = m;
+      const [ , mark, colRaw, rowRaw, piecePart, fromCol, fromRow ] = m;
       const col = toNum(colRaw);
       const row = toNum(rowRaw);
       const from = `${fromCol}${toAlpha(fromRow)}`;
