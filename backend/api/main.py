@@ -1,5 +1,6 @@
 import subprocess, threading, queue, time, os
 from typing import List, Optional, Dict, Any
+from . import principles as principles_mod
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -57,10 +58,21 @@ class MoveNote(BaseModel):
     ply: int
     move: str
     bestmove: Optional[str] = None
-    score_cp: Optional[int] = None       # やねうら王の評価（先手視点）
+    # before/after scores and delta (cp, from engine,先手視点)
+    score_before_cp: Optional[int] = None
+    score_after_cp: Optional[int] = None
+    delta_cp: Optional[int] = None
+    # timing (ms) spent for this move (if available)
+    time_ms: Optional[int] = None
+    # raw engine evaluation fields
+    score_cp: Optional[int] = None       # 現状は score_after_cp と重複しうる
     mate: Optional[int] = None
     pv: Optional[str] = None
-    verdict: Optional[str] = None        # “好手/疑問手/悪手”など
+    # tagging / principles / evidence
+    tags: List[str] = []
+    principles: List[str] = []
+    evidence: Dict[str, Any] = {}
+    verdict: Optional[str] = None        # “好手/疑問手/悪手”など（旧フィールド）
     comment: Optional[str] = None        # LLM or ルール生成コメント
 
 
@@ -112,10 +124,12 @@ def _format_for_llm(moves: List[str], notes: List[MoveNote]) -> str:
         "専門用語を使いすぎず、改善案も1つ具体的に提案してください。"
     ]
     for n in notes:
-        sc = f"{n.score_cp:+d}" if n.score_cp is not None else ("M"+str(n.mate) if n.mate else "?")
+        sc = f"{(n.score_after_cp if n.score_after_cp is not None else n.score_cp):+d}" if (n.score_after_cp is not None or n.score_cp is not None) else ("M"+str(n.mate) if n.mate else "?")
         pv = n.pv or "-"
         bm = n.bestmove or "-"
-        lines.append(f"{n.ply}: {n.move} | {sc} | best {bm} | pv {pv}")
+        tags = ",".join(n.tags) if n.tags else "-"
+        pr = ",".join([principles_mod.PRINCIPLES.get(pid, pid) for pid in n.principles]) if n.principles else "-"
+        lines.append(f"{n.ply}: {n.move} | {sc} | Δcp {n.delta_cp if n.delta_cp is not None else '?'} | best {bm} | pv {pv} | tags {tags} | principles {pr}")
     return "\n".join(lines)
 
 
@@ -457,23 +471,80 @@ def annotate(req: AnnotateRequest):
             raise HTTPException(status_code=500, detail=str(e))
 
         # candidates の先頭を評価として扱う
-        score_cp = None
+        score_after = None
         mate = None
         pv = None
         bestmove = getattr(res, "bestmove", None)
         if res.candidates and len(res.candidates) > 0:
             c = res.candidates[0]
-            score_cp = c.score_cp
+            score_after = c.score_cp
             mate = c.score_mate
             pv = " ".join(c.pv) if c.pv else None
 
-        delta = (score_cp - prev_cp) if (score_cp is not None and prev_cp is not None) else 0
-        verdict = _classify_by_delta(delta) if prev_cp is not None and score_cp is not None else None
-        prev_cp = score_cp if score_cp is not None else prev_cp
+        score_before = prev_cp
+        delta = (score_after - score_before) if (score_after is not None and score_before is not None) else None
+        verdict = _classify_by_delta(delta) if (score_before is not None and score_after is not None and delta is not None) else None
+        # update prev
+        prev_cp = score_after if score_after is not None else prev_cp
+
+        # minimal tactical inference (stub/heuristic)
+        tags: List[str] = []
+        evidence: Dict[str, Any] = {"tactical": {}, "king_safety": {}, "material_swing": {}}
+        # tags from delta
+        if delta is not None:
+            if delta <= -150:
+                tags.append("悪手")
+            elif delta <= -80:
+                tags.append("疑問手")
+            elif delta >= 120:
+                tags.append("好手")
+
+        # tactical heuristics: check '+' in move or pv, capture if 'x' in move (KIF style) or 'x' in pv
+        is_check = False
+        is_capture = False
+        try:
+            if mv and "+" in mv:
+                is_check = True
+            if pv and "+" in pv:
+                is_check = True
+            if "x" in mv:
+                is_capture = True
+            if pv and any("x" in p for p in pv.split()):
+                is_capture = True
+        except Exception:
+            pass
+
+        if is_check:
+            tags.append("王手")
+        if is_capture:
+            tags.append("駒取り")
+
+        evidence["tactical"] = {"is_check": is_check, "is_capture": is_capture}
+        evidence["material_swing"] = {"delta_cp": delta}
+
+        # map tags to principles
+        principles: List[str] = []
+        for t in tags:
+            mapped = principles_mod.TAG_TO_PRINCIPLES.get(t, [])
+            for pid in mapped:
+                if pid not in principles:
+                    principles.append(pid)
 
         notes.append(MoveNote(
-            ply=i, move=mv, bestmove=bestmove, score_cp=score_cp, mate=mate, pv=pv,
-            verdict=verdict
+            ply=i,
+            move=mv,
+            bestmove=bestmove,
+            score_before_cp=score_before,
+            score_after_cp=score_after,
+            delta_cp=delta,
+            time_ms=None,
+            score_cp=score_after,
+            mate=mate,
+            pv=pv,
+            tags=tags,
+            principles=principles,
+            evidence=evidence,
+            verdict=verdict,
         ))
 
     # 3) LLM 呼び出し（任意）
@@ -484,5 +555,13 @@ def annotate(req: AnnotateRequest):
         for i, n in enumerate(notes):
             if i < len(comments):
                 n.comment = comments[i]
+    else:
+        # No LLM available: generate short rule-based comments per move
+        for n in notes:
+            delta = n.delta_cp if n.delta_cp is not None else 0
+            # pick first principle label in readable text
+            first_pr = principles_mod.PRINCIPLES.get(n.principles[0], "方針") if n.principles else "方針"
+            bm = n.bestmove or "方針転換"
+            n.comment = f"Δcp{delta:+d}。{first_pr}。改善案: {bm}"
 
     return AnnotateResponse(summary=summary, notes=notes)
