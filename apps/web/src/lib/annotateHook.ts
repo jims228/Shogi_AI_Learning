@@ -17,12 +17,31 @@ export type AnnotationNote = {
   verdict?: string;
   tags?: string[];
   principles?: string[];
-  evidence?: Record<string, any>;
+  evidence?: Record<string, unknown>;
   comment?: string;
 };
 export type AnnotationResponse = {
   summary?: string;
   notes?: AnnotationNote[];
+};
+
+export type KeyMoment = {
+  ply: number;
+  move: string;
+  bestmove?: string;
+  delta_cp?: number | null;
+  tags?: string[];
+  principles?: string[];
+  evidence?: Record<string, unknown>;
+  pv?: string;
+};
+
+export type DigestResponse = {
+  summary?: string[];
+  stats?: Record<string, unknown>;
+  key_moments?: KeyMoment[];
+  notes?: KeyMoment[];
+  error?: string;
 };
 
 export function useAnnotate() {

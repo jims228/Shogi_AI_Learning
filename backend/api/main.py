@@ -1,6 +1,26 @@
 import subprocess, threading, queue, time, os
+from statistics import mean
 from typing import List, Optional, Dict, Any
 from . import principles as principles_mod
+
+# === ダミーエンジン（本物が無い環境用） ===
+class DummyUSIEngine:
+    def __init__(self, *args, **kwargs):
+        self.started = False
+    def start(self):
+        self.started = True
+    def quit(self):
+        self.started = False
+    def set_options(self, *args, **kwargs):
+        return None
+    def analyze(self, req: "AnalyzeRequest"):
+        # Return a minimal AnalyzeResponse-like object compatible with usage in this file
+        class _R:
+            def __init__(self):
+                self.bestmove = "0000"
+                self.candidates = []
+        return _R()
+# ============================================
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,6 +32,11 @@ DEFAULT_THREADS = int(os.environ.get("ENGINE_THREADS", "4"))
 DEFAULT_HASH_MB = int(os.environ.get("ENGINE_HASH_MB", "1024"))
 ENGINE_USE_BOOK = os.environ.get("ENGINE_USE_BOOK", "false").lower() == "true"
 ENGINE_READY_TIMEOUT = int(os.environ.get("ENGINE_READY_TIMEOUT", "60"))
+ENGINE_TIME_BUDGET_MS = int(os.environ.get("ENGINE_TIME_BUDGET_MS", "10000"))
+ENGINE_PER_MOVE_MS_A = int(os.environ.get("ENGINE_PER_MOVE_MS_A", "20"))
+ENGINE_PER_FOCUS_MS_B = int(os.environ.get("ENGINE_PER_FOCUS_MS_B", "500"))
+ENGINE_HASH_MB = int(os.environ.get("ENGINE_HASH_MB", "256"))
+ENGINE_THREADS = int(os.environ.get("THREADS", "2"))
 
 # ====== リクエスト/レスポンス ======
 class AnalyzeRequest(BaseModel):
@@ -34,6 +59,39 @@ class PVItem(BaseModel):
 class AnalyzeResponse(BaseModel):
     bestmove: str
     candidates: Optional[List[PVItem]] = None
+
+
+class QuickEvalItem(BaseModel):
+    ply: int
+    move: str
+    score_cp: Optional[int] = None
+    score_mate: Optional[int] = None
+    pv: Optional[List[str]] = None
+
+
+class DigestRequest(BaseModel):
+    usi: Optional[str] = None
+    moves: Optional[List[str]] = None
+    sfen: Optional[str] = None
+    time_budget_ms: Optional[int] = None
+
+
+class KeyMoment(BaseModel):
+    ply: int
+    move: str
+    bestmove: Optional[str] = None
+    delta_cp: Optional[int] = None
+    tags: Optional[List[str]] = None
+    principles: Optional[List[str]] = None
+    evidence: Optional[Dict[str, Any]] = None
+    pv: Optional[str] = None
+
+
+class DigestResponse(BaseModel):
+    summary: List[str]
+    stats: Dict[str, Any]
+    key_moments: List[KeyMoment]
+    notes: Optional[List[KeyMoment]] = None
 
 class SettingsRequest(BaseModel):
     USI_OwnBook: Optional[bool] = None
@@ -382,8 +440,60 @@ class USIEngine:
             pass
         return out
 
+
+def quick_eval_all(moves: List[str], time_per_move_ms: int = ENGINE_PER_MOVE_MS_A) -> List[QuickEvalItem]:
+    """Quick shallow eval for each ply. Returns list of QuickEvalItem in ply order."""
+    seq: List[str] = []
+    out: List[QuickEvalItem] = []
+    prev = None
+    for i, mv in enumerate(moves, start=1):
+        seq.append(mv)
+        try:
+            areq = AnalyzeRequest(moves=list(seq), byoyomi_ms=time_per_move_ms, multipv=1)
+            res = engine.analyze(areq)
+        except Exception:
+            # fallback empty
+            out.append(QuickEvalItem(ply=i, move=mv, score_cp=None, score_mate=None, pv=None))
+            continue
+        score = None
+        pv = None
+        if res.candidates and len(res.candidates) > 0:
+            c = res.candidates[0]
+            score = c.score_cp
+            pv = c.pv
+        out.append(QuickEvalItem(ply=i, move=mv, score_cp=score, score_mate=None, pv=pv))
+    return out
+
+
+def deep_eval_focus(moves: List[str], focus_plies: List[int], per_ms: int = ENGINE_PER_FOCUS_MS_B, multipv: int = 2) -> List[Dict[str, Any]]:
+    """Do deeper eval on selected plies. Returns list of dicts with ply, bestmove, score_cp, pv."""
+    seq: List[str] = []
+    results: List[Dict[str, Any]] = []
+    for i, mv in enumerate(moves, start=1):
+        seq.append(mv)
+        if i in focus_plies:
+            try:
+                areq = AnalyzeRequest(moves=list(seq), byoyomi_ms=per_ms, multipv=multipv)
+                res = engine.analyze(areq)
+            except Exception:
+                results.append({"ply": i, "move": mv, "bestmove": None, "score_cp": None, "pv": None})
+                continue
+            score = None
+            pv = None
+            if res.candidates and len(res.candidates) > 0:
+                c = res.candidates[0]
+                score = c.score_cp
+                pv = " ".join(c.pv) if c.pv else None
+            results.append({"ply": i, "move": mv, "bestmove": getattr(res, "bestmove", None), "score_cp": score, "pv": pv})
+    return results
+
 # ====== FastAPI ======
-engine = USIEngine(ENGINE_PATH)
+# engine selection: allow using a dummy engine in dev/test environments
+USE_DUMMY_ENGINE = os.getenv("USE_DUMMY_ENGINE", "1")
+if USE_DUMMY_ENGINE == "1":
+    engine = DummyUSIEngine()
+else:
+    engine = USIEngine(ENGINE_PATH)
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
 # CORS ミドルウェアを追加
@@ -565,3 +675,117 @@ def annotate(req: AnnotateRequest):
             n.comment = f"Δcp{delta:+d}。{first_pr}。改善案: {bm}"
 
     return AnnotateResponse(summary=summary, notes=notes)
+
+
+@app.post("/digest", response_model=DigestResponse)
+def digest(req: DigestRequest):
+    # Normalize moves
+    if req.usi:
+        moves = _parse_usi_to_moves(req.usi)
+    else:
+        moves = req.moves or []
+    if not moves:
+        raise HTTPException(status_code=400, detail="棋譜が空です。")
+
+    time_budget = req.time_budget_ms if req.time_budget_ms is not None else ENGINE_TIME_BUDGET_MS
+    # allocate budgets
+    quick_budget = int(time_budget * 0.3)
+    deep_budget = int(time_budget * 0.6)
+
+    # Quick pass
+    quick = quick_eval_all(moves, time_per_move_ms=ENGINE_PER_MOVE_MS_A)
+    # build score series
+    scores = [q.score_cp for q in quick]
+    deltas: List[Dict[str, Any]] = []
+    prev = None
+    for i, s in enumerate(scores, start=1):
+        if prev is not None and s is not None:
+            delta = s - prev
+            deltas.append({"ply": i, "move": moves[i-1], "delta": delta, "before": prev, "after": s})
+        prev = s if s is not None else prev
+
+    # detect swings
+    swings = [d for d in deltas if d.get("delta") is not None and abs(d["delta"]) >= 120]
+    # rank by abs delta
+    swings_sorted = sorted(swings, key=lambda x: abs(x["delta"]), reverse=True)
+    # pick top K
+    K = min(6, max(3, len(swings_sorted)))
+    picks = [s["ply"] for s in swings_sorted[:K]]
+
+    # dedupe nearby plies (within 1)
+    picks_sorted = sorted(set(picks))
+    dedup: List[int] = []
+    for p in picks_sorted:
+        if not any(abs(p - q) <= 1 for q in dedup):
+            dedup.append(p)
+
+    # Deep pass on dedup (convert to list)
+    deep_results = deep_eval_focus(moves, dedup, per_ms=ENGINE_PER_FOCUS_MS_B, multipv=2)
+
+    key_moments: List[KeyMoment] = []
+    max_swing = 0
+    for r in deep_results:
+        ply = r.get("ply")
+        mv = r.get("move")
+        score = r.get("score_cp")
+        # find quick before
+        before = None
+        if ply > 1 and len(quick) >= ply-1:
+            before = quick[ply-2].score_cp
+        delta = None
+        if score is not None and before is not None:
+            delta = score - before
+        if delta is not None and abs(delta) > max_swing:
+            max_swing = abs(delta)
+        # tags/principles
+        tags: List[str] = []
+        if delta is not None:
+            if delta <= -150:
+                tags.append("悪手")
+            elif delta <= -80:
+                tags.append("疑問手")
+            elif delta >= 120:
+                tags.append("好手")
+        # heuristics for tactical
+        tactical = {"is_check": False, "is_capture": False}
+        # map to principles
+        principles: List[str] = []
+        for t in tags:
+            for pid in principles_mod.TAG_TO_PRINCIPLES.get(t, []):
+                if pid not in principles:
+                    principles.append(pid)
+
+        key_moments.append(KeyMoment(ply=ply, move=mv, bestmove=r.get("bestmove"), delta_cp=delta, tags=tags, principles=principles, evidence={"tactical": tactical, "pv": r.get("pv")}, pv=r.get("pv")))
+
+    # stats
+    avg_cp = None
+    numeric_scores = [s for s in scores if s is not None]
+    if numeric_scores:
+        avg_cp = int(mean(numeric_scores))
+    lead_changes = 0
+    # simple lead change count: sign changes in numeric_scores
+    signs = [1 if s>0 else (-1 if s<0 else 0) for s in numeric_scores]
+    for a, b in zip(signs, signs[1:]):
+        if a != 0 and b != 0 and a != b:
+            lead_changes += 1
+
+    stats = {"plies": len(moves), "avg_cp": avg_cp, "max_swing_cp": max_swing, "lead_changes": lead_changes}
+
+    # simple rule-based summary
+    summary: List[str] = []
+    summary.append(f"解析時間予算 {time_budget}ms、手数 {len(moves)} の概略ダイジェストです。")
+    if max_swing:
+        summary.append(f"最大の局面変化は Δcp {max_swing:+d} です。")
+    if lead_changes:
+        summary.append(f"リードチェンジが {lead_changes} 回発生しました。")
+    # add top 3 key moments
+    for km in key_moments[:3]:
+        summary.append(f"{km.ply}手目 {km.move}: Δcp {km.delta_cp if km.delta_cp is not None else '？'}、タグ: {', '.join(km.tags or [])}")
+
+    # try LLM refinement (short timeout)
+    refined = _call_openai("\n".join(summary))
+    if refined:
+        # replace summary with LLM lines (bounded)
+        summary = refined[:7]
+
+    return DigestResponse(summary=summary, stats=stats, key_moments=key_moments, notes=None)

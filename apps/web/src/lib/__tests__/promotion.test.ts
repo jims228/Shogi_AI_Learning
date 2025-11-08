@@ -1,4 +1,4 @@
-import { BoardTracker, PieceType, Square, usiToSquare } from '../boardTracker';
+import { BoardTracker, usiToSquare } from '../boardTracker';
 
 describe('BoardTracker - 成駒の動き', () => {
   let board: BoardTracker;

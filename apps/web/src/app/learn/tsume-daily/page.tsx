@@ -9,7 +9,7 @@ function LessonInner() {
   const [puzzles, setPuzzles] = useState<Puzzle[]>([]);
   const [index, setIndex] = useState(0);
   const [input, setInput] = useState("");
-  const { state, addXp, loseHeart, markCleared, nextDayAdjust } = useProgress();
+  const { addXp, loseHeart, markCleared, nextDayAdjust } = useProgress();
 
   useEffect(() => {
     loadTsumeDaily(5).then(setPuzzles).catch(() => setPuzzles([]));
