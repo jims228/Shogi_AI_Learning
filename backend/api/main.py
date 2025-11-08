@@ -1,6 +1,26 @@
 import subprocess, threading, queue, time, os
+from statistics import mean
 from typing import List, Optional, Dict, Any
 from . import principles as principles_mod
+
+# === ダミーエンジン（本物が無い環境用） ===
+class DummyUSIEngine:
+    def __init__(self, *args, **kwargs):
+        self.started = False
+    def start(self):
+        self.started = True
+    def quit(self):
+        self.started = False
+    def set_options(self, *args, **kwargs):
+        return None
+    def analyze(self, req: "AnalyzeRequest"):
+        # Return a minimal AnalyzeResponse-like object compatible with usage in this file
+        class _R:
+            def __init__(self):
+                self.bestmove = "0000"
+                self.candidates = []
+        return _R()
+# ============================================
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -468,7 +488,12 @@ def deep_eval_focus(moves: List[str], focus_plies: List[int], per_ms: int = ENGI
     return results
 
 # ====== FastAPI ======
-engine = USIEngine(ENGINE_PATH)
+# engine selection: allow using a dummy engine in dev/test environments
+USE_DUMMY_ENGINE = os.getenv("USE_DUMMY_ENGINE", "1")
+if USE_DUMMY_ENGINE == "1":
+    engine = DummyUSIEngine()
+else:
+    engine = USIEngine(ENGINE_PATH)
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
 # CORS ミドルウェアを追加

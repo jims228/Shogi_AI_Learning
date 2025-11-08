@@ -25,6 +25,25 @@ export type AnnotationResponse = {
   notes?: AnnotationNote[];
 };
 
+export type KeyMoment = {
+  ply: number;
+  move: string;
+  bestmove?: string;
+  delta_cp?: number | null;
+  tags?: string[];
+  principles?: string[];
+  evidence?: Record<string, unknown>;
+  pv?: string;
+};
+
+export type DigestResponse = {
+  summary?: string[];
+  stats?: Record<string, unknown>;
+  key_moments?: KeyMoment[];
+  notes?: KeyMoment[];
+  error?: string;
+};
+
 export function useAnnotate() {
   const [usi, setUsi] = useState<string>("startpos moves 7g7f 3c3d 2g2f 8c8d");
   const [isPending, setPending] = useState(false);

@@ -1,23 +1,201 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { useAnnotate, type AnnotationNote } from "@/lib/annotateHook";
+import { useAnnotate, type AnnotationNote, type DigestResponse, type KeyMoment } from "@/lib/annotateHook";
+import { toStartposUSI, splitKifGames } from "@/lib/ingest";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Button as SmallButton } from "@/components/ui/button";
+
 import { Copy, Zap } from "lucide-react";
 
 // This file extracts the AnnotateView UI so the root page can be a homepage.
 export default function AnnotateView() {
   // reuse existing hook from lib (kept minimal)
   const { usi, setUsi, submit, isPending, data, localError, downloadCsv } = useAnnotate();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [kifGames, setKifGames] = useState<string[] | null>(null);
+  const [gameDialogOpen, setGameDialogOpen] = useState(false);
+  const [selectedGameIndex, setSelectedGameIndex] = useState(0);
+  const [digest, setDigest] = useState<DigestResponse | null>(null);
+  const [digestPending, setDigestPending] = useState(false);
+
+  function handlePickFile() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const text = await f.text();
+    try {
+      const games = splitKifGames(text);
+      if (games.length > 1) {
+        setKifGames(games);
+        setSelectedGameIndex(0);
+        setGameDialogOpen(true);
+      } else {
+        const usiText = toStartposUSI(text);
+        setUsi(usiText);
+      }
+          } catch {
+      alert(`読み込み失敗`);
+    } finally {
+      e.target.value = "";
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+  }
+
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+    const text = await f.text();
+    try {
+      const games = splitKifGames(text);
+      if (games.length > 1) {
+        setKifGames(games);
+        setSelectedGameIndex(0);
+        setGameDialogOpen(true);
+      } else {
+        const usiText = toStartposUSI(text);
+        setUsi(usiText);
+      }
+    } catch {
+      alert(`読み込み失敗`);
+    }
+  }
+
+  async function handlePasteAsGame() {
+    const text = await navigator.clipboard.readText().catch(() => "");
+    if (!text) {
+      alert("クリップボードにテキストがありません。");
+      return;
+    }
+    try {
+      const usiText = toStartposUSI(text);
+      setUsi(usiText);
+    } catch (err) {
+      alert(`貼り付け解析に失敗: ${(err as Error).message}`);
+    }
+  }
 
   return (
     <Card className="mt-4 p-4 rounded-2xl shadow-soft max-w-3xl mx-auto">
       <div className="space-y-3">
-        <Textarea value={usi} onChange={(e) => setUsi(e.target.value)} className="font-mono min-h-28" placeholder='USI棋譜を貼り付（Ctrl/⌘+Enter で実行）' />
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          className="rounded border-2 border-dashed p-1"
+          title="ここにKIF/CSA/USIファイルをドロップできます"
+        >
+          <Textarea
+            value={usi}
+            onChange={(e) => setUsi(e.target.value)}
+            onPaste={async (e) => {
+              try {
+                const pasted = e.clipboardData?.getData("text") || "";
+                if (!pasted) return;
+                // if it's already USI, keep it
+                if (pasted.trim().startsWith("startpos") || pasted.trim().startsWith("sfen")) return;
+                const games = splitKifGames(pasted);
+                if (games.length > 1) {
+                  setKifGames(games);
+                  setSelectedGameIndex(0);
+                  setGameDialogOpen(true);
+                  return;
+                }
+                const usiText = toStartposUSI(pasted);
+                setUsi(usiText);
+              } catch {
+                alert(`貼り付け解析に失敗`);
+              }
+            }}
+            onBlur={(e) => {
+              const txt = e.currentTarget.value || "";
+              if (!txt.trim()) return;
+              if (txt.trim().startsWith("startpos") || txt.trim().startsWith("sfen")) return;
+              try {
+                const usiText = toStartposUSI(txt);
+                setUsi(usiText);
+              } catch {
+                // ignore on blur unless needed
+              }
+            }}
+            className="font-mono min-h-28"
+            placeholder='USI棋譜を貼り付（Ctrl/⌘+Enter で実行）'
+          />
+        </div>
+          <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" className="rounded-2xl" onClick={() => setUsi("startpos moves 7g7f 3c3d 2g2f 8c8d")}>サンプル（USI）</Button>
           <Button onClick={submit} disabled={isPending} className="rounded-2xl">{isPending ? "注釈生成中…" : "注釈を生成"}</Button>
+          <button className="border px-3 py-1 rounded-2xl" onClick={handlePickFile}>ファイル読込（KIF/CSA/USI）</button>
+
+          <button className="border px-3 py-1 rounded-2xl" onClick={handlePasteAsGame}>クリップボードから貼り付け解析</button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".kif,.kifu,.csa,.txt,.usi"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+            <Dialog open={gameDialogOpen} onOpenChange={setGameDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>複数局のKIFが検出されました</DialogTitle>
+                  <DialogDescription>読み込まれたファイルには複数の対局が含まれています。採用するゲームを選んでください。</DialogDescription>
+                </DialogHeader>
+                <div className="mt-3 space-y-2 max-h-72 overflow-auto">
+                  {(kifGames || []).map((g, idx) => (
+                    <div key={idx} className={`p-2 border rounded cursor-pointer ${selectedGameIndex===idx? 'bg-slate-100': ''}`} role="listitem" tabIndex={0} onClick={() => setSelectedGameIndex(idx)}>
+                      <div className="font-mono text-sm">{(g||'').slice(0,60).replace(/\n/g,' / ')}</div>
+                      <div className="text-xs text-muted-foreground">{g.split('\n').length} 行</div>
+                    </div>
+                  ))}
+                </div>
+                <DialogFooter>
+                  <div className="flex gap-2">
+                    <SmallButton onClick={() => { setGameDialogOpen(false); setKifGames(null); }}>キャンセル</SmallButton>
+                    <SmallButton onClick={() => {
+                      const g = (kifGames || [])[selectedGameIndex];
+                      if (g) {
+                        try {
+                          const usiText = toStartposUSI(g);
+                          setUsi(usiText);
+                        } catch (err) {
+                          alert(`読み込み失敗: ${(err as Error).message}`);
+                        }
+                      }
+                      setGameDialogOpen(false);
+                      setKifGames(null);
+                    }}>選択して反映</SmallButton>
+                  </div>
+                </DialogFooter>
+                <DialogClose />
+              </DialogContent>
+            </Dialog>
+          <Button variant="outline" onClick={async () => {
+            setDigestPending(true);
+            try {
+              const res = await fetch((process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000") + "/digest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ usi }),
+              });
+              if (!res.ok) throw new Error(await res.text());
+              const json = await res.json();
+              setDigest(json);
+            } catch (e) {
+              setDigest({ error: String(e) });
+            } finally {
+              setDigestPending(false);
+            }
+          }} disabled={digestPending} className="rounded-2xl">{digestPending ? "解析中…" : "10秒ダイジェスト"}</Button>
         </div>
         {localError && <p className="text-sm text-red-600 mt-2">エラー: {localError}</p>}
         {data && (
@@ -33,6 +211,40 @@ export default function AnnotateView() {
                 <Button variant="outline" className="rounded-2xl" onClick={() => downloadCsv(data.notes)}>CSVとして保存</Button>
               ) : null}
             </div>
+          </div>
+        )}
+        {digest && (
+          <div className="mt-6">
+            <Card className="p-4">
+              <h3 className="font-semibold">10秒ダイジェスト</h3>
+              {digest.error ? (
+                <p className="text-sm text-red-600">Error: {String(digest.error)}</p>
+              ) : (
+                <div className="mt-2 space-y-3">
+                  <div>
+                    {(digest.summary || []).slice(0,7).map((s: string, idx: number) => (
+                      <div key={idx} className="text-sm">• {s}</div>
+                    ))}
+                  </div>
+                  <div className="mt-2">
+                    <h4 className="font-medium">Key moments</h4>
+                    <div className="mt-2 space-y-2">
+                      {(digest.key_moments || []).slice(0,8).map((km: KeyMoment) => (
+                        <div key={km.ply} className="border rounded p-2 flex items-center justify-between">
+                          <div>
+                            <div className="font-mono">{km.ply}手目: {km.move}</div>
+                            <div className="text-sm text-muted-foreground">PV: {km.pv ?? '-'}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={(km.delta_cp !== undefined && km.delta_cp !== null && km.delta_cp >= 100) ? 'text-emerald-600 font-bold' : ((km.delta_cp !== undefined && km.delta_cp !== null && km.delta_cp <= -100) ? 'text-rose-600 font-bold' : 'text-gray-700')}>{(km.delta_cp !== undefined && km.delta_cp !== null) ? (km.delta_cp>0?`+${km.delta_cp}`:String(km.delta_cp)) : '—'}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
           </div>
         )}
       </div>
