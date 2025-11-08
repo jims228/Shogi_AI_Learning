@@ -91,9 +91,7 @@ function isOnBoard(sq: Square): boolean {
   return sq >= 0 && sq < N_SQUARES;
 }
 
-/** 成り判定用の定数 */
-const PROMOTION_ZONE_BLACK = [0, 1, 2, 3, 4, 5, 6, 7, 8]; // 1〜3段目
-const PROMOTION_ZONE_WHITE = [72, 73, 74, 75, 76, 77, 78, 79, 80]; // 7〜9段目
+/** 成り判定用の定数（未使用のため削除） */
 
 /** 基本的な盤面追跡（初期局面＋指し手列から現局面を得る） */
 export class BoardTracker {
@@ -211,7 +209,6 @@ export class BoardTracker {
   findPotentialSources(piece: PieceType, to: Square, color: Color): Square[] {
     const sources: Square[] = [];
     // 長い利きを持つ駒は逆算が必要（飛車・角・香車）
-    const isLongRange = piece === "R" || piece === "B" || piece === "L";
     
     for (let sq = 0; sq < N_SQUARES; sq++) {
       if (this.board[sq] === null) continue;

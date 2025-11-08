@@ -284,7 +284,7 @@ function tagClass(tag: string) {
   }
 }
 
-function principleClass(_id?: string) {
+function principleClass() {
   return "bg-indigo-100 text-indigo-800";
 }
 
@@ -343,7 +343,7 @@ function MoveRow({ note, onCopy }: { note: AnnotationNote; onCopy: (t: string) =
         {note.principles && note.principles.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {note.principles.map((p) => (
-              <span key={p} className={`px-2 py-0.5 rounded text-xs ${principleClass(p)}`}>{p}</span>
+              <span key={p} className={`px-2 py-0.5 rounded text-xs ${principleClass()}`}>{p}</span>
             ))}
             <div className="w-full text-xs text-muted-foreground">{(note.principles || []).join(", ")}</div>
           </div>
