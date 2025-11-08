@@ -1,6 +1,21 @@
 目的
 - ユーザーが持つ対局データ（KIF / CSA / USI）をブラウザ側で受け取り、USI 形式（startpos moves ...）へ自動正規化して、既存の /annotate と /digest ワークフローへ繋げられるようにする。
 - 開発環境で実エンジンが無くても動かせるようにダミーエンジン切替を追加し、ローカル検証を容易にする。
+目的
+- ユーザーが持つ対局データ（KIF / CSA / USI）をブラウザ側で受け取り、USI 形式（startpos moves ...）へ自動正規化して、既存の /annotate と /digest ワークフローへ繋げられるようにする。
+- 開発環境で実エンジンが無くても動かせるようにダミーエンジン切替を追加し、ローカル検証を容易にする。
+
+変更要約（Why / What / How / Impact）
+- Why: ユーザーが持つ多様な棋譜形式を手動で変換せずにそのまま注釈パイプラインへ流すため。ローカル開発時の検証負荷を下げるためダミーエンジンも用意しました。
+- What: フロントに ingest ユーティリティ（KIF/CSA/USI → startpos USI）、AnnotateView のファイル読込・ドラッグ＆ドロップ・貼り付け解析、複数局選択ダイアログ、および簡易テストを追加。バックエンドは環境変数で DummyUSIEngine を切替可能にしました。
+- How: `apps/web/src/lib/ingest.ts` に正規化ロジックを実装し、`apps/web/src/components/AnnotateView.tsx` に UI とハンドラを追加。`backend/api/main.py` は `USE_DUMMY_ENGINE=1` によりダミーエンジンを使用する実行パスを追加しています。
+- Impact: 既存の /annotate /digest の呼び出し方法は変更せず後方互換を維持します。フロントでの入力が自動的に USI に正規化されるため UX が向上します。CI に Web CI を追加したため、`apps/web/**` の変更で型・リンタ・テスト・ビルドが自動的に走るようになります。
+
+互換性と環境変数の注意
+- 後方互換性: 本 PR は破壊的変更を行いません。既存 API のエンドポイントやフロントの公開インターフェースに対する破壊的変更はありません。
+- 環境変数:
+  - `USE_DUMMY_ENGINE=1` — バックエンドで DummyUSIEngine を利用（ローカル開発向け）。実エンジンに切り替える場合はこの環境変数を `0` にしてください。
+  - `NEXT_PUBLIC_API_BASE` — フロントが API にアクセスするベース URL。ローカル実行時は `http://localhost:8787` を推奨します。
 
 変更点
 - 新規: `apps/web/src/lib/ingest.ts`
@@ -15,14 +30,11 @@
 - 変更: `backend/api/main.py` に環境変数 `USE_DUMMY_ENGINE=1` で DummyUSIEngine を利用する切替を追加（ローカル検証向け）。
 
 動作確認
-- 単体テスト（Jest）: 全テスト通過（18 tests）
-- TypeScript 型チェック: 問題なし（`tsc --noEmit` 成功）
-- Next.js ビルド: 成功（production build / static pages 生成 OK）
-- 手動 API 確認（ダミーエンジンあり）:
-  - `GET /health` → {"status":"ok"}
-  - `POST /annotate` (USI 入力) → 注釈 JSON が返る（ダミー bestmove を含む）
-- フロント連携:
-  - `NEXT_PUBLIC_API_BASE` を `http://localhost:8787` に設定しておけば、Annotate ページの「ファイル読込」/「貼り付け解析」で USI が textarea に自動反映され、そのまま「注釈を生成」「10秒ダイジェスト」が動きます。
+- Jest（フロント単体テスト）: 全テスト通過（18件）、TypeScript 型チェック（tsc）および Next.js の production ビルドも成功。
+- バックエンド（`USE_DUMMY_ENGINE=1`）で手動確認: `GET /health` が {"status":"ok"}、`POST /annotate` が注釈 JSON を返すことを確認。
+- フロント連携: `NEXT_PUBLIC_API_BASE=http://localhost:8787` で、ファイル貼り付け→USI 正規化→Annotate / Digest（10秒ダイジェスト）まで動作確認済み。
+
+補足（CI）: Web CI (`.github/workflows/web-ci.yml`) を追加しました — このワークフローは `apps/web/**` の変更に対して型チェック／リンタ／テスト／ビルドを自動で実行します。
 
 環境変数
 - USE_DUMMY_ENGINE=1 — バックエンドで DummyUSIEngine を利用（ローカル開発用）
@@ -35,3 +47,14 @@
 
 PR タイトル案:
 - feat(annotate): ingest KIF/CSA/USI → normalize to USI, file/paste/D&D, multi-game
+
+Labels / Reviewers / Checklist
+- Labels (提案): `feat`, `web`, `backend`, `ci`
+- Reviewers (提案): @<frontend-owner>, @<backend-owner>  （※実際のレビュワー名に差し替えてください）
+- PR チェックリスト:
+  - [ ] PR 本文をこのファイルの内容で貼り付け／確認
+  - [ ] GitHub Actions (web CI) が green（`apps/web/**` の型・lint・test・build）
+  - [ ] Backend CI（pytest）が green
+  - [ ] 手動スモーク: Annotate ページでファイル貼付→USI 正規化→注釈/ダイジェストを確認
+  - [ ] CI で指摘された lint/型の警告を解消（必要に応じて）
+  - [ ] Optional: alert→Toast など UX 改善を別 PR で提案/実装
