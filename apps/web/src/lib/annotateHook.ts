@@ -17,7 +17,7 @@ export type AnnotationNote = {
   verdict?: string;
   tags?: string[];
   principles?: string[];
-  evidence?: Record<string, any>;
+  evidence?: Record<string, unknown>;
   comment?: string;
 };
 export type AnnotationResponse = {
