@@ -1,0 +1,31 @@
+name: Web CI
+on:
+  push:
+    paths: [ "apps/web/**", ".github/workflows/**" ]
+  pull_request:
+    paths: [ "apps/web/**", ".github/workflows/**" ]
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install
+        working-directory: apps/web
+        run: npm ci
+      - name: Typecheck
+        working-directory: apps/web
+        run: npm run typecheck
+      - name: Lint
+        working-directory: apps/web
+        run: npm run lint
+      - name: Test
+        working-directory: apps/web
+        run: npm test -i
+      - name: Build
+        working-directory: apps/web
+        run: npm run build
