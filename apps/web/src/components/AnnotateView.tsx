@@ -24,7 +24,30 @@ export default function AnnotateView() {
         {data && (
           <div className="mt-2">
             <p className="text-sm text-muted-foreground">{data.summary}</p>
-            <div className="flex justify-end">
+            <div className="mt-4 space-y-2">
+              {data.notes?.map((n) => (
+                <div key={String(n.ply)} className="border rounded-md p-2">
+                  <div className="flex justify-between items-center">
+                    <div className="font-mono">{n.ply}. {n.move} {n.bestmove ? `→ ${n.bestmove}` : ""}</div>
+                    <div className="text-sm text-muted-foreground">{n.score_after_cp ?? n.score_cp ?? "?"}</div>
+                  </div>
+                  <div className="mt-2">
+                    <details>
+                      <summary className="cursor-pointer text-sm">詳細を見る</summary>
+                      <div className="mt-2 text-sm space-y-1">
+                        <div><strong>Comment:</strong> {n.comment ?? "-"}</div>
+                        <div><strong>Δcp:</strong> {n.delta_cp ?? "-"}</div>
+                        <div><strong>Tags:</strong> {(n.tags || []).join(", ") || "-"}</div>
+                        <div><strong>Principles:</strong> {(n.principles || []).join(", ") || "-"}</div>
+                        <div><strong>Evidence (tactical):</strong> <pre className="whitespace-pre-wrap">{JSON.stringify(n.evidence?.tactical ?? {}, null, 2)}</pre></div>
+                        <div><strong>PV:</strong> {n.pv ?? "-"}</div>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end mt-3">
               {data?.notes?.length ? (
                 <Button variant="outline" className="rounded-2xl" onClick={() => downloadCsv(data.notes)}>CSVとして保存</Button>
               ) : null}

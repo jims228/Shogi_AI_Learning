@@ -7,10 +7,17 @@ export type AnnotationNote = {
   ply?: number | string;
   move?: string;
   bestmove?: string;
-  score_cp?: number | null;
+  score_before_cp?: number | null;
+  score_after_cp?: number | null;
+  delta_cp?: number | null;
+  time_ms?: number | null;
+  score_cp?: number | null; // legacy / convenience (after)
   mate?: number | null;
-  verdict?: string;
   pv?: string;
+  verdict?: string;
+  tags?: string[];
+  principles?: string[];
+  evidence?: Record<string, any>;
   comment?: string;
 };
 export type AnnotationResponse = {
@@ -48,14 +55,33 @@ export function useAnnotate() {
 
   function downloadCsv(notes: AnnotationNote[] | null | undefined) {
     if (!notes) return;
-    const header = ["ply", "move", "bestmove", "score_cp", "mate", "verdict", "pv", "comment"];
+    const header = [
+      "ply",
+      "move",
+      "bestmove",
+      "score_before_cp",
+      "score_after_cp",
+      "delta_cp",
+      "mate",
+      "verdict",
+      "tags",
+      "principles",
+      "evidence_tactical",
+      "pv",
+      "comment",
+    ];
     const rows = notes.map((n) => [
       String(n.ply ?? ""),
       n.move ?? "",
       n.bestmove ?? "",
-      typeof n.score_cp === "number" ? String(n.score_cp) : "",
+      typeof n.score_before_cp === "number" ? String(n.score_before_cp) : "",
+      typeof n.score_after_cp === "number" ? String(n.score_after_cp) : "",
+      typeof n.delta_cp === "number" ? String(n.delta_cp) : "",
       typeof n.mate === "number" ? String(n.mate) : "",
       n.verdict ?? "",
+      (n.tags || []).join(";") || "",
+      (n.principles || []).join(";") || "",
+      JSON.stringify(n.evidence?.tactical ?? {}),
       n.pv ?? "",
       n.comment ?? "",
     ]);
