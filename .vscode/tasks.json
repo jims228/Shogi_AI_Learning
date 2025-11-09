@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Engine: check",
+      "type": "shell",
+      "command": "./scripts/engine_check.sh",
+      "options": { "cwd": "${workspaceFolder}" }
+    },
+    {
+      "label": "Backend: API (8787)",
+      "type": "shell",
+      "command": "./scripts/run_backend.sh",
+      "isBackground": true,
+      "options": { "cwd": "${workspaceFolder}" }
+    },
+    {
+      "label": "Web: UI (3000)",
+      "type": "shell",
+      "command": "./scripts/run_web.sh",
+      "isBackground": true,
+      "options": { "cwd": "${workspaceFolder}" }
+    },
+    {
+      "label": "All: start",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Engine: check",
+        "Backend: API (8787)",
+        "Web: UI (3000)"
+      ]
+    }
+  ]
+}

@@ -112,3 +112,39 @@ nn.bin（Suisho5 など）および定跡ファイルは再配布禁止です。
 新後 亮人（Shingo Akito）
 Aizu University — AI研究室
 目的：将棋AIを用いた「わかりやすい棋譜解説AI」開発
+
+## ローカル開発: ワンコマンドでエンジン/API/Web を起動（VS Code）
+
+以下のファイルを追加しました: `.env.example`, `scripts/*.sh`, `.vscode/tasks.json`, `.vscode/launch.json`
+
+初期セットアップ手順:
+
+```bash
+cp .env.example .env
+# .env 内の /home/USER を実ユーザー名に書き換えてください
+chmod +x scripts/*.sh
+```
+
+エンジン接続の確認:
+
+```bash
+./scripts/engine_check.sh
+# USI handshake が成功すると usiok / readyok 等が表示されます
+```
+
+個別起動（別ターミナル）:
+
+```bash
+./scripts/run_backend.sh    # API (http://localhost:8787)
+./scripts/run_web.sh        # Web (http://localhost:3000)
+```
+
+VS Code から一括起動:
+
+- Ctrl+Shift+P → Tasks: Run Task → All: start
+- または Run and Debug → 起動構成 `ShogiAI (API+Web)` を実行
+
+注意事項:
+
+- `.env` やエンジンのバイナリ（`*.bin`, `*.nnue`）は Git に含めないでください（`.gitignore` を更新済み）。
+- `ENGINE_CMD`, `ENGINE_EVAL_DIR`, `ENGINE_BOOK_DIR` は `.env` に絶対パスで設定してください。
