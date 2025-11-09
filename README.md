@@ -148,3 +148,36 @@ VS Code から一括起動:
 
 - `.env` やエンジンのバイナリ（`*.bin`, `*.nnue`）は Git に含めないでください（`.gitignore` を更新済み）。
 - `ENGINE_CMD`, `ENGINE_EVAL_DIR`, `ENGINE_BOOK_DIR` は `.env` に絶対パスで設定してください。
+
+### 定跡(book) を利用する
+
+定跡ファイルを利用する場合は、以下の手順で配置・有効化してください。
+
+1. 定跡ファイル（例: `book.bin` または `standard_book.db`）を配置:
+
+```text
+mkdir -p ~/engines/yaneuraou/book
+# copy your book file
+cp /path/to/book.bin ~/engines/yaneuraou/book/
+```
+
+2. `.env` の `ENGINE_USI_OPTIONS` を編集して定跡を有効化:
+
+変更前（例）:
+```text
+ENGINE_USI_OPTIONS=Threads=8,USI_Hash=256,USI_OwnBook=false
+```
+
+変更後（例: book.bin を使用）:
+```text
+ENGINE_USI_OPTIONS=Threads=8,USI_Hash=256,USI_OwnBook=true,BookFile=book.bin,BookDir=/home/youruser/engines/yaneuraou/book,FlippedBook=true,BookDepthLimit=32
+```
+
+3. `.env` を保存してからエンジン確認:
+
+```bash
+./scripts/engine_check.sh
+# 出力に 'read book file' と 'readyok' が表示されれば読み込み成功です
+```
+
+注意: `engine_check.sh` は book ファイルが存在しない場合、自動的に `USI_OwnBook=false` を利用して安全に接続します。`.env` を直接書き換える必要はありません。
