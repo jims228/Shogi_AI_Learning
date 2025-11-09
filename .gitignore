@@ -3,13 +3,16 @@ __pycache__/
 *.pyc
 node_modules/
 .env
-.env.*
 .env.local
+
+# keep .env.example in repo; do not ignore all .env.* files
 docker/engine/eval/nn.bin
 docker/engine/book/*.db
 *.log
 .DS_Store
 .vscode/
+!.vscode/tasks.json
+!.vscode/launch.json
 dist/
 build/
 
@@ -20,3 +23,8 @@ assets/
 
 # Local virtualenv for backend tests
 backend/api/.venv/
+
+# env / large binaries / engine files
+*.bin
+*.nnue
+engines/

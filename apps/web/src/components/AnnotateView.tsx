@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useAnnotate, type AnnotationNote, type DigestResponse, type KeyMoment } from "@/lib/annotateHook";
 import { toStartposUSI, splitKifGames } from "@/lib/ingest";
+import { showToast } from "@/components/ui/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button as SmallButton } from "@/components/ui/button";
 
@@ -39,8 +40,8 @@ export default function AnnotateView() {
         const usiText = toStartposUSI(text);
         setUsi(usiText);
       }
-          } catch {
-      alert(`読み込み失敗`);
+          } catch (err) {
+            showToast({ title: "読み込み失敗", description: String(err ?? ""), variant: "error" });
     } finally {
       e.target.value = "";
     }
@@ -65,22 +66,22 @@ export default function AnnotateView() {
         const usiText = toStartposUSI(text);
         setUsi(usiText);
       }
-    } catch {
-      alert(`読み込み失敗`);
+    } catch (err) {
+      showToast({ title: "読み込み失敗", description: String(err ?? ""), variant: "error" });
     }
   }
 
   async function handlePasteAsGame() {
     const text = await navigator.clipboard.readText().catch(() => "");
     if (!text) {
-      alert("クリップボードにテキストがありません。");
+      showToast({ title: "クリップボードにテキストがありません。", variant: "warning" });
       return;
     }
     try {
       const usiText = toStartposUSI(text);
       setUsi(usiText);
     } catch (err) {
-      alert(`貼り付け解析に失敗: ${(err as Error).message}`);
+      showToast({ title: "貼り付け解析に失敗しました", description: (err as Error).message, variant: "error" });
     }
   }
 
@@ -111,8 +112,8 @@ export default function AnnotateView() {
                 }
                 const usiText = toStartposUSI(pasted);
                 setUsi(usiText);
-              } catch {
-                alert(`貼り付け解析に失敗`);
+              } catch (err) {
+                showToast({ title: "貼り付け解析に失敗しました", description: String(err ?? ""), variant: "error" });
               }
             }}
             onBlur={(e) => {
@@ -163,12 +164,12 @@ export default function AnnotateView() {
                     <SmallButton onClick={() => { setGameDialogOpen(false); setKifGames(null); }}>キャンセル</SmallButton>
                     <SmallButton onClick={() => {
                       const g = (kifGames || [])[selectedGameIndex];
-                      if (g) {
+                        if (g) {
                         try {
                           const usiText = toStartposUSI(g);
                           setUsi(usiText);
                         } catch (err) {
-                          alert(`読み込み失敗: ${(err as Error).message}`);
+                          showToast({ title: "読み込み失敗", description: (err as Error).message, variant: "error" });
                         }
                       }
                       setGameDialogOpen(false);

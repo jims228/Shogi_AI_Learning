@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "ShogiAI (API+Web)",
+      "configurations": ["Open API 8787", "Open Web 3000"],
+      "preLaunchTask": "All: start"
+    }
+    ,
+    {
+      "name": "ShogiAI (Smoke)",
+      "configurations": ["Open Web 3000"],
+      "preLaunchTask": "All: smoke-e2e"
+    }
+  ],
+  "configurations": [
+    {
+      "name": "Open API 8787",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8787/health"
+    },
+    {
+      "name": "Open Web 3000",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000/annotate"
+    }
+    ,
+    {
+      "name": "Open Web 3000 (pwa)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:3000/annotate"
+    }
+  ]
+}
