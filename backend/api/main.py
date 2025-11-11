@@ -497,12 +497,12 @@ else:
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
 # CORS ミドルウェアを追加
+# allow origins can be configured via CORS_ORIGINS env (comma-separated). Default to localhost dev origins.
+raw_cors = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+cors_list = [s.strip() for s in raw_cors.split(",") if s.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=cors_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

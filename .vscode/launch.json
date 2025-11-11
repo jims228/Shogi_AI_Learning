@@ -29,7 +29,7 @@
     ,
     {
       "name": "Open Web 3000 (pwa)",
-      "type": "pwa-chrome",
+      "type": "chrome",
       "request": "launch",
       "url": "http://localhost:3000/annotate"
     }

@@ -1,7 +1,20 @@
-**/__pycache__/
-**/.venv/
-**/.pytest_cache/
-**/*.pyc
-**/.DS_Store
-.git/
-node_modules/
+----- keep it minimal & safe -----
+.git
+.gitignore
+.vscode
+node_modules
+*/node_modules
+.env
+.env.
+*.log
+dist
+build
+.next
+coverage
+*.pyc
+pycache/
+
+# DO NOT ignore our sources (MUST be at the end)
+!apps/**
+!apps/web/**
+!backend/**
