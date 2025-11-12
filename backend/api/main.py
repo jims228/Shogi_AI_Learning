@@ -130,8 +130,9 @@ class MoveNote(BaseModel):
     tags: List[str] = []
     principles: List[str] = []
     evidence: Dict[str, Any] = {}
-    verdict: Optional[str] = None        # “好手/疑問手/悪手”など（旧フィールド）
+    verdict: Optional[str] = None        # "好手/疑問手/悪手"など（旧フィールド）
     comment: Optional[str] = None        # LLM or ルール生成コメント
+    reasoning: Optional[Dict[str, Any]] = None  # v2 reasoning structure
 
 
 class AnnotateResponse(BaseModel):
@@ -496,6 +497,13 @@ else:
     engine = USIEngine(ENGINE_PATH)
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
+# Include routers
+try:
+    from .routers.ingest import router as ingest_router
+    app.include_router(ingest_router)
+except ImportError as e:
+    print(f"Warning: Could not import ingest router: {e}")
+
 # CORS ミドルウェアを追加
 # allow origins can be configured via CORS_ORIGINS env (comma-separated). Default to localhost dev origins.
 raw_cors = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
@@ -673,6 +681,27 @@ def annotate(req: AnnotateRequest):
             first_pr = principles_mod.PRINCIPLES.get(n.principles[0], "方針") if n.principles else "方針"
             bm = n.bestmove or "方針転換"
             n.comment = f"Δcp{delta:+d}。{first_pr}。改善案: {bm}"
+
+    # 4) Ensure reasoning fields are populated (for v2 compatibility)
+    try:
+        from .routers.annotate import ensure_reasoning_populated
+        
+        # Convert notes to dict format for processing
+        notes_dicts = [note.dict() for note in notes]
+        
+        # Ensure reasoning is populated
+        processed_notes = ensure_reasoning_populated(notes_dicts)
+        
+        # Update notes with reasoning
+        for i, note_dict in enumerate(processed_notes):
+            if i < len(notes) and "reasoning" in note_dict:
+                notes[i].reasoning = note_dict["reasoning"]
+                
+    except ImportError:
+        # annotate router not available
+        pass
+    except Exception as e:
+        print(f"Warning: Could not populate reasoning: {e}")
 
     return AnnotateResponse(summary=summary, notes=notes)
 
