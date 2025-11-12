@@ -9,7 +9,7 @@ import { showToast } from "@/components/ui/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button as SmallButton } from "@/components/ui/button";
 
-import { Copy, Zap } from "lucide-react";
+import { Copy, Zap, FolderOpen } from "lucide-react";
 
 // This file extracts the AnnotateView UI so the root page can be a homepage.
 export default function AnnotateView() {
@@ -21,6 +21,7 @@ export default function AnnotateView() {
   const [selectedGameIndex, setSelectedGameIndex] = useState(0);
   const [digest, setDigest] = useState<DigestResponse | null>(null);
   const [digestPending, setDigestPending] = useState(false);
+  const [batchPending, setBatchPending] = useState(false);
 
   function handlePickFile() {
     fileInputRef.current?.click();
@@ -85,6 +86,48 @@ export default function AnnotateView() {
     }
   }
 
+  async function handleBatchAnnotate() {
+    setBatchPending(true);
+    try {
+      const response = await fetch("/api/backend/ingest/annotate/folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recursive: true,
+          byoyomi_ms: 250
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        showToast({
+          title: "フォルダ注釈完了",
+          description: `${result.annotated}件のファイルを処理しました (スキャン: ${result.scanned}件、エラー: ${result.errors}件)`,
+          variant: "success"
+        });
+      } else {
+        showToast({
+          title: "フォルダ注釈で一部エラー",
+          description: `${result.annotated}件成功、${result.errors}件エラー`,
+          variant: "warning"
+        });
+      }
+    } catch (err) {
+      showToast({
+        title: "フォルダ注釈失敗",
+        description: String(err),
+        variant: "error"
+      });
+    } finally {
+      setBatchPending(false);
+    }
+  }
+
   return (
     <Card className="mt-4 p-4 rounded-2xl shadow-soft max-w-3xl mx-auto">
       <div className="space-y-3">
@@ -135,6 +178,10 @@ export default function AnnotateView() {
           <Button variant="secondary" className="rounded-2xl" onClick={() => setUsi("startpos moves 7g7f 3c3d 2g2f 8c8d")}>サンプル（USI）</Button>
           <Button onClick={submit} disabled={isPending} className="rounded-2xl">{isPending ? "注釈生成中…" : "注釈を生成"}</Button>
           <button className="border px-3 py-1 rounded-2xl" onClick={handlePickFile}>ファイル読込（KIF/CSA/USI）</button>
+          <button className="border px-3 py-1 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700" onClick={handleBatchAnnotate} disabled={batchPending}>
+            <FolderOpen className="inline-block w-4 h-4 mr-1" />
+            {batchPending ? "処理中..." : "フォルダから一括注釈 (dev)"}
+          </button>
 
           <button className="border px-3 py-1 rounded-2xl" onClick={handlePasteAsGame}>クリップボードから貼り付け解析</button>
 
