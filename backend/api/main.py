@@ -130,8 +130,10 @@ class MoveNote(BaseModel):
     tags: List[str] = []
     principles: List[str] = []
     evidence: Dict[str, Any] = {}
-    verdict: Optional[str] = None        # “好手/疑問手/悪手”など（旧フィールド）
+    verdict: Optional[str] = None        # "好手/疑問手/悪手"など（旧フィールド）
     comment: Optional[str] = None        # LLM or ルール生成コメント
+    # AI reasoning fields
+    reasoning: Optional[Dict[str, Any]] = None  # {"summary": "...", "tags": [...], "confidence": 0.8}
 
 
 class AnnotateResponse(BaseModel):
@@ -496,6 +498,19 @@ else:
     engine = USIEngine(ENGINE_PATH)
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
+# Import routers
+try:
+    from .routers.ingest import router as ingest_router
+    app.include_router(ingest_router)
+except ImportError as e:
+    print(f"Warning: Could not import ingest router: {e}")
+
+try:
+    from .routers.annotate import router as annotate_router
+    app.include_router(annotate_router)
+except ImportError as e:
+    print(f"Warning: Could not import annotate router: {e}")
+
 # CORS ミドルウェアを追加
 # allow origins can be configured via CORS_ORIGINS env (comma-separated). Default to localhost dev origins.
 raw_cors = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
@@ -550,6 +565,21 @@ def analyze(req: AnalyzeRequest):
 
 @app.post("/annotate", response_model=AnnotateResponse)
 def annotate(req: AnnotateRequest):
+    # Import router functions
+    try:
+        from .routers.annotate import ensure_reasoning_populated, post_process_reasoning
+    except ImportError:
+        ensure_reasoning_populated = None
+        post_process_reasoning = None
+
+    # AI推論モジュールのインポート
+    try:
+        from ..ai.reasoning import build_multiple_reasoning, build_summary_reasoning
+    except ImportError:
+        # AI機能が無効の場合のフォールバック
+        build_multiple_reasoning = None
+        build_summary_reasoning = None
+
     # 1) moves 取り出し
     if req.usi:
         moves = _parse_usi_to_moves(req.usi)
@@ -657,22 +687,62 @@ def annotate(req: AnnotateRequest):
             verdict=verdict,
         ))
 
-    # 3) LLM 呼び出し（任意）
-    summary = "エンジン短時間解析に基づく自動講評です。評価値は先手視点です。"
-    comments = _call_openai(_format_for_llm(moves, notes))
-    if comments:
-        # 行数に合わせて割当（ズレたらスキップ）
-        for i, n in enumerate(notes):
-            if i < len(comments):
-                n.comment = comments[i]
+    # 3) Convert to dict for reasoning processing
+    notes_dict = [note.model_dump() for note in notes]
+
+    # 4) Ensure reasoning fields are populated using router
+    if ensure_reasoning_populated:
+        notes_dict = ensure_reasoning_populated(notes_dict)
+    elif build_multiple_reasoning:
+        # Fallback to direct reasoning generation
+        try:
+            reasonings = build_multiple_reasoning(notes_dict, {"game_type": "normal"})
+            for i, reasoning in enumerate(reasonings):
+                if i < len(notes_dict):
+                    notes_dict[i]["reasoning"] = reasoning
+        except Exception as e:
+            print(f"Direct reasoning generation error: {e}")
+
+    # 5) Post-process reasoning fields
+    if post_process_reasoning:
+        notes_dict = post_process_reasoning(notes_dict)
+
+    # 6) Update MoveNote objects with reasoning
+    for i, note_dict in enumerate(notes_dict):
+        if i < len(notes):
+            notes[i].reasoning = note_dict.get("reasoning")
+
+    # 7) 棋譜全体の要約を生成
+    if build_summary_reasoning:
+        try:
+            reasonings = [note.reasoning for note in notes if note.reasoning]
+            ai_summary = build_summary_reasoning(notes_dict, reasonings)
+            if ai_summary:
+                summary = ai_summary
+            else:
+                summary = "エンジン短時間解析に基づく自動講評です。評価値は先手視点です。"
+        except Exception as e:
+            print(f"要約生成エラー: {e}")
+            summary = "エンジン短時間解析に基づく自動講評です。評価値は先手視点です。"
     else:
-        # No LLM available: generate short rule-based comments per move
-        for n in notes:
-            delta = n.delta_cp if n.delta_cp is not None else 0
-            # pick first principle label in readable text
-            first_pr = principles_mod.PRINCIPLES.get(n.principles[0], "方針") if n.principles else "方針"
-            bm = n.bestmove or "方針転換"
-            n.comment = f"Δcp{delta:+d}。{first_pr}。改善案: {bm}"
+        summary = "エンジン短時間解析に基づく自動講評です。評価値は先手視点です。"
+
+    # 8) 従来のLLM呼び出し（フォールバック）
+    if not any(note.reasoning for note in notes):
+        comments = _call_openai(_format_for_llm(moves, notes))
+        if comments:
+            # 行数に合わせて割当（ズレたらスキップ）
+            for i, n in enumerate(notes):
+                if i < len(comments):
+                    n.comment = comments[i]
+        else:
+            # No LLM available: generate short rule-based comments per move
+            for n in notes:
+                delta = n.delta_cp if n.delta_cp is not None else 0
+                # pick first principle label in readable text
+                first_pr = principles_mod.PRINCIPLES.get(n.principles[0], "方針") if n.principles else "方針"
+                bm = n.bestmove or "方針転換"
+                n.comment = f"Δcp{delta:+d}。{first_pr}。改善案: {bm}"
 
     return AnnotateResponse(summary=summary, notes=notes)
 

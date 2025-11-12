@@ -21,38 +21,62 @@ def ensure_reasoning_populated(notes: List[Dict[str, Any]]) -> List[Dict[str, An
         List[Dict]: Notes with guaranteed reasoning fields
     """
     try:
-        from ...ai.reasoning import build_multiple_reasoning
-        
-        # Check if reasoning is already populated
-        if notes and all(note.get("reasoning") for note in notes):
-            return notes
-        
-        # Generate reasoning for all notes
-        reasonings = build_multiple_reasoning(notes, {"game_type": "normal"})
-        
-        # Populate reasoning fields
-        for i, note in enumerate(notes):
-            if i < len(reasonings):
-                note["reasoning"] = reasonings[i]
-            else:
-                # Fallback empty reasoning
-                note["reasoning"] = {
-                    "summary": "分析情報が不十分です。",
-                    "tags": [],
-                    "confidence": 0.3,
-                    "method": "fallback",
-                    "context": {
-                        "phase": "middlegame",
-                        "plan": "develop",
-                        "move_type": "normal"
-                    },
-                    "pv_summary": {
-                        "line": "",
-                        "why_better": []
+        # Try to import reasoning module - will be available in reasoning v2 branch
+        try:
+            from ...ai.reasoning import build_multiple_reasoning
+            
+            # Check if reasoning is already populated
+            if notes and all(note.get("reasoning") for note in notes):
+                return notes
+            
+            # Generate reasoning for all notes
+            reasonings = build_multiple_reasoning(notes, {"game_type": "normal"})
+            
+            # Populate reasoning fields
+            for i, note in enumerate(notes):
+                if i < len(reasonings):
+                    note["reasoning"] = reasonings[i]
+                else:
+                    # Fallback empty reasoning
+                    note["reasoning"] = {
+                        "summary": "分析情報が不十分です。",
+                        "tags": [],
+                        "confidence": 0.3,
+                        "method": "fallback",
+                        "context": {
+                            "phase": "middlegame",
+                            "plan": "develop",
+                            "move_type": "normal"
+                        },
+                        "pv_summary": {
+                            "line": "",
+                            "why_better": []
+                        }
                     }
-                }
-        
-        return notes
+            
+            return notes
+            
+        except ImportError:
+            # Reasoning module not available - add basic reasoning structure
+            for note in notes:
+                if not note.get("reasoning"):
+                    note["reasoning"] = {
+                        "summary": "基本的な分析です。",
+                        "tags": note.get("tags", []),
+                        "confidence": 0.5,
+                        "method": "fallback",
+                        "context": {
+                            "phase": "middlegame",
+                            "plan": "develop",
+                            "move_type": "normal"
+                        },
+                        "pv_summary": {
+                            "line": note.get("pv", ""),
+                            "why_better": []
+                        }
+                    }
+            
+            return notes
         
     except Exception as e:
         print(f"Error ensuring reasoning populated: {e}")
