@@ -504,6 +504,12 @@ try:
 except ImportError as e:
     print(f"Warning: Could not import ingest router: {e}")
 
+try:
+    from .routers.annotate import router as annotate_router
+    app.include_router(annotate_router)
+except ImportError as e:
+    print(f"Warning: Could not import annotate router: {e}")
+
 # CORS ミドルウェアを追加
 # allow origins can be configured via CORS_ORIGINS env (comma-separated). Default to localhost dev origins.
 raw_cors = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
@@ -687,7 +693,7 @@ def annotate(req: AnnotateRequest):
         from .routers.annotate import ensure_reasoning_populated
         
         # Convert notes to dict format for processing
-        notes_dicts = [note.dict() for note in notes]
+        notes_dicts = [note.model_dump() for note in notes]
         
         # Ensure reasoning is populated
         processed_notes = ensure_reasoning_populated(notes_dicts)
@@ -698,10 +704,44 @@ def annotate(req: AnnotateRequest):
                 notes[i].reasoning = note_dict["reasoning"]
                 
     except ImportError:
-        # annotate router not available
-        pass
+        # annotate router not available - add fallback reasoning
+        for note in notes:
+            if not hasattr(note, 'reasoning') or note.reasoning is None:
+                note.reasoning = {
+                    "summary": "基本的な分析です。",
+                    "tags": note.tags,
+                    "confidence": 0.5,
+                    "method": "fallback",
+                    "context": {
+                        "phase": "middlegame",
+                        "plan": "develop",
+                        "move_type": "normal"
+                    },
+                    "pv_summary": {
+                        "line": note.pv or "",
+                        "why_better": []
+                    }
+                }
     except Exception as e:
         print(f"Warning: Could not populate reasoning: {e}")
+        # Fallback reasoning for error case
+        for note in notes:
+            if not hasattr(note, 'reasoning') or note.reasoning is None:
+                note.reasoning = {
+                    "summary": "推論生成中にエラーが発生しました。",
+                    "tags": [],
+                    "confidence": 0.2,
+                    "method": "error",
+                    "context": {
+                        "phase": "middlegame", 
+                        "plan": "develop",
+                        "move_type": "normal"
+                    },
+                    "pv_summary": {
+                        "line": "",
+                        "why_better": []
+                    }
+                }
 
     return AnnotateResponse(summary=summary, notes=notes)
 
