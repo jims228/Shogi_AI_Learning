@@ -132,8 +132,7 @@ class MoveNote(BaseModel):
     evidence: Dict[str, Any] = {}
     verdict: Optional[str] = None        # "好手/疑問手/悪手"など（旧フィールド）
     comment: Optional[str] = None        # LLM or ルール生成コメント
-    # AI reasoning fields
-    reasoning: Optional[Dict[str, Any]] = None  # {"summary": "...", "tags": [...], "confidence": 0.8}
+    reasoning: Optional[Dict[str, Any]] = None  # v2 reasoning structure
 
 
 class AnnotateResponse(BaseModel):
@@ -743,6 +742,61 @@ def annotate(req: AnnotateRequest):
                 first_pr = principles_mod.PRINCIPLES.get(n.principles[0], "方針") if n.principles else "方針"
                 bm = n.bestmove or "方針転換"
                 n.comment = f"Δcp{delta:+d}。{first_pr}。改善案: {bm}"
+
+    # 4) Ensure reasoning fields are populated (for v2 compatibility)
+    try:
+        from .routers.annotate import ensure_reasoning_populated
+        
+        # Convert notes to dict format for processing
+        notes_dicts = [note.model_dump() for note in notes]
+        
+        # Ensure reasoning is populated
+        processed_notes = ensure_reasoning_populated(notes_dicts)
+        
+        # Update notes with reasoning
+        for i, note_dict in enumerate(processed_notes):
+            if i < len(notes) and "reasoning" in note_dict:
+                notes[i].reasoning = note_dict["reasoning"]
+                
+    except ImportError:
+        # annotate router not available - add fallback reasoning
+        for note in notes:
+            if not hasattr(note, 'reasoning') or note.reasoning is None:
+                note.reasoning = {
+                    "summary": "基本的な分析です。",
+                    "tags": note.tags,
+                    "confidence": 0.5,
+                    "method": "fallback",
+                    "context": {
+                        "phase": "middlegame",
+                        "plan": "develop",
+                        "move_type": "normal"
+                    },
+                    "pv_summary": {
+                        "line": note.pv or "",
+                        "why_better": []
+                    }
+                }
+    except Exception as e:
+        print(f"Warning: Could not populate reasoning: {e}")
+        # Fallback reasoning for error case
+        for note in notes:
+            if not hasattr(note, 'reasoning') or note.reasoning is None:
+                note.reasoning = {
+                    "summary": "推論生成中にエラーが発生しました。",
+                    "tags": [],
+                    "confidence": 0.2,
+                    "method": "error",
+                    "context": {
+                        "phase": "middlegame", 
+                        "plan": "develop",
+                        "move_type": "normal"
+                    },
+                    "pv_summary": {
+                        "line": "",
+                        "why_better": []
+                    }
+                }
 
     return AnnotateResponse(summary=summary, notes=notes)
 
