@@ -499,7 +499,17 @@ else:
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
 # Import routers
-from .routers import ingest
+try:
+    from .routers.ingest import router as ingest_router
+    app.include_router(ingest_router)
+except ImportError as e:
+    print(f"Warning: Could not import ingest router: {e}")
+
+try:
+    from .routers.annotate import router as annotate_router
+    app.include_router(annotate_router)
+except ImportError as e:
+    print(f"Warning: Could not import annotate router: {e}")
 
 # CORS ミドルウェアを追加
 # allow origins can be configured via CORS_ORIGINS env (comma-separated). Default to localhost dev origins.
@@ -512,9 +522,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include routers
-app.include_router(ingest.router)
 
 @app.on_event("startup")
 def _on_startup():
@@ -681,7 +688,7 @@ def annotate(req: AnnotateRequest):
         ))
 
     # 3) Convert to dict for reasoning processing
-    notes_dict = [note.dict() for note in notes]
+    notes_dict = [note.model_dump() for note in notes]
 
     # 4) Ensure reasoning fields are populated using router
     if ensure_reasoning_populated:
