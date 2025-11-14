@@ -497,7 +497,7 @@ else:
     engine = USIEngine(ENGINE_PATH)
 app = FastAPI(title="Shogi Analyze API", version="0.2.0")
 
-# Import routers
+# Include routers
 try:
     from .routers.ingest import router as ingest_router
     app.include_router(ingest_router)
@@ -509,6 +509,14 @@ try:
     app.include_router(annotate_router)
 except ImportError as e:
     print(f"Warning: Could not import annotate router: {e}")
+
+# Learning module integration
+try:
+    from ..learning.router import router as learning_router
+    app.include_router(learning_router)
+    print("Learning module integrated successfully")
+except ImportError as e:
+    print(f"Warning: Could not import learning router: {e}")
 
 # CORS ミドルウェアを追加
 # allow origins can be configured via CORS_ORIGINS env (comma-separated). Default to localhost dev origins.
