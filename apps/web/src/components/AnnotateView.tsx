@@ -8,6 +8,9 @@ import { toStartposUSI, splitKifGames } from "@/lib/ingest";
 import { showToast } from "@/components/ui/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button as SmallButton } from "@/components/ui/button";
+import { KifuPlayer } from "@/components/kifu/KifuPlayer";
+import { Board } from "@/components/Board";
+import { usiToMoves } from "@/lib/usi";
 
 import { Copy, Zap, FolderOpen } from "lucide-react";
 
@@ -22,6 +25,37 @@ export default function AnnotateView() {
   const [digest, setDigest] = useState<DigestResponse | null>(null);
   const [digestPending, setDigestPending] = useState(false);
   const [batchPending, setBatchPending] = useState(false);
+  const [showPlayer, setShowPlayer] = useState(false);
+
+  // 棋譜再生用のボード表示関数
+  const renderBoard = React.useCallback((ply: number) => {
+    // 簡易実装：現時点では初期局面のみ表示
+    // 実際の手順実行は今後の機能拡張で実装
+    try {
+      const moves = usiToMoves(usi);
+      // 初期局面の盤面を表示
+      const initialBoard = [
+        // 後手の駒
+        { piece: "l" as const, x: 0, y: 0 }, { piece: "n" as const, x: 1, y: 0 }, { piece: "s" as const, x: 2, y: 0 }, 
+        { piece: "g" as const, x: 3, y: 0 }, { piece: "k" as const, x: 4, y: 0 }, { piece: "g" as const, x: 5, y: 0 }, 
+        { piece: "s" as const, x: 6, y: 0 }, { piece: "n" as const, x: 7, y: 0 }, { piece: "l" as const, x: 8, y: 0 },
+        { piece: "r" as const, x: 1, y: 1 }, { piece: "b" as const, x: 7, y: 1 },
+        ...Array.from({length: 9}, (_, i) => ({ piece: "p" as const, x: i, y: 2 })),
+        
+        // 先手の駒
+        ...Array.from({length: 9}, (_, i) => ({ piece: "P" as const, x: i, y: 6 })),
+        { piece: "B" as const, x: 1, y: 7 }, { piece: "R" as const, x: 7, y: 7 },
+        { piece: "L" as const, x: 0, y: 8 }, { piece: "N" as const, x: 1, y: 8 }, { piece: "S" as const, x: 2, y: 8 }, 
+        { piece: "G" as const, x: 3, y: 8 }, { piece: "K" as const, x: 4, y: 8 }, { piece: "G" as const, x: 5, y: 8 }, 
+        { piece: "S" as const, x: 6, y: 8 }, { piece: "N" as const, x: 7, y: 8 }, { piece: "L" as const, x: 8, y: 8 }
+      ];
+      
+      return <Board pieces={initialBoard} />;
+    } catch (error) {
+      console.error("Failed to render board:", error);
+      return <div className="p-4 text-center text-muted-foreground">盤面を表示できません</div>;
+    }
+  }, [usi]);
 
   function handlePickFile() {
     fileInputRef.current?.click();
@@ -248,7 +282,29 @@ export default function AnnotateView() {
         {localError && <p className="text-sm text-red-600 mt-2">エラー: {localError}</p>}
         {data && (
           <div className="mt-2">
-            <p className="text-sm text-muted-foreground">{data.summary}</p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">{data.summary}</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowPlayer(!showPlayer)}
+                className="rounded-2xl"
+              >
+                {showPlayer ? "再生プレイヤーを閉じる" : "棋譜再生プレイヤー"}
+              </Button>
+            </div>
+            
+            {showPlayer && (
+              <div className="mb-6">
+                <KifuPlayer
+                  moves={usiToMoves(usi)}
+                  renderBoard={renderBoard}
+                  speedMs={750}
+                  initialPly={0}
+                />
+              </div>
+            )}
+            
             <div className="mt-4 space-y-2">
               {data.notes?.map((n) => (
                 <MoveRow key={String(n.ply)} note={n} onCopy={(text) => navigator.clipboard?.writeText(text)} />
