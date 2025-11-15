@@ -28,11 +28,10 @@ export default function AnnotateView() {
   const [showPlayer, setShowPlayer] = useState(false);
 
   // 棋譜再生用のボード表示関数
-  const renderBoard = React.useCallback((_ply: number) => {
-    // 簡易実装：現時点では初期局面のみ表示
+  const renderBoard = React.useCallback(() => {
+    // 簡易実装:現時点では初期局面のみ表示
     // 実際の手順実行は今後の機能拡張で実装
     try {
-      // const _moves = usiToMoves(usi);
       // 初期局面の盤面を表示
       const initialBoard = [
         // 後手の駒
@@ -55,7 +54,7 @@ export default function AnnotateView() {
       console.error("Failed to render board:", error);
       return <div className="p-4 text-center text-muted-foreground">盤面を表示できません</div>;
     }
-  }, [usi]);
+  }, []);
 
   function handlePickFile() {
     fileInputRef.current?.click();
