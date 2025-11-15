@@ -8,21 +8,49 @@ import { sfenToPlaced } from "@/lib/sfen";
 
 type Side = "black" | "white";
 type Hand = Record<"P"|"L"|"N"|"S"|"G"|"B"|"R", number>;
+type PieceBase = keyof Hand;
 
 const START_BOARD: Placed[] = sfenToPlaced("startpos");
 
 function clonePieces(p: Placed[]): Placed[] { return p.map(x => ({ piece: x.piece, x: x.x, y: x.y })); }
 function isBlackPiece(pc: PieceCode): boolean { return pc[0] === "+" ? pc[1] === pc[1].toUpperCase() : pc === (pc as string).toUpperCase(); }
-function demotePieceBase(code: PieceCode): "P"|"L"|"N"|"S"|"G"|"B"|"R"|null {
+function demotePieceBase(code: PieceCode): PieceBase | null {
   const c = code.startsWith("+") ? code[1] : code[0];
   const up = c.toUpperCase();
-  if ("PLNSGBR".includes(up)) return up as any;
+  if ((["P","L","N","S","G","B","R"] as const).includes(up as PieceBase)) return up as PieceBase;
   if (up === "K") return null; // 王は持ち駒にならない
   return null;
 }
 function coordsToUsi(x: number, y: number): string { const file = 9 - x; const rank = String.fromCharCode("a".charCodeAt(0) + y); return `${file}${rank}`; }
 function canPromoteBase(b: string): boolean { return ["P","L","N","S","B","R"].includes(b.toUpperCase()); }
-function inPromoZone(side: Side, y: number): boolean { return side === "black" ? y <= 2 : y >= 6; }
+// function inPromoZone(side: Side, y: number): boolean { return side === "black" ? y <= 2 : y >= 6; }
+
+type BestmoveOverlay = { from: {x:number;y:number}; to: {x:number;y:number} } | null;
+
+type HandViewProps = {
+  side: Side;
+  hands: { black: Hand; white: Hand };
+  turn: Side;
+  handSel: { side: Side; piece: keyof Hand } | null;
+  onSelectHand: (side: Side, piece: keyof Hand) => void;
+};
+
+function HandView({ side, hands, turn, handSel, onSelectHand }: HandViewProps) {
+  const H = hands[side];
+  const order: (keyof Hand)[] = ["R","B","G","S","N","L","P"];
+  return (
+    <div className="flex flex-wrap gap-2">
+      {order.map(k => (
+        <button key={k}
+          className={`px-2 py-1 rounded border text-sm ${handSel && handSel.side===side && handSel.piece===k ? 'bg-amber-100 border-amber-400' : 'bg-white'}`}
+          onClick={() => onSelectHand(side, k)}
+          disabled={(H[k]||0)===0 || turn!==side}
+          title={`${side==='black'?'先手':'後手'}の持駒 ${k}`}
+        >{k}:{H[k]||0}</button>
+      ))}
+    </div>
+  );
+}
 
 export default function LocalPlay() {
   const [pieces, setPieces] = useState<Placed[]>(() => clonePieces(START_BOARD));
@@ -44,7 +72,7 @@ export default function LocalPlay() {
   function rebuildFromMoves(seq: string[]) {
     // 極簡易実装: 自前状態を初期化して、順に適用（合法性チェックしない）
     let pcs = clonePieces(START_BOARD);
-    let h: {black: Hand; white: Hand} = { black: {P:0,L:0,N:0,S:0,G:0,B:0,R:0}, white: {P:0,L:0,N:0,S:0,G:0,B:0,R:0} };
+    const h: {black: Hand; white: Hand} = { black: {P:0,L:0,N:0,S:0,G:0,B:0,R:0}, white: {P:0,L:0,N:0,S:0,G:0,B:0,R:0} };
     let side: Side = "black";
     const at = (x:number,y:number) => pcs.find(p => p.x===x && p.y===y);
     for (const mv of seq) {
@@ -137,7 +165,7 @@ export default function LocalPlay() {
     rebuildFromMoves(seq);
   }
 
-  const boardOverlay = useMemo(() => {
+  const boardOverlay = useMemo<BestmoveOverlay>(() => {
     if (!fromSel) return null;
     return { from: {x: fromSel.x, y: fromSel.y}, to: {x: fromSel.x, y: fromSel.y} };
   }, [fromSel]);
@@ -157,24 +185,9 @@ export default function LocalPlay() {
     });
     const json = await res.json();
     if (!res.ok) { alert("注釈失敗: " + JSON.stringify(json)); return; }
-    alert("要約:\n" + (json.summary || "") + "\n\n先頭3件:\n" + (json.notes||[]).slice(0,3).map((n:any)=>`${n.ply}. ${n.move} Δcp:${n.delta_cp??"?"}`).join("\n"));
-  }
-
-  function HandView({side}:{side:Side}) {
-    const H = hands[side];
-    const order: (keyof Hand)[] = ["R","B","G","S","N","L","P"];
-    return (
-      <div className="flex flex-wrap gap-2">
-        {order.map(k => (
-          <button key={k}
-            className={`px-2 py-1 rounded border text-sm ${handSel && handSel.side===side && handSel.piece===k ? 'bg-amber-100 border-amber-400' : 'bg-white'}`}
-            onClick={() => selectHand(side, k)}
-            disabled={(H[k]||0)===0 || turn!==side}
-            title={`${side==='black'?'先手':'後手'}の持駒 ${k}`}
-          >{k}:{H[k]||0}</button>
-        ))}
-      </div>
-    );
+    type NoteView = { ply?: number; move?: string; delta_cp?: number | null };
+    const notes: NoteView[] = Array.isArray(json.notes) ? json.notes : [];
+    alert("要約:\n" + (json.summary || "") + "\n\n先頭3件:\n" + notes.slice(0,3).map((n)=>`${n.ply}. ${n.move} Δcp:${n.delta_cp??"?"}`).join("\n"));
   }
 
   return (
@@ -202,18 +215,18 @@ export default function LocalPlay() {
             const y = Math.floor(((e.clientY - rect.top) - 10) / 50);
             if (x>=0 && x<9 && y>=0 && y<9) onBoardClick(x,y);
           }}>
-            <Board pieces={pieces} bestmove={boardOverlay as any} />
+            <Board pieces={pieces} bestmove={boardOverlay} />
           </div>
         </div>
 
         <div className="space-y-3 w-full md:w-64">
           <div>
             <div className="text-sm font-medium">先手 持駒</div>
-            <HandView side="black" />
+            <HandView side="black" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
           </div>
           <div>
             <div className="text-sm font-medium">後手 持駒</div>
-            <HandView side="white" />
+            <HandView side="white" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
           </div>
           <div className="pt-2 border-t">
             <div className="text-sm font-medium mb-2">手順（USI）</div>

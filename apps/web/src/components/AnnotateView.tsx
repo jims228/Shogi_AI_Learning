@@ -28,11 +28,11 @@ export default function AnnotateView() {
   const [showPlayer, setShowPlayer] = useState(false);
 
   // 棋譜再生用のボード表示関数
-  const renderBoard = React.useCallback((ply: number) => {
+  const renderBoard = React.useCallback((_ply: number) => {
     // 簡易実装：現時点では初期局面のみ表示
     // 実際の手順実行は今後の機能拡張で実装
     try {
-      const moves = usiToMoves(usi);
+      // const _moves = usiToMoves(usi);
       // 初期局面の盤面を表示
       const initialBoard = [
         // 後手の駒
