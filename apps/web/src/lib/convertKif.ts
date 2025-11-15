@@ -87,6 +87,13 @@ export function kifLongToUsiMoves(kif: string): string[] {
 
   for (const raw of lines) {
     const line = raw.trim();
+    
+    // Skip time info lines (e.g., "(00:37/00:01:17)")
+    if (/^\(\d{2}:\d{2}\/\d{2}:\d{2}:\d{2}\)/.test(line)) continue;
+    // Skip lines starting with * (comments)
+    if (line.startsWith('*')) continue;
+    // Skip lines with only numbers (likely move numbers without moves)
+    if (/^\d+$/.test(line)) continue;
 
     // 1) 同〜形式 (例: 同歩(76) / △同歩(68)) -> uses lastTo as destination
     const sameRe = /^(?:\d+\s*)?([▲△])?\s*同\s*([^\(\s]+)?[（(](\d)(\d)[)）]/u;
@@ -163,7 +170,7 @@ export function kifLongToUsiMoves(kif: string): string[] {
   return moves;
 }
 
-/** KIF短形式（例: ７六歩, 同金 など）は BoardTracker を“簡易利用”して from を推定（暫定） */
+/** KIF短形式（例: ７六歩, 同金 など）は BoardTracker を"簡易利用"して from を推定（暫定） */
 export function kifShortToUsiMoves(kif: string): string[] {
   // Minimal stub: try to parse lines like ７六歩 -> produce to-only moves like 7g7f by leaving from unknown
   if (!kif) return [];
@@ -171,12 +178,22 @@ export function kifShortToUsiMoves(kif: string): string[] {
   const moves: string[] = [];
   for (const raw of lines) {
     const line = raw.trim();
+    
+    // Skip time info lines
+    if (/^\(\d{2}:\d{2}\/\d{2}:\d{2}:\d{2}\)/.test(line)) continue;
+    // Skip comments
+    if (line.startsWith('*')) continue;
+    // Skip pure numbers (move numbers)
+    if (/^\d+$/.test(line)) continue;
+    
     // handle drop like ▲３三歩打 -> output fallback '00' + numeric coordinates (tests expect '0033')
     if (/打/.test(line)) {
       const mDrop = /([1-9一二三四五六七八九])([1-9一二三四五六七八九])/.exec(line);
       if (mDrop) {
         const x = KANJI_NUM[mDrop[1]] || mDrop[1];
         const y = KANJI_NUM[mDrop[2]] || mDrop[2];
+        // Skip invalid patterns like '0037' which are actually time data
+        if (x === '0' || y === '0') continue;
         moves.push(`00${x}${y}`);
         continue;
       }
@@ -185,12 +202,7 @@ export function kifShortToUsiMoves(kif: string): string[] {
 
     const m = /^([1-9一二三四五六七八九])([1-9一二三四五六七八九])/.exec(line);
     if (m) {
-      let [ , col, row ] = m;
-      col = KANJI_NUM[col] || col;
-      row = KANJI_NUM[row] || row;
-      const to = `${col}${csaDigitToAlpha(row)}`;
-      // no from info yet; push placeholder with to only (UI/backend can detect)
-      moves.push(`??${to}`);
+      // Skip placeholder moves without from info as they're incomplete
       continue;
     }
   }
