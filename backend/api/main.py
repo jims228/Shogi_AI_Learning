@@ -142,10 +142,25 @@ class AnnotateResponse(BaseModel):
 
 
 # ====== Annotate ヘルパー ======
+def _is_valid_usi_move(move: str) -> bool:
+    """Check if a move string is a valid USI move"""
+    import re
+    if not move or len(move) < 4:
+        return False
+    # Valid USI move patterns:
+    # - Normal move: 7g7f, 7g7f+
+    # - Drop: P*5e, G*6f
+    return bool(
+        re.match(r'^[1-9][a-i][1-9][a-i]\+?$', move) or  # Normal move
+        re.match(r'^[PLNSGBRK]\*[1-9][a-i]$', move)      # Drop
+    )
+
+
 def _parse_usi_to_moves(usi: str) -> List[str]:
     """
     'startpos moves 7g7f 3c3d ...' / 'position sfen <...> moves ...' / 純粋なUSI配列 への軽対応。
     厳密対応は今後拡張。
+    不正な指し手（時間情報など）を除外。
     """
     usi = usi.strip()
     if usi.startswith("startpos"):
@@ -153,16 +168,16 @@ def _parse_usi_to_moves(usi: str) -> List[str]:
         toks = usi.split()
         if "moves" in toks:
             i = toks.index("moves")
-            return toks[i+1:]
+            return [t for t in toks[i+1:] if _is_valid_usi_move(t)]
         return []
     if " position " in usi or usi.startswith("position"):
         toks = usi.split()
         if "moves" in toks:
             i = toks.index("moves")
-            return toks[i+1:]
+            return [t for t in toks[i+1:] if _is_valid_usi_move(t)]
         return []
     # スペース区切りのUSI列とみなす
-    return [t for t in usi.split() if len(t) >= 4]
+    return [t for t in usi.split() if _is_valid_usi_move(t)]
 
 
 def _classify_by_delta(delta_cp: int) -> str:
