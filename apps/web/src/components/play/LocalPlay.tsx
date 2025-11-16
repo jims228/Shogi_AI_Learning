@@ -172,7 +172,11 @@ export default function LocalPlay() {
 
   async function callDigest() {
     const usi = moves.length ? `startpos moves ${moves.join(" ")}` : "startpos";
-    const res = await fetch((process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787") + "/digest", {
+    const BASE = process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8001";
+    const url = `${BASE}/digest`;
+    // eslint-disable-next-line no-console
+    console.log("[web] localplay digest fetch to:", url);
+    const res = await fetch(url, {
       method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ usi })
     });
     const json = await res.json();
@@ -180,8 +184,12 @@ export default function LocalPlay() {
   }
   async function callAnnotate() {
     const usi = moves.length ? `startpos moves ${moves.join(" ")}` : "startpos";
-    const res = await fetch((process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787") + "/annotate", {
-      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ usi, byoyomi_ms: 250 })
+    const BASE = process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8001";
+    const url = `${BASE}/analyze`;
+    // eslint-disable-next-line no-console
+    console.log("[web] localplay annotate fetch to:", url);
+    const res = await fetch(url, {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ position: usi, depth: 16, multipv: 3 })
     });
     const json = await res.json();
     if (!res.ok) { alert("注釈失敗: " + JSON.stringify(json)); return; }

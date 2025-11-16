@@ -1,11 +1,10 @@
 "use client";
 import { useState } from "react";
 
-// Prefer explicit engine URL, fallback to legacy API base, finally default localhost:8001
-const API_BASE =
+// Engine URL policy: NEXT_PUBLIC_ENGINE_URL -> ENGINE_URL -> default
+const API_BASE: string =
   process.env.NEXT_PUBLIC_ENGINE_URL ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  (typeof window !== "undefined" && window.__ENGINE_URL__) ||
+  process.env.ENGINE_URL ||
   "http://localhost:8001";
 
 export type AnnotationNote = {
@@ -30,6 +29,25 @@ export type AnnotationResponse = {
   notes?: AnnotationNote[];
 };
 
+// Engine /analyze response from engine_server.py
+export type EngineMultipvItem = {
+  multipv: number;
+  score: {
+    type: "cp" | "mate";
+    cp?: number;
+    mate?: number;
+  };
+  pv: string;
+};
+export type EngineAnalyzeResponse = {
+  ok: boolean;
+  bestmove?: string;
+  multipv?: EngineMultipvItem[];
+  raw?: string;
+  error?: string;
+  detail?: string;
+};
+
 export type KeyMoment = {
   ply: number;
   move: string;
@@ -49,10 +67,25 @@ export type DigestResponse = {
   error?: string;
 };
 
+// Game analysis types (from backend /analyze-game)
+export type AnalyzeGameMove = {
+  ply: number;
+  move: string;
+  side: "sente" | "gote";
+  eval: number | null;
+  povEval: number | null;
+  delta: number | null;
+  label: "brilliant" | "good" | "inaccuracy" | "mistake" | "blunder" | "normal";
+};
+
+export type AnalyzeGameResponse = {
+  moves: AnalyzeGameMove[];
+};
+
 export function useAnnotate() {
   const [usi, setUsi] = useState<string>("startpos moves 7g7f 3c3d 2g2f 8c8d");
   const [isPending, setPending] = useState(false);
-  const [data, setData] = useState<AnnotationResponse | null>(null);
+  const [data, setData] = useState<EngineAnalyzeResponse | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
@@ -61,21 +94,21 @@ export function useAnnotate() {
     setError(null);
     setPending(true);
     try {
-      // minimal client-side logging for debugging
+      const url = `${API_BASE}/analyze`;
       // eslint-disable-next-line no-console
-      console.log("[web] sending annotate to", API_BASE + "/annotate");
-      const res = await fetch(`${API_BASE}/annotate`, {
+      console.log("[web] annotate fetch to:", url);
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usi }),
+        body: JSON.stringify({ position: usi, depth: 16, multipv: 3 }),
       });
       // eslint-disable-next-line no-console
       console.log("[web] annotate response status:", res.status);
       if (!res.ok) throw new Error(await res.text());
         const json = await res.json();
         // eslint-disable-next-line no-console
-        console.log("[web] annotate response body:", json && Object.keys(json));
-        setData(json as AnnotationResponse);
+        console.log("[web] annotate response body keys:", json && Object.keys(json));
+        setData(json as EngineAnalyzeResponse);
     } catch (e: unknown) {
       if (e instanceof Error) setError(e);
       else setLocalError(String(e));
@@ -87,7 +120,10 @@ export function useAnnotate() {
   // simple health check helper (optional for UI)
   async function checkHealth(): Promise<string> {
     try {
-      const r = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+      const url = `${API_BASE}/health`;
+      // eslint-disable-next-line no-console
+      console.log("[web] health fetch to:", url);
+      const r = await fetch(url, { cache: "no-store" });
       const j = await r.json().catch(() => ({}));
       // eslint-disable-next-line no-console
       console.log("[web] engine health:", r.status, j);
@@ -145,4 +181,40 @@ export function useAnnotate() {
   }
 
   return { usi, setUsi, submit, isPending, data, localError, error, downloadCsv, checkHealth } as const;
+}
+
+// Hook for game analysis (evaluation graph + move labels)
+export function useGameAnalysis() {
+  const [analysis, setAnalysis] = useState<AnalyzeGameResponse | null>(null);
+  const [isPending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function analyzeGame(usi: string, pov: "sente" | "gote" = "sente", depth: number = 10) {
+    setError(null);
+    setPending(true);
+    try {
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
+      const url = `${BACKEND_URL}/analyze-game`;
+      // eslint-disable-next-line no-console
+      console.log("[web] game analysis fetch to:", url);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usi, pov, depth }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`API error ${res.status}: ${text}`);
+      }
+      const json = await res.json();
+      setAnalysis(json as AnalyzeGameResponse);
+    } catch (e: unknown) {
+      if (e instanceof Error) setError(e.message);
+      else setError(String(e));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return { analysis, isPending, error, analyzeGame } as const;
 }

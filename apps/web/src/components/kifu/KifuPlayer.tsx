@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
@@ -13,13 +13,17 @@ interface KifuPlayerProps {
   onPlyChange?: (ply: number) => void;
 }
 
-export const KifuPlayer: React.FC<KifuPlayerProps> = ({
+export interface KifuPlayerRef {
+  jumpToPly: (ply: number) => void;
+}
+
+export const KifuPlayer = forwardRef<KifuPlayerRef, KifuPlayerProps>(({
   moves,
   renderBoard,
   speedMs = 750,
   initialPly = 0,
   onPlyChange
-}) => {
+}, ref) => {
   const [currentPly, setCurrentPly] = useState(initialPly);
   const [isPlaying, setIsPlaying] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,6 +37,14 @@ export const KifuPlayer: React.FC<KifuPlayerProps> = ({
     setCurrentPly(clampedPly);
     onPlyChange?.(clampedPly);
   }, [maxPly, onPlyChange]);
+
+  // Expose jumpToPly via ref
+  useImperativeHandle(ref, () => ({
+    jumpToPly: (ply: number) => {
+      handlePlyChange(ply);
+      setIsPlaying(false);
+    }
+  }), [handlePlyChange]);
 
   // 再生制御
   const handlePlay = useCallback(() => {
@@ -246,4 +258,6 @@ export const KifuPlayer: React.FC<KifuPlayerProps> = ({
       </div>
     </Card>
   );
-};
+});
+
+KifuPlayer.displayName = "KifuPlayer";
