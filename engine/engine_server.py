@@ -1,7 +1,7 @@
 from __future__ import annotations
 import asyncio, os, re, shlex
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, Request
 from pydantic import BaseModel
 
 USI_CMD = os.getenv("USI_CMD", "/usr/local/bin/yaneuraou")  # コンテナ内の実行パス
@@ -122,8 +122,17 @@ engine = EngineState()
 @app.get("/")
 def root(): return {"message": "engine ok (usi)"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 @app.post("/analyze")
-async def analyze(body: AnalyzeIn):
+async def analyze(body: AnalyzeIn, request: Request):
+    # minimal request logging
+    try:
+        print(f"[engine] /analyze from {request.client.host if request.client else '?'} position[:60]={body.position[:60]!r} depth={body.depth} multipv={body.multipv}")
+    except Exception:
+        pass
     try:
         result = await engine.analyze(body.position, body.depth, body.multipv)
         status = 200 if result.get("ok") else 502
@@ -138,3 +147,15 @@ async def reload_engine():
         engine.proc.kill()
     engine.proc = None
     return {"ok": True}
+
+# ====== entrypoint ======
+if __name__ == "__main__":
+    import uvicorn
+    host = os.getenv("ENGINE_HOST", os.getenv("HOST", "0.0.0.0"))
+    try:
+        port = int(os.getenv("ENGINE_PORT", os.getenv("PORT", "8001")))
+    except Exception:
+        port = 8001
+    log_level = os.getenv("LOG_LEVEL", "info")
+    print(f"[engine] Starting uvicorn on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level=log_level)

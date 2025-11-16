@@ -17,7 +17,7 @@ import { Copy, Zap, FolderOpen } from "lucide-react";
 // This file extracts the AnnotateView UI so the root page can be a homepage.
 export default function AnnotateView() {
   // reuse existing hook from lib (kept minimal)
-  const { usi, setUsi, submit, isPending, data, localError, downloadCsv } = useAnnotate();
+  const { usi, setUsi, submit, isPending, data, localError, downloadCsv, checkHealth } = useAnnotate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [kifGames, setKifGames] = useState<string[] | null>(null);
   const [gameDialogOpen, setGameDialogOpen] = useState(false);
@@ -216,6 +216,11 @@ export default function AnnotateView() {
             <FolderOpen className="inline-block w-4 h-4 mr-1" />
             {batchPending ? "処理中..." : "フォルダから一括注釈 (dev)"}
           </button>
+
+          <button className="border px-3 py-1 rounded-2xl" onClick={async () => {
+            const st = await checkHealth();
+            showToast({ title: "Engine health", description: st, variant: st === "ok" ? "success" : "warning" });
+          }}>エンジン /health 確認</button>
 
           <button className="border px-3 py-1 rounded-2xl" onClick={handlePasteAsGame}>クリップボードから貼り付け解析</button>
 

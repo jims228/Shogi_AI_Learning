@@ -1,7 +1,12 @@
 "use client";
 import { useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+// Prefer explicit engine URL, fallback to legacy API base, finally default localhost:8001
+const API_BASE =
+  process.env.NEXT_PUBLIC_ENGINE_URL ||
+  process.env.NEXT_PUBLIC_API_BASE ||
+  (typeof window !== "undefined" && window.__ENGINE_URL__) ||
+  "http://localhost:8001";
 
 export type AnnotationNote = {
   ply?: number | string;
@@ -56,19 +61,41 @@ export function useAnnotate() {
     setError(null);
     setPending(true);
     try {
+      // minimal client-side logging for debugging
+      // eslint-disable-next-line no-console
+      console.log("[web] sending annotate to", API_BASE + "/annotate");
       const res = await fetch(`${API_BASE}/annotate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usi }),
       });
+      // eslint-disable-next-line no-console
+      console.log("[web] annotate response status:", res.status);
       if (!res.ok) throw new Error(await res.text());
         const json = await res.json();
+        // eslint-disable-next-line no-console
+        console.log("[web] annotate response body:", json && Object.keys(json));
         setData(json as AnnotationResponse);
     } catch (e: unknown) {
       if (e instanceof Error) setError(e);
       else setLocalError(String(e));
     } finally {
       setPending(false);
+    }
+  }
+
+  // simple health check helper (optional for UI)
+  async function checkHealth(): Promise<string> {
+    try {
+      const r = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      // eslint-disable-next-line no-console
+      console.log("[web] engine health:", r.status, j);
+      return r.ok ? "ok" : `bad(${r.status})`;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[web] engine health error:", err);
+      return "error";
     }
   }
 
@@ -117,5 +144,5 @@ export function useAnnotate() {
     URL.revokeObjectURL(url);
   }
 
-  return { usi, setUsi, submit, isPending, data, localError, error, downloadCsv } as const;
+  return { usi, setUsi, submit, isPending, data, localError, error, downloadCsv, checkHealth } as const;
 }
