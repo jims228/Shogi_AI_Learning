@@ -9,6 +9,7 @@ import os
 import json
 import urllib.request
 import urllib.parse
+import urllib.error
 from typing import Optional, Dict, Any, List
 import time
 
@@ -42,6 +43,22 @@ def call_llm_for_reasoning(base_reasoning: str,
         return None
 
 
+def _gemini_models_to_try() -> List[str]:
+    """環境変数からGeminiモデルを取得し、既知モデルのフォールバック順で返す"""
+    primary = os.getenv("GEMINI_MODEL", "").strip()
+    # デフォルト候補には 2.5 を先頭に含める
+    defaults = ["gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"]
+    candidates = [m for m in [primary] + defaults if m]
+    # 重複排除（順序維持）
+    seen = set()
+    ordered = []
+    for m in candidates:
+        if m not in seen:
+            seen.add(m)
+            ordered.append(m)
+    return ordered
+
+
 def _call_gemini(base_reasoning: str, features: Dict[str, Any], context: Dict[str, Any]) -> Optional[str]:
     """
     Google Gemini APIを呼び出し
@@ -60,17 +77,30 @@ def _call_gemini(base_reasoning: str, features: Dict[str, Any], context: Dict[st
     
     try:
         prompt = _build_gemini_prompt(base_reasoning, features, context)
-        
-        # Gemini API URL
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        
+
+        # まずは公式SDKで試行（利用可能ならエンドポイント差分を吸収できる）
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
+            print(f"Gemini SDK calling model: {model_name}")
+            generation_config = {
+                "temperature": 0.3,
+                "top_k": 20,
+                "top_p": 0.8,
+                "max_output_tokens": 200,
+            }
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(prompt, generation_config=generation_config)
+            text = getattr(resp, "text", None)
+            if text:
+                return _clean_llm_output(text)
+        except Exception as sdk_e:
+            print(f"Gemini SDK path failed, fallback to HTTP: {sdk_e}")
+
         payload = {
             "contents": [
-                {
-                    "parts": [
-                        {"text": prompt}
-                    ]
-                }
+                {"parts": [{"text": prompt}]}
             ],
             "generationConfig": {
                 "temperature": 0.3,
@@ -80,29 +110,60 @@ def _call_gemini(base_reasoning: str, features: Dict[str, Any], context: Dict[st
                 "stopSequences": []
             }
         }
-        
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-            }
-        )
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            result = json.loads(response.read().decode("utf-8"))
-        
-        if "candidates" in result and len(result["candidates"]) > 0:
-            content = result["candidates"][0].get("content", {})
-            parts = content.get("parts", [])
-            if parts and "text" in parts[0]:
-                generated_text = parts[0]["text"].strip()
-                return _clean_llm_output(generated_text)
-        
+
+        last_error: Optional[Exception] = None
+        for model in _gemini_models_to_try():
+            try:
+                last_http_error: Optional[Exception] = None
+                result: Optional[Dict[str, Any]] = None
+                for api_ver in ["v1beta", "v1"]:
+                    url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model}:generateContent?key={api_key}"
+                    print(f"Gemini calling model: {model} via {api_ver}")
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(payload).encode("utf-8"),
+                        headers={"Content-Type": "application/json"}
+                    )
+                    try:
+                        with urllib.request.urlopen(req, timeout=10) as response:
+                            result = json.loads(response.read().decode("utf-8"))
+                        last_http_error = None
+                        break
+                    except urllib.error.HTTPError as he_inner:
+                        last_http_error = he_inner
+                        if he_inner.code == 404:
+                            print(f"Gemini HTTP 404 via {api_ver} for {model}, trying other version...")
+                            continue
+                        else:
+                            raise
+                if result and "candidates" in result and result["candidates"]:
+                    content = result["candidates"][0].get("content", {})
+                    parts = content.get("parts", [])
+                    if parts and "text" in parts[0]:
+                        generated_text = parts[0]["text"].strip()
+                        return _clean_llm_output(generated_text)
+                # 期待する構造でない場合は次候補へ
+                last_error = RuntimeError("Gemini response missing candidates")
+            except urllib.error.HTTPError as he:
+                last_error = he
+                if he.code == 404:
+                    # モデル未対応など → 次候補を試す
+                    print(f"Gemini model not found (404): {model}, trying fallback...")
+                    continue
+                else:
+                    print(f"Gemini HTTP error {he.code}: {he}")
+                    break
+            except Exception as e:
+                last_error = e
+                print(f"Gemini API error with model {model}: {e}")
+                break
+
+        if last_error:
+            print(f"Gemini API failed after fallbacks: {last_error}")
         return None
-        
+
     except Exception as e:
-        print(f"Gemini API error: {e}")
+        print(f"Gemini API outer error: {e}")
         return None
 
 
@@ -424,7 +485,13 @@ def generate_overall_summary_llm(notes: List[Dict[str, Any]],
     lead_changes = features.get("lead_changes", 0)
     
     # 代表的な手を抜粋
-    significant_moves = [note for note in notes if abs(note.get("delta_cp", 0)) > 80][:5]
+    def _dcp(n):
+        v = n.get("delta_cp")
+        try:
+            return int(v) if v is not None else 0
+        except Exception:
+            return 0
+    significant_moves = [note for note in notes if abs(_dcp(note)) > 80][:5]
     moves_summary = ", ".join([f"{note.get('ply', 0)}手目{note.get('move', '')}" 
                               for note in significant_moves])
     
@@ -456,25 +523,73 @@ def _call_gemini_simple(prompt: str) -> Optional[str]:
         return None
     
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # SDK優先
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
+            print(f"Gemini SDK (summary) calling model: {model_name}")
+            generation_config = {"temperature": 0.4, "max_output_tokens": 150}
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(prompt, generation_config=generation_config)
+            text = getattr(resp, "text", None)
+            if text:
+                return _clean_llm_output(text)
+        except Exception as sdk_e:
+            print(f"Gemini SDK (summary) failed, fallback to HTTP: {sdk_e}")
+
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.4, "maxOutputTokens": 150}
         }
-        
-        req = urllib.request.Request(url, json.dumps(payload).encode(), 
-                                   {"Content-Type": "application/json"})
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            result = json.loads(response.read().decode())
-        
-        if "candidates" in result and result["candidates"]:
-            text = result["candidates"][0]["content"]["parts"][0]["text"]
-            return _clean_llm_output(text)
-        
+
+        last_error: Optional[Exception] = None
+        for model in _gemini_models_to_try():
+            try:
+                last_http_error: Optional[Exception] = None
+                result: Optional[Dict[str, Any]] = None
+                for api_ver in ["v1beta", "v1"]:
+                    url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model}:generateContent?key={api_key}"
+                    print(f"Gemini (summary) calling model: {model} via {api_ver}")
+                    req = urllib.request.Request(
+                        url,
+                        json.dumps(payload).encode(),
+                        {"Content-Type": "application/json"}
+                    )
+                    try:
+                        with urllib.request.urlopen(req, timeout=10) as response:
+                            result = json.loads(response.read().decode())
+                        last_http_error = None
+                        break
+                    except urllib.error.HTTPError as he_inner:
+                        last_http_error = he_inner
+                        if he_inner.code == 404:
+                            print(f"Gemini (summary) 404 via {api_ver} for {model}, trying other version...")
+                            continue
+                        else:
+                            raise
+                if result and "candidates" in result and result["candidates"]:
+                    text = result["candidates"][0]["content"]["parts"][0]["text"]
+                    return _clean_llm_output(text)
+                last_error = RuntimeError("Gemini summary missing candidates")
+            except urllib.error.HTTPError as he:
+                last_error = he
+                if he.code == 404:
+                    print(f"Gemini (summary) model 404: {model}, trying fallback...")
+                    continue
+                else:
+                    print(f"Gemini (summary) HTTP error {he.code}: {he}")
+                    break
+            except Exception as e:
+                last_error = e
+                print(f"Gemini (summary) error with model {model}: {e}")
+                break
+
+        if last_error:
+            print(f"Gemini (summary) failed after fallbacks: {last_error}")
     except Exception as e:
-        print(f"Gemini summary error: {e}")
-    
+        print(f"Gemini (summary) outer error: {e}")
+
     return None
 
 

@@ -73,13 +73,14 @@ export function csaToUsiMoves(csa: string): string[] {
   return out;
 }
 
-/** KIF長形式（例: ▲７六歩(77), △３三角(22), 同歩(同)）のみ確実に USI へ。 */
+/** KIF長形式(例: ▲７六歩(77), △３三角(22), 同歩(同))のみ確実に USI へ。 */
 export function kifLongToUsiMoves(kif: string): string[] {
   if (!kif) return [];
   const lines = normalizeKifInput(kif).split('\n');
   const moves: string[] = [];
   // initialize from global state
   let lastTo: string | null = _lastToGlobal;
+  let inMoveSection = false;
 
   // helpers
   const toAlpha = (digitChar: string) => csaDigitToAlpha(digitChar);
@@ -88,16 +89,43 @@ export function kifLongToUsiMoves(kif: string): string[] {
   for (const raw of lines) {
     const line = raw.trim();
     
+    // Detect move section start
+    if (/手数----指手/.test(line)) {
+      inMoveSection = true;
+      continue;
+    }
+    
+    // Stop parsing at game end markers
+    if (/まで\d+手で/.test(line)) {
+      break;
+    }
+    
+    // Auto-detect move section: if we see a line that looks like a move, start parsing
+    if (!inMoveSection && /^\s*\d+\s+[▲△]?[1-9一二三四五六七八九]/.test(line)) {
+      inMoveSection = true;
+    }
+    
+    // Only process lines in move section
+    if (!inMoveSection) continue;
+    
     // Skip time info lines (e.g., "(00:37/00:01:17)")
     if (/^\(\d{2}:\d{2}\/\d{2}:\d{2}:\d{2}\)/.test(line)) continue;
     // Skip lines starting with * (comments)
     if (line.startsWith('*')) continue;
     // Skip lines with only numbers (likely move numbers without moves)
     if (/^\d+$/.test(line)) continue;
+    // Skip blank lines
+    if (!line) continue;
 
-    // 1) 同〜形式 (例: 同歩(76) / △同歩(68)) -> uses lastTo as destination
-    const sameRe = /^(?:\d+\s*)?([▲△])?\s*同\s*([^\(\s]+)?[（(](\d)(\d)[)）]/u;
-    const sameMatch = sameRe.exec(line);
+    // Extract move from line format: "1 ７六歩(77)   (00:00/00:00:00)"
+    // The regex captures the move part after the move number
+    const moveLineMatch = /^\s*\d+\s+(\S+)/.exec(line);
+    if (!moveLineMatch) continue;
+    const movePart = moveLineMatch[1];
+
+    // 1) 同～形式 (例: 同歩(76) / △同歩(68)) -> uses lastTo as destination
+    const sameRe = /^([▲△])?\s*同\s*([^\(\s]+)?[（(](\d)(\d)[)）]/u;
+    const sameMatch = sameRe.exec(movePart);
     if (sameMatch) {
       const [, mark, piecePart, fromCol, fromRow] = sameMatch;
       if (!lastTo) {
@@ -108,11 +136,11 @@ export function kifLongToUsiMoves(kif: string): string[] {
       // determine side: explicit ▲/△ if present, otherwise alternate
       const isBlack = mark === '▲' ? true : (mark === '△' ? false : _nextIsBlackGlobal);
       // promote detection: explicit 成 (and not 不成)
-        let promote = /成/.test(line) && !/不成/.test(line) ? '+' : '';
+        let promote = /成/.test(movePart) && !/不成/.test(movePart) ? '+' : '';
       if (!promote) {
         // implicit promotion for pawn/lance/knight/silver when entering promotion zone
         // do NOT implicitly promote if 不成 was specified on the line
-        if (!/不成/.test(line)) {
+        if (!/不成/.test(movePart)) {
           const pieceChar = (piecePart || '').trim();
           if (/^[歩香桂銀]/.test(pieceChar)) {
             const toRankNum = Number(lastTo[1]);
@@ -128,8 +156,8 @@ export function kifLongToUsiMoves(kif: string): string[] {
     }
 
     // 2) 長形式 (例: ▲７六歩(77) )
-    const longRe = /^(?:\d+\s*)?([▲△])?\s*([1-9一二三四五六七八九])([1-9一二三四五六七八九])\s*([^\(\n\r]*?)[（(](\d)(\d)[)）]/u;
-    const m = longRe.exec(line);
+    const longRe = /^([▲△])?\s*([1-9一二三四五六七八九])([1-9一二三四五六七八九])\s*([^\(\n\r]*?)[（(](\d)(\d)[)）]/u;
+    const m = longRe.exec(movePart);
     if (m) {
       const [ , mark, colRaw, rowRaw, piecePart, fromCol, fromRow ] = m;
       const col = toNum(colRaw);
@@ -139,11 +167,11 @@ export function kifLongToUsiMoves(kif: string): string[] {
       // determine side
       const isBlack = mark === '▲' ? true : (mark === '△' ? false : _nextIsBlackGlobal);
       // explicit promote
-        let promote = /成/.test(line) && !/不成/.test(line) ? '+' : '';
+        let promote = /成/.test(movePart) && !/不成/.test(movePart) ? '+' : '';
       if (!promote) {
         // implicit promotion for pawn/lance/knight/silver
         // do NOT implicitly promote if 不成 was specified on the line
-        if (!/不成/.test(line)) {
+        if (!/不成/.test(movePart)) {
           const pieceChar = (piecePart || '').trim();
           if (/^[歩香桂銀]/.test(pieceChar)) {
             const toRankNum = Number(row);
@@ -153,7 +181,7 @@ export function kifLongToUsiMoves(kif: string): string[] {
       }
       if (promote === '+') {
         // debug: output where we decide to promote
-        // console.error('DBG promote = + for line:', line, { from, to });
+        // console.error('DBG promote = + for line:', movePart, { from, to });
       }
         moves.push(`${from}${to}${promote}`);
       lastTo = to;
@@ -170,46 +198,17 @@ export function kifLongToUsiMoves(kif: string): string[] {
   return moves;
 }
 
-/** KIF短形式（例: ７六歩, 同金 など）は BoardTracker を"簡易利用"して from を推定（暫定） */
+/** KIF短形式(例: ７六歩, 同金 など)は BoardTracker を"簡易利用"して from を推定(暫定) */
 export function kifShortToUsiMoves(kif: string): string[] {
-  // Minimal stub: try to parse lines like ７六歩 -> produce to-only moves like 7g7f by leaving from unknown
+  // Minimal stub: short form without from coordinates is incomplete, so return empty
+  // This prevents generation of invalid moves like "0037" or "??to"
   if (!kif) return [];
-  const lines = normalizeKifInput(kif).split('\n');
-  const moves: string[] = [];
-  for (const raw of lines) {
-    const line = raw.trim();
-    
-    // Skip time info lines
-    if (/^\(\d{2}:\d{2}\/\d{2}:\d{2}:\d{2}\)/.test(line)) continue;
-    // Skip comments
-    if (line.startsWith('*')) continue;
-    // Skip pure numbers (move numbers)
-    if (/^\d+$/.test(line)) continue;
-    
-    // handle drop like ▲３三歩打 -> output fallback '00' + numeric coordinates (tests expect '0033')
-    if (/打/.test(line)) {
-      const mDrop = /([1-9一二三四五六七八九])([1-9一二三四五六七八九])/.exec(line);
-      if (mDrop) {
-        const x = KANJI_NUM[mDrop[1]] || mDrop[1];
-        const y = KANJI_NUM[mDrop[2]] || mDrop[2];
-        // Skip invalid patterns like '0037' which are actually time data
-        if (x === '0' || y === '0') continue;
-        moves.push(`00${x}${y}`);
-        continue;
-      }
-      continue;
-    }
-
-    const m = /^([1-9一二三四五六七八九])([1-9一二三四五六七八九])/.exec(line);
-    if (m) {
-      // Skip placeholder moves without from info as they're incomplete
-      continue;
-    }
-  }
-  return moves;
+  // Short form moves require full board state tracking to determine source square
+  // Since we don't have that here, we don't attempt to parse short form
+  return [];
 }
 
-/** 入口: KIF/CSA/USI混在テキストを受けて、USI配列を返す（startpos moves に連結する想定） */
+/** 入口: KIF/CSA/USI混在テキストを受けて、USI配列を返す(startpos moves に連結する想定) */
 export function kifToUsiMoves(raw: string): string[] {
   if (!raw) return [];
   const src = normalizeKifInput(raw);
@@ -232,7 +231,11 @@ export function kifToUsiMoves(raw: string): string[] {
     out.push(...kifShortToUsiMoves(line));
   }
 
-  return out;
+  // Filter out any tokens that are purely numeric (e.g., "0037", "0022")
+  // These are likely time data or move numbers that slipped through
+  const filtered = out.filter(move => !/^\d+$/.test(move));
+  
+  return filtered;
 }
 
 export default kifToUsiMoves;

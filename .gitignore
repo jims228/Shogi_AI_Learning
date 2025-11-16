@@ -23,6 +23,7 @@ assets/
 
 # Local virtualenv for backend tests
 backend/api/.venv/
+engine/.venv/
 
 # env / large binaries / engine files
 *.bin

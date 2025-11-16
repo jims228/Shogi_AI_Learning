@@ -113,6 +113,36 @@ nn.bin（Suisho5 など）および定跡ファイルは再配布禁止です。
 Aizu University — AI研究室
 目的：将棋AIを用いた「わかりやすい棋譜解説AI」開発
 
+## ローカル開発: シンプルな起動フロー
+
+### 初回セットアップ
+
+```bash
+# 1. エンジンサーバーのPython環境をセットアップ
+cd engine
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+deactivate
+
+# 2. Node.js依存関係をインストール
+cd ../
+pnpm install
+```
+
+### 普段の起動手順
+
+```bash
+./scripts/start-local.sh
+```
+
+このスクリプトは以下を実行します：
+- `engine/.venv`が存在することを確認
+- エンジンサーバー(`engine_server.py`)をバックグラウンドで起動
+- Next.js開発サーバー(`apps/web`)を起動(`pnpm dev`)
+
+注意: `.venv`が存在しない場合はエラーメッセージが表示されます。
+
 ## ローカル開発: ワンコマンドでエンジン/API/Web を起動（VS Code）
 
 以下のファイルを追加しました: `.env.example`, `scripts/*.sh`, `.vscode/tasks.json`, `.vscode/launch.json`
