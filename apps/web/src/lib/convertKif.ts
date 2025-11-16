@@ -179,11 +179,7 @@ export function kifLongToUsiMoves(kif: string): string[] {
           }
         }
       }
-      if (promote === '+') {
-        // debug: output where we decide to promote
-        // console.error('DBG promote = + for line:', movePart, { from, to });
-      }
-        moves.push(`${from}${to}${promote}`);
+      moves.push(`${from}${to}${promote}`);
       lastTo = to;
       // flip next side
       _nextIsBlackGlobal = !isBlack;
@@ -212,6 +208,18 @@ export function kifShortToUsiMoves(kif: string): string[] {
 export function kifToUsiMoves(raw: string): string[] {
   if (!raw) return [];
   const src = normalizeKifInput(raw);
+  
+  // Try to parse as complete KIF document first (long form with coordinates)
+  // This preserves state across lines and handles the full game properly
+  if (/\(\d{2}\)/.test(src)) {
+    const moves = kifLongToUsiMoves(src);
+    if (moves.length > 0) {
+      // Filter out any tokens that are purely numeric (e.g., "0037", "0022")
+      return moves.filter(move => !/^\d+$/.test(move));
+    }
+  }
+  
+  // If not KIF long form, try line-by-line parsing for CSA
   const lines = src.split('\n');
   const out: string[] = [];
 
@@ -221,14 +229,6 @@ export function kifToUsiMoves(raw: string): string[] {
       out.push(...csaToUsiMoves(line));
       continue;
     }
-
-    if (/\(\d{2}\)/.test(line) || /\(\d \d\)/.test(line)) {
-      out.push(...kifLongToUsiMoves(line));
-      continue;
-    }
-
-    // fallback short form
-    out.push(...kifShortToUsiMoves(line));
   }
 
   // Filter out any tokens that are purely numeric (e.g., "0037", "0022")

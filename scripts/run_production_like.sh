@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: このスクリプトは使用しません。代わりに scripts/start-local.sh を使用してください。
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
