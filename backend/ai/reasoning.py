@@ -201,13 +201,17 @@ def _enhance_reasonings_batch_v2(reasonings: List[Dict[str, Any]],
         # 改善候補を選別（重要な手のみ）
         important_indices = []
         for i, note in enumerate(notes):
-            delta = note.get("delta_cp", 0)
+            delta_raw = note.get("delta_cp")
+            try:
+                delta = int(delta_raw) if delta_raw is not None else 0
+            except Exception:
+                delta = 0
             reasoning = reasonings[i] if i < len(reasonings) else {}
             move_type = reasoning.get("context", {}).get("move_type", "normal")
             
             # 重要度判定
             is_important = (
-                abs(delta) > 100 or  # 大きな評価値変化
+                (abs(delta) > 100) or  # 大きな評価値変化
                 move_type in ["check", "capture", "sacrifice", "blunder-flag"] or  # 戦術的手
                 i < 5 or  # 序盤
                 i >= len(notes) - 5  # 終盤
@@ -350,8 +354,12 @@ def _enhance_reasonings_batch(reasonings: List[Dict[str, Any]],
         # 改善候補を選別（重要な手のみ）
         important_indices = []
         for i, note in enumerate(notes):
-            delta = note.get("delta_cp", 0)
-            if abs(delta) > 80 or i < 5 or i >= len(notes) - 5:  # 大きな変化 or 序盤/終盤
+            delta_raw = note.get("delta_cp")
+            try:
+                delta = int(delta_raw) if delta_raw is not None else 0
+            except Exception:
+                delta = 0
+            if (abs(delta) > 80) or i < 5 or i >= len(notes) - 5:  # 大きな変化 or 序盤/終盤
                 important_indices.append(i)
         
         # 重要な手のみをLLMで改善

@@ -3,12 +3,12 @@ import React, { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { useAnnotate, type AnnotationNote, type DigestResponse, type KeyMoment } from "@/lib/annotateHook";
+import { useAnnotate, useGameAnalysis, type AnnotationNote, type DigestResponse, type KeyMoment, type EngineAnalyzeResponse, type EngineMultipvItem, type AnalyzeGameMove } from "@/lib/annotateHook";
 import { toStartposUSI, splitKifGames } from "@/lib/ingest";
 import { showToast } from "@/components/ui/toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button as SmallButton } from "@/components/ui/button";
-import { KifuPlayer } from "@/components/kifu/KifuPlayer";
+import { KifuPlayer, type KifuPlayerRef } from "@/components/kifu/KifuPlayer";
 import { Board } from "@/components/Board";
 import { usiToMoves } from "@/lib/usi";
 
@@ -17,8 +17,10 @@ import { Copy, Zap, FolderOpen } from "lucide-react";
 // This file extracts the AnnotateView UI so the root page can be a homepage.
 export default function AnnotateView() {
   // reuse existing hook from lib (kept minimal)
-  const { usi, setUsi, submit, isPending, data, localError, downloadCsv } = useAnnotate();
+  const { usi, setUsi, submit, isPending, data, localError, downloadCsv, checkHealth } = useAnnotate();
+  const { analysis, isPending: analysisLoading, error: analysisError, analyzeGame } = useGameAnalysis();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const kifuPlayerRef = useRef<KifuPlayerRef | null>(null);
   const [kifGames, setKifGames] = useState<string[] | null>(null);
   const [gameDialogOpen, setGameDialogOpen] = useState(false);
   const [selectedGameIndex, setSelectedGameIndex] = useState(0);
@@ -216,6 +218,11 @@ export default function AnnotateView() {
             {batchPending ? "処理中..." : "フォルダから一括注釈 (dev)"}
           </button>
 
+          <button className="border px-3 py-1 rounded-2xl" onClick={async () => {
+            const st = await checkHealth();
+            showToast({ title: "Engine health", description: st, variant: st === "ok" ? "success" : "warning" });
+          }}>エンジン /health 確認</button>
+
           <button className="border px-3 py-1 rounded-2xl" onClick={handlePasteAsGame}>クリップボードから貼り付け解析</button>
 
           <input
@@ -262,11 +269,15 @@ export default function AnnotateView() {
             </Dialog>
           <Button variant="outline" onClick={async () => {
             setDigestPending(true);
-            try {
-              const res = await fetch((process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000") + "/digest", {
+              try {
+                const DIGEST_BASE = process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8001";
+                const url = `${DIGEST_BASE}/digest`;
+                // eslint-disable-next-line no-console
+                console.log("[web] digest fetch to:", url);
+                const res = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ usi }),
+                  body: JSON.stringify({ usi, time_budget_ms: 10000 }),
               });
               if (!res.ok) throw new Error(await res.text());
               const json = await res.json();
@@ -277,45 +288,92 @@ export default function AnnotateView() {
               setDigestPending(false);
             }
           }} disabled={digestPending} className="rounded-2xl">{digestPending ? "解析中…" : "10秒ダイジェスト"}</Button>
+          
+          <Button variant="outline" onClick={() => analyzeGame(usi, "sente", 10)} disabled={analysisLoading} className="rounded-2xl bg-purple-50 hover:bg-purple-100">
+            {analysisLoading ? "棋譜解析中…" : "棋譜全体解析"}
+          </Button>
         </div>
         {localError && <p className="text-sm text-red-600 mt-2">エラー: {localError}</p>}
-        {data && (
-          <div className="mt-2">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-muted-foreground">{data.summary}</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setShowPlayer(!showPlayer)}
-                className="rounded-2xl"
-              >
-                {showPlayer ? "再生プレイヤーを閉じる" : "棋譜再生プレイヤー"}
-              </Button>
-            </div>
-            
-            {showPlayer && (
-              <div className="mb-6">
-                <KifuPlayer
-                  moves={usiToMoves(usi)}
-                  renderBoard={renderBoard}
-                  speedMs={750}
-                  initialPly={0}
-                />
-              </div>
-            )}
-            
-            <div className="mt-4 space-y-2">
-              {data.notes?.map((n) => (
-                <MoveRow key={String(n.ply)} note={n} onCopy={(text) => navigator.clipboard?.writeText(text)} />
-              ))}
-            </div>
-            <div className="flex justify-end mt-3">
-              {data?.notes?.length ? (
-                <Button variant="outline" className="rounded-2xl" onClick={() => downloadCsv(data.notes)}>CSVとして保存</Button>
-              ) : null}
-            </div>
+        {data && !data.ok && (
+          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded">
+            <p className="text-sm text-red-600">エンジンエラー: {data.error || "不明なエラー"}</p>
+            {data.detail && <p className="text-xs text-red-500 mt-1">{data.detail}</p>}
           </div>
         )}
+        {data && data.ok && (
+          <div className="mt-4">
+            <Card className="p-4">
+              <h3 className="font-semibold text-lg mb-3">注釈結果（エンジン解析）</h3>
+              
+              {/* Bestmove */}
+              <div className="mb-4">
+                <div className="text-sm font-medium text-muted-foreground">最善手</div>
+                <div className="font-mono text-lg font-bold text-blue-700">{data.bestmove || "—"}</div>
+              </div>
+
+              {/* MultiPV candidates */}
+              {data.multipv && data.multipv.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-sm font-medium text-muted-foreground mb-2">候補手（MultiPV）</div>
+                  <div className="space-y-2">
+                    {data.multipv.map((item: EngineMultipvItem, idx: number) => (
+                      <div key={idx} className="border rounded p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-mono text-sm font-medium">#{item.multipv}</div>
+                          <div className="text-sm">
+                            {item.score.type === "cp" && (
+                              <span className={item.score.cp && item.score.cp > 0 ? "text-green-700 font-semibold" : item.score.cp && item.score.cp < 0 ? "text-red-700 font-semibold" : "text-gray-700"}>
+                                {item.score.cp !== undefined ? (item.score.cp > 0 ? `+${item.score.cp}` : String(item.score.cp)) : "0"} cp
+                              </span>
+                            )}
+                            {item.score.type === "mate" && (
+                              <span className="text-purple-700 font-semibold">
+                                詰み {item.score.mate !== undefined ? `${item.score.mate}手` : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="font-mono text-xs bg-white p-2 rounded border">
+                          <div className="text-muted-foreground mb-1">PV:</div>
+                          <div className="whitespace-pre-wrap break-all">{item.pv || "—"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Raw logs (collapsible) */}
+              {data.raw && (
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">エンジン生ログを表示</summary>
+                  <div className="mt-2 font-mono text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-auto max-h-96">
+                    <pre className="whitespace-pre-wrap">{data.raw}</pre>
+                  </div>
+                </details>
+              )}
+            </Card>
+          </div>
+        )}
+        
+        {/* Kifu Player (shown when showPlayer is true) */}
+        {showPlayer && (
+          <div className="mt-6">
+            <div className="flex justify-end mb-2">
+              <Button variant="outline" size="sm" onClick={() => setShowPlayer(false)} className="rounded-2xl">
+                棋譜再生プレイヤーを閉じる
+              </Button>
+            </div>
+            <KifuPlayer
+              ref={kifuPlayerRef}
+              moves={usiToMoves(usi)}
+              renderBoard={renderBoard}
+              speedMs={750}
+              initialPly={0}
+            />
+          </div>
+        )}
+        
         {digest && (
           <div className="mt-6">
             <Card className="p-4">
@@ -350,8 +408,201 @@ export default function AnnotateView() {
             </Card>
           </div>
         )}
+        
+        {/* Game Analysis Results */}
+        {analysisError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
+            <p className="text-sm text-red-600">解析エラー: {analysisError}</p>
+          </div>
+        )}
+        {analysis && analysis.moves.length > 0 && (
+          <div className="mt-6">
+            <Card className="p-4">
+              <h3 className="font-semibold text-lg mb-4">棋譜全体解析</h3>
+              
+              {/* Evaluation Graph */}
+              <div className="mb-6">
+                <div className="text-sm font-medium text-muted-foreground mb-2">評価値推移（先手視点）</div>
+                <EvalGraph moves={analysis.moves} onClickPly={(ply) => {
+                  setShowPlayer(true);
+                  // Small delay to ensure player is rendered
+                  setTimeout(() => kifuPlayerRef.current?.jumpToPly(ply), 50);
+                }} />
+              </div>
+              
+              {/* Move List */}
+              <div>
+                <div className="text-sm font-medium text-muted-foreground mb-2">手の一覧</div>
+                <div className="max-h-96 overflow-y-auto border rounded">
+                  {analysis.moves.map((m) => (
+                    <div
+                      key={m.ply}
+                      className="flex items-center justify-between p-2 border-b hover:bg-gray-50 cursor-pointer"
+                      onClick={() => {
+                        setShowPlayer(true);
+                        setTimeout(() => kifuPlayerRef.current?.jumpToPly(m.ply), 50);
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm w-12">{m.ply}手</span>
+                        <span className="font-medium">{m.move}</span>
+                        <span className="text-xs text-muted-foreground">{m.side === "sente" ? "先手" : "後手"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {m.povEval !== null && (
+                          <span className="text-xs font-mono">{m.povEval > 0 ? `+${m.povEval}` : m.povEval}</span>
+                        )}
+                        {m.delta !== null && (
+                          <span className={`text-xs font-mono ${m.delta > 0 ? "text-green-600" : m.delta < 0 ? "text-red-600" : "text-gray-600"}`}>
+                            ({m.delta > 0 ? "+" : ""}{m.delta})
+                          </span>
+                        )}
+                        <MoveLabel label={m.label} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </Card>
+  );
+}
+
+// Evaluation graph component
+function EvalGraph({ moves, onClickPly }: { moves: AnalyzeGameMove[]; onClickPly: (ply: number) => void }) {
+  const width = 800;
+  const height = 300;
+  const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+  const graphWidth = width - padding.left - padding.right;
+  const graphHeight = height - padding.top - padding.bottom;
+  
+  // Filter moves with valid povEval
+  const validMoves = moves.filter(m => m.povEval !== null);
+  if (validMoves.length === 0) {
+    return <div className="text-sm text-muted-foreground">評価値データがありません</div>;
+  }
+  
+  // Determine Y scale (clip extreme values for better visualization)
+  const maxEval = Math.min(1000, Math.max(...validMoves.map(m => m.povEval!)));
+  const minEval = Math.max(-1000, Math.min(...validMoves.map(m => m.povEval!)));
+  const yRange = maxEval - minEval || 1000;
+  
+  const xScale = (ply: number) => padding.left + ((ply - 1) / Math.max(1, moves.length - 1)) * graphWidth;
+  const yScale = (val: number) => {
+    const clipped = Math.max(minEval, Math.min(maxEval, val));
+    return padding.top + graphHeight - ((clipped - minEval) / yRange) * graphHeight;
+  };
+  
+  // Build path
+  const pathData = validMoves.map((m, i) => {
+    const x = xScale(m.ply);
+    const y = yScale(m.povEval!);
+    return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+  }).join(" ");
+  
+  return (
+    <div className="overflow-x-auto">
+      <svg width={width} height={height} className="border rounded bg-white">
+        {/* Grid lines */}
+        {[0, 250, 500, 750, 1000, -250, -500, -750, -1000].map(val => {
+          if (val < minEval || val > maxEval) return null;
+          const y = yScale(val);
+          return (
+            <g key={val}>
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="#e5e7eb" strokeWidth="1" />
+              <text x={padding.left - 10} y={y + 4} textAnchor="end" fontSize="10" fill="#6b7280">{val}</text>
+            </g>
+          );
+        })}
+        {/* Zero line */}
+        {minEval <= 0 && maxEval >= 0 && (
+          <line x1={padding.left} y1={yScale(0)} x2={width - padding.right} y2={yScale(0)} stroke="#9ca3af" strokeWidth="2" />
+        )}
+        {/* Path */}
+        <path d={pathData} fill="none" stroke="#3b82f6" strokeWidth="2" />
+        {/* Points (clickable) */}
+        {validMoves.map(m => {
+          const cx = xScale(m.ply);
+          const cy = yScale(m.povEval!);
+          let fillColor = "#3b82f6";
+          if (m.label === "blunder") fillColor = "#dc2626";
+          else if (m.label === "mistake") fillColor = "#f97316";
+          else if (m.label === "inaccuracy") fillColor = "#eab308";
+          else if (m.label === "brilliant") fillColor = "#10b981";
+          else if (m.label === "good") fillColor = "#06b6d4";
+          return (
+            <circle
+              key={m.ply}
+              cx={cx}
+              cy={cy}
+              r={4}
+              fill={fillColor}
+              stroke="white"
+              strokeWidth="2"
+              className="cursor-pointer hover:r-6"
+              onClick={() => onClickPly(m.ply)}
+            >
+              <title>{m.ply}手: {m.move} ({m.povEval})</title>
+            </circle>
+          );
+        })}
+        {/* X axis labels */}
+        {[1, Math.floor(moves.length / 2), moves.length].map(ply => {
+          const x = xScale(ply);
+          return (
+            <text key={ply} x={x} y={height - 10} textAnchor="middle" fontSize="10" fill="#6b7280">
+              {ply}手
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// Move label badge
+function MoveLabel({ label }: { label: AnalyzeGameMove["label"] }) {
+  let bgColor = "bg-gray-100";
+  let textColor = "text-gray-700";
+  let text = "";
+  
+  switch (label) {
+    case "brilliant":
+      bgColor = "bg-emerald-100";
+      textColor = "text-emerald-800";
+      text = "妙手";
+      break;
+    case "good":
+      bgColor = "bg-cyan-100";
+      textColor = "text-cyan-800";
+      text = "好手";
+      break;
+    case "inaccuracy":
+      bgColor = "bg-yellow-100";
+      textColor = "text-yellow-800";
+      text = "疑問手";
+      break;
+    case "mistake":
+      bgColor = "bg-orange-100";
+      textColor = "text-orange-800";
+      text = "悪手";
+      break;
+    case "blunder":
+      bgColor = "bg-red-100";
+      textColor = "text-red-800";
+      text = "大悪手";
+      break;
+    default:
+      return null;
+  }
+  
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${bgColor} ${textColor}`}>
+      {text}
+    </span>
   );
 }
 

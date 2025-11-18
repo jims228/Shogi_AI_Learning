@@ -113,6 +113,84 @@ nn.bin（Suisho5 など）および定跡ファイルは再配布禁止です。
 Aizu University — AI研究室
 目的：将棋AIを用いた「わかりやすい棋譜解説AI」開発
 
+## ローカル開発: シンプルな起動フロー
+
+### 初回セットアップ
+
+```bash
+# 1. エンジンサーバーのPython環境をセットアップ
+cd engine
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+deactivate
+
+# 2. Node.js依存関係をインストール
+cd ../
+pnpm install
+```
+
+### 普段の起動手順
+
+```bash
+./scripts/start-local.sh
+```
+
+このスクリプトは以下を実行します：
+- `engine/.venv`が存在することを確認
+- エンジンサーバー(`engine_server.py`)をバックグラウンドで起動
+- Next.js開発サーバー(`apps/web`)を起動(`pnpm dev`)
+
+注意: `.venv`が存在しない場合はエラーメッセージが表示されます。
+
+## ローカル開発（Dockerなし）: エンジン + Web を正しく起動する手順
+
+以下の手順で、Docker を使わずローカルでエンジン（`engine/engine_server.py`）と Web（Next.js）を起動できます。
+
+### 初回セットアップ
+
+```bash
+cd engine && python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd ../ && pnpm install
+```
+
+### 普段の起動
+
+```bash
+cd ~/Shogi_AI_Learning
+# 環境変数を .env または apps/web/.env.local に設定（例）
+# ENGINE_URL / NEXT_PUBLIC_ENGINE_URL は同じ値でOK
+#
+# ENGINE_URL=http://localhost:8001
+# NEXT_PUBLIC_ENGINE_URL=http://localhost:8001
+
+./scripts/start-local.sh
+```
+
+スクリプトは以下を行います：
+- `engine/.venv` をチェック（無ければエラー表示）
+- 仮想環境をアクティベートしてエンジンサーバをバックグラウンド起動（ログは `logs/engine.log`）
+- `http://localhost:8001/health` が OK になるまで待機
+- Next.js 開発サーバを起動（3000 が埋まっていれば 3001 で起動）
+
+### 起動確認
+
+- エンジンのヘルスチェック
+
+```bash
+curl http://localhost:8001/health
+# => {"status":"ok"}
+```
+
+- Web にアクセスして注釈を送る
+	- `http://localhost:3000` または `http://localhost:3001` にアクセス
+	- `/annotate` ページで「注釈を生成」ボタンを押す
+	- ブラウザの開発者ツールのコンソールに、送信先URLとレスポンスステータスのログが表示されます（`[web] sending annotate to ...`, `[web] annotate response status: ...`）
+	- 画面上の「エンジン /health 確認」ボタンでも疎通確認できます
+
+
 ## ローカル開発: ワンコマンドでエンジン/API/Web を起動（VS Code）
 
 以下のファイルを追加しました: `.env.example`, `scripts/*.sh`, `.vscode/tasks.json`, `.vscode/launch.json`

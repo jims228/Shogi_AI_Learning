@@ -1,7 +1,8 @@
 from __future__ import annotations
 import asyncio, os, re, shlex
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 USI_CMD = os.getenv("USI_CMD", "/usr/local/bin/yaneuraou")  # コンテナ内の実行パス
@@ -9,6 +10,21 @@ USI_BOOT_TIMEOUT = float(os.getenv("USI_BOOT_TIMEOUT", "10"))
 USI_GO_TIMEOUT = float(os.getenv("USI_GO_TIMEOUT", "20"))
 
 app = FastAPI(title="USI Engine Gateway")
+
+# --- CORS ---
+_default_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+]
+_env_origins = os.getenv("FRONTEND_ORIGINS", "")
+_origins = [o.strip() for o in _env_origins.split(",") if o.strip()] or _default_origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class AnalyzeIn(BaseModel):
     # 例: "startpos" / "sfen <...>" / "startpos moves 7g7f 3c3d ..."
@@ -122,8 +138,17 @@ engine = EngineState()
 @app.get("/")
 def root(): return {"message": "engine ok (usi)"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 @app.post("/analyze")
-async def analyze(body: AnalyzeIn):
+async def analyze(body: AnalyzeIn, request: Request):
+    # minimal request logging
+    try:
+        print(f"[engine] /analyze from {request.client.host if request.client else '?'} position[:60]={body.position[:60]!r} depth={body.depth} multipv={body.multipv}")
+    except Exception:
+        pass
     try:
         result = await engine.analyze(body.position, body.depth, body.multipv)
         status = 200 if result.get("ok") else 502
@@ -138,3 +163,15 @@ async def reload_engine():
         engine.proc.kill()
     engine.proc = None
     return {"ok": True}
+
+# ====== entrypoint ======
+if __name__ == "__main__":
+    import uvicorn
+    host = os.getenv("ENGINE_HOST", os.getenv("HOST", "0.0.0.0"))
+    try:
+        port = int(os.getenv("ENGINE_PORT", os.getenv("PORT", "8001")))
+    except Exception:
+        port = 8001
+    log_level = os.getenv("LOG_LEVEL", "info")
+    print(f"[engine] Starting uvicorn on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level=log_level)

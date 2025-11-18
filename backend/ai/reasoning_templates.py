@@ -263,8 +263,15 @@ def generate_summary_from_features(notes: List[Dict[str, Any]],
         parts.append("一度の形勢逆転がありました。")
     
     # 特徴的な手の統計
-    good_moves = sum(1 for note in notes if note.get("delta_cp", 0) >= 120)
-    bad_moves = sum(1 for note in notes if note.get("delta_cp", 0) <= -80)
+    def _dcp(n):
+        v = n.get("delta_cp")
+        try:
+            return int(v) if v is not None else 0
+        except Exception:
+            return 0
+    
+    good_moves = sum(1 for note in notes if _dcp(note) >= 120)
+    bad_moves = sum(1 for note in notes if _dcp(note) <= -80)
     
     if good_moves > bad_moves * 2:
         parts.append("全体的に正確性の高い棋譜でした。")

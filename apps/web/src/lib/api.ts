@@ -1,4 +1,8 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+// Engine URL policy: NEXT_PUBLIC_ENGINE_URL -> ENGINE_URL -> default
+const API_BASE: string =
+  process.env.NEXT_PUBLIC_ENGINE_URL ||
+  process.env.ENGINE_URL ||
+  "http://localhost:8001";
 
 export type PVItem = {
   move: string;

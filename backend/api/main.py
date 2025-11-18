@@ -1,7 +1,11 @@
 import subprocess, threading, queue, time, os
 from statistics import mean
-from typing import List, Optional, Dict, Any
-from . import principles as principles_mod
+from typing import List, Optional, Dict, Any, Literal
+import httpx
+try:
+    from . import principles as principles_mod
+except ImportError:
+    import principles as principles_mod
 
 # === ダミーエンジン（本物が無い環境用） ===
 class DummyUSIEngine:
@@ -141,10 +145,25 @@ class AnnotateResponse(BaseModel):
 
 
 # ====== Annotate ヘルパー ======
+def _is_valid_usi_move(move: str) -> bool:
+    """Check if a move string is a valid USI move"""
+    import re
+    if not move or len(move) < 4:
+        return False
+    # Valid USI move patterns:
+    # - Normal move: 7g7f, 7g7f+
+    # - Drop: P*5e, G*6f
+    return bool(
+        re.match(r'^[1-9][a-i][1-9][a-i]\+?$', move) or  # Normal move
+        re.match(r'^[PLNSGBRK]\*[1-9][a-i]$', move)      # Drop
+    )
+
+
 def _parse_usi_to_moves(usi: str) -> List[str]:
     """
     'startpos moves 7g7f 3c3d ...' / 'position sfen <...> moves ...' / 純粋なUSI配列 への軽対応。
     厳密対応は今後拡張。
+    不正な指し手（時間情報など）を除外。
     """
     usi = usi.strip()
     if usi.startswith("startpos"):
@@ -152,16 +171,16 @@ def _parse_usi_to_moves(usi: str) -> List[str]:
         toks = usi.split()
         if "moves" in toks:
             i = toks.index("moves")
-            return toks[i+1:]
+            return [t for t in toks[i+1:] if _is_valid_usi_move(t)]
         return []
     if " position " in usi or usi.startswith("position"):
         toks = usi.split()
         if "moves" in toks:
             i = toks.index("moves")
-            return toks[i+1:]
+            return [t for t in toks[i+1:] if _is_valid_usi_move(t)]
         return []
     # スペース区切りのUSI列とみなす
-    return [t for t in usi.split() if len(t) >= 4]
+    return [t for t in usi.split() if _is_valid_usi_move(t)]
 
 
 def _classify_by_delta(delta_cp: int) -> str:
@@ -921,3 +940,123 @@ def digest(req: DigestRequest):
         summary = refined[:7]
 
     return DigestResponse(summary=summary, stats=stats, key_moments=key_moments, notes=None)
+
+
+# ====== /analyze-game: 全手の評価推移と悪手検出 ======
+class AnalyzeGameRequest(BaseModel):
+    usi: str  # "startpos moves 7g7f 3c3d ..."
+    pov: Literal["sente", "gote"] = "sente"
+    depth: int = 10
+
+class AnalyzeGameMove(BaseModel):
+    ply: int
+    move: str
+    side: Literal["sente", "gote"]
+    eval: Optional[int] = None  # sente視点 cp (mateは±10000等)
+    povEval: Optional[int] = None  # pov視点の評価値
+    delta: Optional[int] = None  # 直前手からの評価変化(pov視点)
+    label: Literal["brilliant", "good", "inaccuracy", "mistake", "blunder", "normal"] = "normal"
+
+class AnalyzeGameResponse(BaseModel):
+    moves: List[AnalyzeGameMove]
+
+def _score_to_cp(score_obj: Dict[str, Any]) -> Optional[int]:
+    """エンジンのスコアオブジェクト {type: 'cp'|'mate', cp?: int, mate?: int} を cp 値に変換。mate は ±10000 にマップ。"""
+    if not score_obj:
+        return None
+    stype = score_obj.get("type")
+    if stype == "cp":
+        return score_obj.get("cp")
+    elif stype == "mate":
+        mate_val = score_obj.get("mate")
+        if mate_val is None:
+            return None
+        return 10000 if mate_val > 0 else -10000
+    return None
+
+@app.post("/analyze-game", response_model=AnalyzeGameResponse)
+async def analyze_game(req: AnalyzeGameRequest):
+    """
+    棋譜全体の評価推移を取得し、各手に brilliant/good/inaccuracy/mistake/blunder/normal のラベルを付与する。
+    engine_server (localhost:8001) の /analyze を順次呼び出して各局面の評価値を取得する。
+    """
+    # usi から手順を抽出
+    parts = req.usi.strip().split()
+    if len(parts) < 2 or parts[0] != "startpos" or parts[1] != "moves":
+        raise HTTPException(status_code=400, detail="Invalid USI format. Expected 'startpos moves ...'")
+    moves_list = parts[2:] if len(parts) > 2 else []
+    
+    if not moves_list:
+        return AnalyzeGameResponse(moves=[])
+    
+    ENGINE_URL = os.environ.get("ENGINE_URL", "http://localhost:8001")
+    result_moves: List[AnalyzeGameMove] = []
+    prev_pov_eval: Optional[int] = None
+    
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for i, mv in enumerate(moves_list):
+            ply = i + 1
+            side: Literal["sente", "gote"] = "sente" if ply % 2 == 1 else "gote"
+            
+            # この手を指した「後」の局面を作る
+            position = "startpos moves " + " ".join(moves_list[: i+1])
+
+            # engine に解析依頼
+            eval_cp: Optional[int] = None
+            try:
+                resp = await client.post(
+                    f"{ENGINE_URL}/analyze",
+                    json={"position": position, "depth": req.depth, "multipv": 1}
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("ok") and data.get("multipv"):
+                        # multipv[0] の score を取得
+                        first = data["multipv"][0]
+                        score_obj = first.get("score")
+                        eval_cp = _score_to_cp(score_obj)
+            except Exception:
+                pass  # タイムアウトや接続エラーの場合は eval_cp=None のまま
+            
+            # pov 視点の評価値を計算
+            pov_eval: Optional[int] = None
+            if eval_cp is not None:
+                if req.pov == "sente":
+                    # sente視点はそのまま or 反転
+                    pov_eval = eval_cp if side == "sente" else -eval_cp
+                else:  # pov == "gote"
+                    pov_eval = -eval_cp if side == "sente" else eval_cp
+            
+            # delta 計算
+            delta: Optional[int] = None
+            if ply > 1 and pov_eval is not None and prev_pov_eval is not None:
+                delta = pov_eval - prev_pov_eval
+            
+            # label 付け
+            label: Literal["brilliant", "good", "inaccuracy", "mistake", "blunder", "normal"] = "normal"
+            if delta is not None:
+                if delta <= -300:
+                    label = "blunder"
+                elif delta <= -150:
+                    label = "mistake"
+                elif delta <= -80:
+                    label = "inaccuracy"
+                elif delta >= 200:
+                    label = "brilliant"
+                elif delta >= 80:
+                    label = "good"
+            
+            result_moves.append(
+                AnalyzeGameMove(
+                    ply=ply,
+                    move=mv,
+                    side=side,
+                    eval=eval_cp,
+                    povEval=pov_eval,
+                    delta=delta,
+                    label=label
+                )
+            )
+            prev_pov_eval = pov_eval
+    
+    return AnalyzeGameResponse(moves=result_moves)
