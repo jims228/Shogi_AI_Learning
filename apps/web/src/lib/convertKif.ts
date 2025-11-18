@@ -16,6 +16,11 @@ const NUM_TO_ALPHA: Record<number, string> = {
   6: "f", 7: "g", 8: "h", 9: "i"
 };
 
+const ALPHA_TO_NUM: Record<string, number> = {
+  "a": 1, "b": 2, "c": 3, "d": 4, "e": 5,
+  "f": 6, "g": 7, "h": 8, "i": 9
+};
+
 const CSA_PROMOTE_CODES = new Set(["TO","NY","NK","NG","UM","RY"]);
 
 // Maintain minimal cross-call state so single-line calls (as done by kifToUsiMoves)
@@ -101,7 +106,8 @@ export function kifLongToUsiMoves(kif: string): string[] {
     }
     
     // Auto-detect move section: if we see a line that looks like a move, start parsing
-    if (!inMoveSection && /^\s*\d+\s+[▲△]?[1-9一二三四五六七八九]/.test(line)) {
+    // Also handle single-line moves (without "手数----" header)
+    if (!inMoveSection && (/^\s*\d+\s+[▲△]?[1-9一二三四五六七八九]/.test(line) || /^[▲△]/.test(line))) {
       inMoveSection = true;
     }
     
@@ -119,9 +125,38 @@ export function kifLongToUsiMoves(kif: string): string[] {
 
     // Extract move from line format: "1 ７六歩(77)   (00:00/00:00:00)"
     // The regex captures the move part after the move number
-    const moveLineMatch = /^\s*\d+\s+(\S+)/.exec(line);
-    if (!moveLineMatch) continue;
-    const movePart = moveLineMatch[1];
+    // Also handle single-line moves without numbers (e.g., "▲７七角成(88)")
+    let movePart = line;
+    const moveLineMatch = /^\s*\d+\s+(.+)/.exec(line);
+    if (moveLineMatch) {
+      movePart = moveLineMatch[1];
+    } else if (/^[▲△]/.test(line)) {
+      // Single line move without number (e.g., "▲７七角成(88)")
+      movePart = line;
+    } else {
+      // Not a move line, skip
+      continue;
+    }
+    
+    // Remove trailing time information if present
+    movePart = movePart.replace(/\s*\(\d{2}:\d{2}\/\d{2}:\d{2}:\d{2}\).*$/, '').trim();
+
+    // 0) 打ち駒形式 (例: ▲３三歩打 -> 0033)
+    const dropRe = /^([▲△])?\s*([1-9一二三四五六七八九])([1-9一二三四五六七八九])\s*([歩香桂銀金角飛玉王])\s*打/u;
+    const dropMatch = dropRe.exec(movePart);
+    if (dropMatch) {
+      const [, mark, colRaw, rowRaw] = dropMatch;
+      const col = toNum(colRaw);
+      const row = toNum(rowRaw);
+      // Format as 00XY where X=col, Y=rank_num (not alpha)
+      moves.push(`00${col}${row}`);
+      const to = `${col}${toAlpha(row)}`;
+      lastTo = to;
+      // determine side
+      const isBlack = mark === '▲' ? true : (mark === '△' ? false : _nextIsBlackGlobal);
+      _nextIsBlackGlobal = !isBlack;
+      continue;
+    }
 
     // 1) 同～形式 (例: 同歩(76) / △同歩(68)) -> uses lastTo as destination
     const sameRe = /^([▲△])?\s*同\s*([^\(\s]+)?[（(](\d)(\d)[)）]/u;
@@ -135,19 +170,8 @@ export function kifLongToUsiMoves(kif: string): string[] {
       const from = `${fromCol}${toAlpha(fromRow)}`;
       // determine side: explicit ▲/△ if present, otherwise alternate
       const isBlack = mark === '▲' ? true : (mark === '△' ? false : _nextIsBlackGlobal);
-      // promote detection: explicit 成 (and not 不成)
-        let promote = /成/.test(movePart) && !/不成/.test(movePart) ? '+' : '';
-      if (!promote) {
-        // implicit promotion for pawn/lance/knight/silver when entering promotion zone
-        // do NOT implicitly promote if 不成 was specified on the line
-        if (!/不成/.test(movePart)) {
-          const pieceChar = (piecePart || '').trim();
-          if (/^[歩香桂銀]/.test(pieceChar)) {
-            const toRankNum = Number(lastTo[1]);
-            if ((isBlack && toRankNum <= 3) || (!isBlack && toRankNum >= 7)) promote = '+';
-          }
-        }
-      }
+      // promote detection: ONLY explicit 成 for "同" moves (no implicit promotion)
+      const promote = /成/.test(movePart) && !/不成/.test(movePart) ? '+' : '';
       moves.push(`${from}${lastTo}${promote}`);
       // flip turn
       _nextIsBlackGlobal = !isBlack;
@@ -211,11 +235,18 @@ export function kifToUsiMoves(raw: string): string[] {
   
   // Try to parse as complete KIF document first (long form with coordinates)
   // This preserves state across lines and handles the full game properly
-  if (/\(\d{2}\)/.test(src)) {
+  if (/\(\d{2}\)/.test(src) || /打/.test(src)) {
     const moves = kifLongToUsiMoves(src);
     if (moves.length > 0) {
-      // Filter out any tokens that are purely numeric (e.g., "0037", "0022")
-      return moves.filter(move => !/^\d+$/.test(move));
+      // Filter out invalid moves:
+      // - Purely numeric tokens that are NOT drop moves (00XY format)
+      // - Drop moves start with "00", so allow them
+      return moves.filter(move => {
+        // Allow drop moves (00XY format where XY are digits)
+        if (/^00\d{2}$/.test(move)) return true;
+        // Filter out other purely numeric tokens (e.g., "1234", "5678")
+        return !/^\d+$/.test(move);
+      });
     }
   }
   
