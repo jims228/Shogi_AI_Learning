@@ -1,8 +1,9 @@
 // Engine URL policy: NEXT_PUBLIC_ENGINE_URL -> ENGINE_URL -> default
 const API_BASE: string =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.NEXT_PUBLIC_ENGINE_URL ||
   process.env.ENGINE_URL ||
-  "http://localhost:8001";
+  "http://localhost:8787";
 
 export type PVItem = {
   move: string;
@@ -18,13 +19,11 @@ export type AnalyzeResponse = {
 };
 
 export async function postAnalyze(body: {
-  sfen?: string;
-  moves?: string[];
+  usi?: string;
   byoyomi_ms?: number;
-  btime?: number; wtime?: number; binc?: number; winc?: number;
   multipv?: number;
 }): Promise<AnalyzeResponse> {
-  const r = await fetch(`${API_BASE}/analyze`, {
+  const r = await fetch(`${API_BASE}/annotate`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(body),

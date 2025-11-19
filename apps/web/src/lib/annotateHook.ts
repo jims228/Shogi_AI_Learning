@@ -3,9 +3,10 @@ import { useState } from "react";
 
 // Engine URL policy: NEXT_PUBLIC_ENGINE_URL -> ENGINE_URL -> default
 const API_BASE: string =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.NEXT_PUBLIC_ENGINE_URL ||
   process.env.ENGINE_URL ||
-  "http://localhost:8001";
+  "http://localhost:8787";
 
 export type AnnotationNote = {
   ply?: number | string;
@@ -94,21 +95,25 @@ export function useAnnotate() {
     setError(null);
     setPending(true);
     try {
-      const url = `${API_BASE}/analyze`;
+      const url = `${API_BASE}/annotate`;
       // eslint-disable-next-line no-console
       console.log("[web] annotate fetch to:", url);
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ position: usi, depth: 16, multipv: 3 }),
+        body: JSON.stringify({ usi, byoyomi_ms: 500 }),
       });
       // eslint-disable-next-line no-console
       console.log("[web] annotate response status:", res.status);
-      if (!res.ok) throw new Error(await res.text());
-        const json = await res.json();
-        // eslint-disable-next-line no-console
-        console.log("[web] annotate response body keys:", json && Object.keys(json));
-        setData(json as EngineAnalyzeResponse);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[web] annotate error: ${url} status=${res.status} body=${errText}`);
+        throw new Error(`注釈APIエラー: ${res.status} ${errText}`);
+      }
+      const json = await res.json();
+      // eslint-disable-next-line no-console
+      console.log("[web] annotate response body keys:", json && Object.keys(json));
+      setData(json as EngineAnalyzeResponse);
     } catch (e: unknown) {
       if (e instanceof Error) setError(e);
       else setLocalError(String(e));
@@ -193,8 +198,7 @@ export function useGameAnalysis() {
     setError(null);
     setPending(true);
     try {
-      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
-      const url = `${BACKEND_URL}/analyze-game`;
+      const url = `${API_BASE}/analyze-game`;
       // eslint-disable-next-line no-console
       console.log("[web] game analysis fetch to:", url);
       const res = await fetch(url, {
