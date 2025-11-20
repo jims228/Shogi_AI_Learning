@@ -524,12 +524,6 @@ try:
 except ImportError as e:
     print(f"Warning: Could not import ingest router: {e}")
 
-try:
-    from .routers.annotate import router as annotate_router
-    app.include_router(annotate_router)
-except ImportError as e:
-    print(f"Warning: Could not import annotate router: {e}")
-
 # Learning module integration
 try:
     from ..learning.router import router as learning_router
@@ -592,13 +586,6 @@ def analyze(req: AnalyzeRequest):
 
 @app.post("/annotate", response_model=AnnotateResponse)
 def annotate(req: AnnotateRequest):
-    # Import router functions
-    try:
-        from .routers.annotate import ensure_reasoning_populated, post_process_reasoning
-    except ImportError:
-        ensure_reasoning_populated = None
-        post_process_reasoning = None
-
     # AI推論モジュールのインポート
     try:
         from ..ai.reasoning import build_multiple_reasoning, build_summary_reasoning
