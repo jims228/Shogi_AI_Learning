@@ -704,29 +704,22 @@ def annotate(req: AnnotateRequest):
     # 3) Convert to dict for reasoning processing
     notes_dict = [note.model_dump() for note in notes]
 
-    # 4) Ensure reasoning fields are populated using router
-    if ensure_reasoning_populated:
-        notes_dict = ensure_reasoning_populated(notes_dict)
-    elif build_multiple_reasoning:
-        # Fallback to direct reasoning generation
+    # 4) Generate reasoning using AI module
+    if build_multiple_reasoning:
         try:
             reasonings = build_multiple_reasoning(notes_dict, {"game_type": "normal"})
             for i, reasoning in enumerate(reasonings):
                 if i < len(notes_dict):
                     notes_dict[i]["reasoning"] = reasoning
         except Exception as e:
-            print(f"Direct reasoning generation error: {e}")
+            print(f"Reasoning generation error: {e}")
 
-    # 5) Post-process reasoning fields
-    if post_process_reasoning:
-        notes_dict = post_process_reasoning(notes_dict)
-
-    # 6) Update MoveNote objects with reasoning
+    # 5) Update MoveNote objects with reasoning
     for i, note_dict in enumerate(notes_dict):
         if i < len(notes):
             notes[i].reasoning = note_dict.get("reasoning")
 
-    # 7) 棋譜全体の要約を生成
+    # 6) 棋譜全体の要約を生成
     if build_summary_reasoning:
         try:
             reasonings = [note.reasoning for note in notes if note.reasoning]
@@ -741,7 +734,7 @@ def annotate(req: AnnotateRequest):
     else:
         summary = "エンジン短時間解析に基づく自動講評です。評価値は先手視点です。"
 
-    # 8) 従来のLLM呼び出し（フォールバック）
+    # 7) 従来のLLM呼び出し（フォールバック）
     if not any(note.reasoning for note in notes):
         comments = _call_openai(_format_for_llm(moves, notes))
         if comments:
