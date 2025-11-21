@@ -172,30 +172,49 @@ export default function LocalPlay() {
 
   async function callDigest() {
     const usi = moves.length ? `startpos moves ${moves.join(" ")}` : "startpos";
-    const BASE = process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8001";
-    const url = `${BASE}/digest`;
+    const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8787";
+    const url = `${API_BASE}/digest`;
     // eslint-disable-next-line no-console
     console.log("[web] localplay digest fetch to:", url);
-    const res = await fetch(url, {
-      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ usi })
-    });
-    const json = await res.json();
-    alert((json.summary || []).join("\n"));
+    try {
+      const res = await fetch(url, {
+        method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ usi })
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[web] localplay digest error: ${url} status=${res.status} body=${errText}`);
+        alert("ダイジェストAPIエラー: " + errText);
+        return;
+      }
+      const json = await res.json();
+      alert((json.summary || []).join("\n"));
+    } catch (e) {
+      alert("ダイジェストAPI通信エラー: " + String(e));
+    }
   }
   async function callAnnotate() {
     const usi = moves.length ? `startpos moves ${moves.join(" ")}` : "startpos";
-    const BASE = process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8001";
-    const url = `${BASE}/analyze`;
+    const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8787";
+    const url = `${API_BASE}/annotate`;
     // eslint-disable-next-line no-console
     console.log("[web] localplay annotate fetch to:", url);
-    const res = await fetch(url, {
-      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ position: usi, depth: 16, multipv: 3 })
-    });
-    const json = await res.json();
-    if (!res.ok) { alert("注釈失敗: " + JSON.stringify(json)); return; }
-    type NoteView = { ply?: number; move?: string; delta_cp?: number | null };
-    const notes: NoteView[] = Array.isArray(json.notes) ? json.notes : [];
-    alert("要約:\n" + (json.summary || "") + "\n\n先頭3件:\n" + notes.slice(0,3).map((n)=>`${n.ply}. ${n.move} Δcp:${n.delta_cp??"?"}`).join("\n"));
+    try {
+      const res = await fetch(url, {
+        method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ usi, byoyomi_ms: 500 })
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[web] localplay annotate error: ${url} status=${res.status} body=${errText}`);
+        alert("注釈APIエラー: " + errText);
+        return;
+      }
+      const json = await res.json();
+      type NoteView = { ply?: number; move?: string; delta_cp?: number | null };
+      const notes: NoteView[] = Array.isArray(json.notes) ? json.notes : [];
+      alert("要約:\n" + (json.summary || "") + "\n\n先頭3件:\n" + notes.slice(0,3).map((n)=>`${n.ply}. ${n.move} Δcp:${n.delta_cp??"?"}`).join("\n"));
+    } catch (e) {
+      alert("注釈API通信エラー: " + String(e));
+    }
   }
 
   return (

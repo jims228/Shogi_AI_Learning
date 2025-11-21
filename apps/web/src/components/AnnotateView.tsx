@@ -269,17 +269,21 @@ export default function AnnotateView() {
             </Dialog>
           <Button variant="outline" onClick={async () => {
             setDigestPending(true);
-              try {
-                const DIGEST_BASE = process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8001";
-                const url = `${DIGEST_BASE}/digest`;
-                // eslint-disable-next-line no-console
-                console.log("[web] digest fetch to:", url);
-                const res = await fetch(url, {
+            const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_ENGINE_URL || process.env.ENGINE_URL || "http://localhost:8787";
+            const url = `${API_BASE}/digest`;
+            // eslint-disable-next-line no-console
+            console.log("[web] digest fetch to:", url);
+            try {
+              const res = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ usi, time_budget_ms: 10000 }),
+                body: JSON.stringify({ usi, time_budget_ms: 10000 }),
               });
-              if (!res.ok) throw new Error(await res.text());
+              if (!res.ok) {
+                const errText = await res.text();
+                console.error(`[web] digest error: ${url} status=${res.status} body=${errText}`);
+                throw new Error(`ダイジェストAPIエラー: ${res.status} ${errText}`);
+              }
               const json = await res.json();
               setDigest(json);
             } catch (e) {

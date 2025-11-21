@@ -21,6 +21,11 @@ const ALPHA_TO_NUM: Record<string, number> = {
   "f": 6, "g": 7, "h": 8, "i": 9
 };
 
+const PIECE_TO_USI: Record<string, string> = {
+  "歩": "P", "香": "L", "桂": "N", "銀": "S", "金": "G",
+  "角": "B", "飛": "R", "玉": "K", "王": "K"
+};
+
 const CSA_PROMOTE_CODES = new Set(["TO","NY","NK","NG","UM","RY"]);
 
 // Maintain minimal cross-call state so single-line calls (as done by kifToUsiMoves)
@@ -141,16 +146,23 @@ export function kifLongToUsiMoves(kif: string): string[] {
     // Remove trailing time information if present
     movePart = movePart.replace(/\s*\(\d{2}:\d{2}\/\d{2}:\d{2}:\d{2}\).*$/, '').trim();
 
-    // 0) 打ち駒形式 (例: ▲３三歩打 -> 0033)
+    // 0) 打ち駒形式 (例: ▲３三歩打 -> P*3c)
     const dropRe = /^([▲△])?\s*([1-9一二三四五六七八九])([1-9一二三四五六七八九])\s*([歩香桂銀金角飛玉王])\s*打/u;
     const dropMatch = dropRe.exec(movePart);
     if (dropMatch) {
-      const [, mark, colRaw, rowRaw] = dropMatch;
+      const [, mark, colRaw, rowRaw, pieceKanji] = dropMatch;
       const col = toNum(colRaw);
       const row = toNum(rowRaw);
-      // Format as 00XY where X=col, Y=rank_num (not alpha)
-      moves.push(`00${col}${row}`);
       const to = `${col}${toAlpha(row)}`;
+      const pieceCode = PIECE_TO_USI[pieceKanji];
+      
+      if (!pieceCode) {
+        console.error(`[KIF Parse Error] Unknown piece type for drop: "${pieceKanji}" in move "${movePart}"`);
+        continue;
+      }
+      
+      // USI drop format: P*3c (not 0033)
+      moves.push(`${pieceCode}*${to}`);
       lastTo = to;
       // determine side
       const isBlack = mark === '▲' ? true : (mark === '△' ? false : _nextIsBlackGlobal);
@@ -168,6 +180,13 @@ export function kifLongToUsiMoves(kif: string): string[] {
         continue;
       }
       const from = `${fromCol}${toAlpha(fromRow)}`;
+      
+      // Defensive check: from square must be valid (not "00")
+      if (fromCol === '0' || fromRow === '0') {
+        console.error(`[KIF Parse Error] Invalid from square "${fromCol}${fromRow}" in 同 move: "${movePart}"`);
+        continue;
+      }
+      
       // determine side: explicit ▲/△ if present, otherwise alternate
       const isBlack = mark === '▲' ? true : (mark === '△' ? false : _nextIsBlackGlobal);
       // promote detection: ONLY explicit 成 for "同" moves (no implicit promotion)
@@ -188,6 +207,13 @@ export function kifLongToUsiMoves(kif: string): string[] {
       const row = toNum(rowRaw);
       const from = `${fromCol}${toAlpha(fromRow)}`;
       const to = `${col}${toAlpha(row)}`;
+      
+      // Defensive check: from square must be valid (not "00")
+      if (fromCol === '0' || fromRow === '0') {
+        console.error(`[KIF Parse Error] Invalid from square "${fromCol}${fromRow}" in move: "${movePart}"`);
+        continue;
+      }
+      
       // determine side
       const isBlack = mark === '▲' ? true : (mark === '△' ? false : _nextIsBlackGlobal);
       // explicit promote
@@ -239,13 +265,15 @@ export function kifToUsiMoves(raw: string): string[] {
     const moves = kifLongToUsiMoves(src);
     if (moves.length > 0) {
       // Filter out invalid moves:
-      // - Purely numeric tokens that are NOT drop moves (00XY format)
-      // - Drop moves start with "00", so allow them
+      // - Purely numeric tokens (e.g., "1234", "5678", "0055") are all invalid
+      // - Drops now use P*3c format, so "00xx" should never appear
       return moves.filter(move => {
-        // Allow drop moves (00XY format where XY are digits)
-        if (/^00\d{2}$/.test(move)) return true;
-        // Filter out other purely numeric tokens (e.g., "1234", "5678")
-        return !/^\d+$/.test(move);
+        // Reject any purely numeric tokens (including 00xx which is invalid)
+        if (/^\d+$/.test(move)) {
+          console.error(`[KIF Parse Error] Invalid numeric move token filtered: "${move}"`);
+          return false;
+        }
+        return true;
       });
     }
   }
