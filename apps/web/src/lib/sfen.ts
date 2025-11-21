@@ -53,6 +53,51 @@ export function sfenToPlaced(input: string): Placed[] {
   return parseBoardSFEN(m[1]);
 }
 
+/** SFEN文字列（盤面のみまたはフルフォーマット）をパースしてPlaced[]を返す */
+export function parseSfen(sfen: string): Placed[] {
+  // "startpos" または "sfen <board> ..." 形式に対応
+  if (!sfen.includes("sfen") && !sfen.includes("startpos")) {
+    // 盤面部分のみの場合（例: "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL"）
+    return parseBoardSFEN(sfen);
+  }
+  return sfenToPlaced(sfen);
+}
+
+/** SFEN文字列から持ち駒情報をパース */
+export function parseHandFromSfen(sfen: string, side: "b" | "w"): Record<string, number> {
+  // SFEN形式: "board turn hand movecount"
+  // 例: "9/9/9/9/9/9/9/1Pk6/2G6 b 2G 1"
+  //     hand部分は "2G" (金2枚)、"-" (持ち駒なし)
+  const parts = sfen.trim().split(/\s+/);
+  if (parts.length < 3) return {};
+
+  const handPart = parts[2];
+  if (handPart === "-") return {};
+
+  const hand: Record<string, number> = {};
+  let i = 0;
+  while (i < handPart.length) {
+    let count = 1;
+    // 数字があればその枚数
+    if (/\d/.test(handPart[i])) {
+      count = parseInt(handPart[i], 10);
+      i++;
+    }
+    const piece = handPart[i];
+    if (!piece) break;
+
+    // 先手の駒は大文字、後手の駒は小文字
+    const isBlack = piece === piece.toUpperCase();
+    if ((side === "b" && isBlack) || (side === "w" && !isBlack)) {
+      const key = piece.toUpperCase();
+      hand[key] = (hand[key] || 0) + count;
+    }
+    i++;
+  }
+
+  return hand;
+}
+
 /** USI座標 "7g7f" → {from:{x,y}, to:{x,y}}（x:0..8 左→右, y:0..8 上→下） */
 export function usiMoveToCoords(usi: string): { from: {x:number;y:number}, to:{x:number;y:number} } | null {
   // drop（例 "P*7f"）は今回は未対応→null返却
