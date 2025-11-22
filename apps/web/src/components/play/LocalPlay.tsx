@@ -1,6 +1,5 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Board } from "@/components/Board";
 import type { Placed, PieceCode } from "@/lib/sfen";
@@ -42,11 +41,20 @@ function HandView({ side, hands, turn, handSel, onSelectHand }: HandViewProps) {
     <div className="flex flex-wrap gap-2">
       {order.map(k => (
         <button key={k}
-          className={`px-2 py-1 rounded border text-sm ${handSel && handSel.side===side && handSel.piece===k ? 'bg-amber-100 border-amber-400' : 'bg-white'}`}
+          className={`
+            px-3 py-2 rounded-lg border text-sm font-bold transition-all
+            ${handSel && handSel.side===side && handSel.piece===k 
+              ? 'bg-shogi-gold text-black border-shogi-gold shadow-lg scale-105' 
+              : 'bg-black/20 border-white/10 text-slate-300 hover:bg-white/10'}
+            disabled:opacity-30 disabled:cursor-not-allowed
+          `}
           onClick={() => onSelectHand(side, k)}
           disabled={(H[k]||0)===0 || turn!==side}
           title={`${side==='black'?'先手':'後手'}の持駒 ${k}`}
-        >{k}:{H[k]||0}</button>
+        >
+          <span className="mr-1">{k}</span>
+          <span className="text-xs opacity-70">x{H[k]||0}</span>
+        </button>
       ))}
     </div>
   );
@@ -218,58 +226,95 @@ export default function LocalPlay() {
   }
 
   return (
-    <Card className="p-4 max-w-5xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">ローカル対局（β）</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={undo} disabled={!moves.length}>一手戻す</Button>
-          <Button variant="outline" onClick={resetAll}>リセット</Button>
-          <label className="ml-2 text-sm inline-flex items-center gap-1">
-            <input type="checkbox" checked={promote} onChange={(e)=>setPromote(e.target.checked)} /> 成り
+    <div className="bg-shogi-panel rounded-3xl p-6 md:p-8 border border-white/5 shadow-xl max-w-5xl mx-auto space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
+          ローカル対局（β）
+        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={undo} disabled={!moves.length} className="bg-transparent border-white/20 text-slate-300 hover:bg-white/10 hover:text-white">
+            一手戻す
+          </Button>
+          <Button variant="outline" onClick={resetAll} className="bg-transparent border-white/20 text-slate-300 hover:bg-white/10 hover:text-white">
+            リセット
+          </Button>
+          <label className="ml-2 text-sm inline-flex items-center gap-2 text-slate-300 cursor-pointer bg-black/20 px-3 py-2 rounded-lg hover:bg-black/30 transition-colors">
+            <input 
+              type="checkbox" 
+              checked={promote} 
+              onChange={(e)=>setPromote(e.target.checked)} 
+              className="w-4 h-4 rounded border-slate-500 text-shogi-gold focus:ring-shogi-gold bg-transparent"
+            /> 
+            <span>成り</span>
           </label>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6">
-        <div>
-          <div className="mb-2 text-sm text-muted-foreground">手番: <span className="font-medium">{sideLabel}</span></div>
-          <div onContextMenu={(e)=>e.preventDefault()} onClick={(e)=>{
-            // クリック位置からマス計算: Boardは(10,10)開始+50ピクセルグリッド
-            const svg = (e.target as HTMLElement).closest('svg');
-            if (!svg) return;
-            const rect = (svg as SVGSVGElement).getBoundingClientRect();
-            const x = Math.floor(((e.clientX - rect.left) - 10) / 50);
-            const y = Math.floor(((e.clientY - rect.top) - 10) / 50);
-            if (x>=0 && x<9 && y>=0 && y<9) onBoardClick(x,y);
-          }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
+        <div className="flex flex-col items-center">
+          <div className="mb-4 text-sm text-slate-400 bg-black/20 px-4 py-1 rounded-full">
+            手番: <span className={`font-bold ${turn === "black" ? "text-white" : "text-slate-300"}`}>{sideLabel}</span>
+          </div>
+          
+          {/* Board Wrapper */}
+          <div 
+            className="relative p-1 rounded-xl bg-gradient-to-br from-amber-800 to-amber-900 shadow-2xl"
+            onContextMenu={(e)=>e.preventDefault()} 
+            onClick={(e)=>{
+              const svg = (e.target as HTMLElement).closest('svg');
+              if (!svg) return;
+              const rect = (svg as SVGSVGElement).getBoundingClientRect();
+              const x = Math.floor(((e.clientX - rect.left) - 10) / 50);
+              const y = Math.floor(((e.clientY - rect.top) - 10) / 50);
+              if (x>=0 && x<9 && y>=0 && y<9) onBoardClick(x,y);
+            }}
+          >
             <Board pieces={pieces} bestmove={boardOverlay} />
           </div>
         </div>
 
-        <div className="space-y-3 w-full md:w-64">
-          <div>
-            <div className="text-sm font-medium">先手 持駒</div>
+        <div className="space-y-6 w-full">
+          <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">先手 (Black)</div>
             <HandView side="black" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
           </div>
-          <div>
-            <div className="text-sm font-medium">後手 持駒</div>
+          
+          <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">後手 (White)</div>
             <HandView side="white" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
           </div>
-          <div className="pt-2 border-t">
-            <div className="text-sm font-medium mb-2">手順（USI）</div>
-            <div className="font-mono text-xs bg-gray-50 rounded p-2 min-h-16">
-              {moves.join(" ") || "—"}
+
+          <div className="pt-4 border-t border-white/5">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Game Log (USI)</div>
+            <div className="font-mono text-xs text-slate-300 bg-black/40 rounded-xl p-4 min-h-[100px] max-h-[200px] overflow-y-auto border border-white/5 leading-relaxed break-all">
+              {moves.join(" ") || <span className="text-slate-600 italic">No moves yet...</span>}
             </div>
-            <div className="flex gap-2 mt-2">
-              <Button variant="secondary" onClick={callDigest} disabled={!moves.length}>10秒ダイジェスト</Button>
-              <Button onClick={callAnnotate} disabled={!moves.length}>注釈を生成</Button>
+            
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <Button 
+                variant="secondary" 
+                onClick={callDigest} 
+                disabled={!moves.length}
+                className="bg-blue-600 hover:bg-blue-500 text-white border-none"
+              >
+                10秒ダイジェスト
+              </Button>
+              <Button 
+                onClick={callAnnotate} 
+                disabled={!moves.length}
+                className="bg-shogi-pink hover:bg-rose-500 text-white border-none"
+              >
+                注釈を生成
+              </Button>
             </div>
           </div>
-          <div className="text-xs text-muted-foreground">
+          
+          <div className="text-xs text-slate-600 text-center">
             注意: 現状は合法手判定を厳密には行いません（β版）。
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

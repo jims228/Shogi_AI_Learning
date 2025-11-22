@@ -110,3 +110,71 @@ export function usiMoveToCoords(usi: string): { from: {x:number;y:number}, to:{x
   if ([fx,fy,tx,ty].some(v => Number.isNaN(v) || v<0 || v>8)) return null;
   return { from:{x:fx,y:fy}, to:{x:tx,y:ty} };
 }
+
+const KANJI_NUM = ["", "１", "２", "３", "４", "５", "６", "７", "８", "９"];
+const KANJI_RANK = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+const PIECE_KANJI: Record<string, string> = {
+  P: "歩", L: "香", N: "桂", S: "銀", G: "金", B: "角", R: "飛", K: "玉",
+  "+P": "と", "+L": "成香", "+N": "成桂", "+S": "成銀", "+B": "馬", "+R": "龍",
+  // 英語小文字(後手)も対応しておく
+  p: "歩", l: "香", n: "桂", s: "銀", g: "金", b: "角", r: "飛", k: "玉",
+  "+p": "と", "+l": "成香", "+n": "成桂", "+s": "成銀", "+b": "馬", "+r": "龍",
+};
+
+export function formatUsiMoveJapanese(usi: string, pieces: Placed[], side: "b" | "w"): string {
+  const prefix = side === "b" ? "▲" : "△";
+  
+  // Drop move: P*7f
+  if (usi.includes("*")) {
+    const [pieceChar, dest] = usi.split("*");
+    const file = Number(dest[0]);
+    const rankChar = dest[1];
+    const rank = rankChar.charCodeAt(0) - "a".charCodeAt(0) + 1;
+    
+    const pName = PIECE_KANJI[pieceChar.toUpperCase()] || "";
+    return `${prefix}${KANJI_NUM[file]}${KANJI_RANK[rank]}${pName}打`;
+  }
+
+  // Normal move: 7g7f or 7g7f+
+  const srcFile = Number(usi[0]);
+  const srcRank = usi[1].charCodeAt(0) - "a".charCodeAt(0) + 1;
+  const dstFile = Number(usi[2]);
+  const dstRank = usi[3].charCodeAt(0) - "a".charCodeAt(0) + 1;
+  const promote = usi.endsWith("+");
+
+  // Find piece at source
+  // pieces coordinates: x=0..8 (9..1), y=0..8 (1..9)
+  // srcFile 7 -> x = 9-7 = 2
+  // srcRank 7 -> y = 7-1 = 6
+  const sx = 9 - srcFile;
+  const sy = srcRank - 1;
+  
+  const sourcePiece = pieces.find(p => p.x === sx && p.y === sy);
+  let pName = "??";
+  if (sourcePiece) {
+    // piece code might be "P", "+P", "p", "+p"
+    // We want the base name usually, but if it's already promoted, we use that name.
+    // If the move is a promotion (ends in +), we append "成" to the base name (unless it's already promoted? No, you can't promote an already promoted piece).
+    // Actually, if it's a promotion move, the source piece is unpromoted.
+    
+    // Normalize to uppercase for lookup if needed, but our map handles both
+    let code = sourcePiece.piece;
+    // If it's a promotion move, we use the base name + "成"
+    // e.g. P -> 歩 -> 歩成
+    if (promote) {
+       // remove + from code if it exists (shouldn't for a promotion move)
+       const base = code.replace("+", "").toUpperCase();
+       pName = (PIECE_KANJI[base] || "") + "成";
+    } else {
+       // Not a promotion move. Could be unpromoted or already promoted.
+       // e.g. +P -> と
+       // e.g. P -> 歩
+       // Normalize to uppercase key for map
+       const key = code.startsWith("+") ? "+" + code[1].toUpperCase() : code.toUpperCase();
+       pName = PIECE_KANJI[key] || "";
+    }
+  }
+
+  return `${prefix}${KANJI_NUM[dstFile]}${KANJI_RANK[dstRank]}${pName}`;
+}
+

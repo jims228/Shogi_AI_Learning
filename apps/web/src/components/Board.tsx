@@ -8,7 +8,9 @@ const RANKS = ["一","二","三","四","五","六","七","八","九"];
 export const Board: React.FC<{
   pieces: Placed[];
   bestmove?: { from:{x:number;y:number}, to:{x:number;y:number} } | null;
-}> = ({ pieces, bestmove }) => {
+  onSquareClick?: (x: number, y: number) => void;
+  highlightSquares?: {x:number, y:number}[];
+}> = ({ pieces, bestmove, onSquareClick, highlightSquares }) => {
   return (
     <div className="flex justify-center items-center py-6">
       <svg
@@ -19,20 +21,24 @@ export const Board: React.FC<{
       >
         {/* 升目 */}
         {[...Array(9)].flatMap((_, y) =>
-          [...Array(9)].map((_, x) => (
+          [...Array(9)].map((_, x) => {
+            const isHighlighted = highlightSquares?.some(sq => sq.x === x && sq.y === y);
+            return (
             <rect
               key={`c-${x}-${y}`}
               x={10 + x * 50}
               y={10 + y * 50}
               width="50"
               height="50"
-              fill="#fef3c7"
+              fill={isHighlighted ? "#fcd34d" : "#fef3c7"}
               stroke="#92400e"
               strokeWidth="1.5"
               rx="2"
               ry="2"
+              onClick={() => onSquareClick?.(x, y)}
+              style={{ cursor: onSquareClick ? "pointer" : "default" }}
             />
-          ))
+          )})
         )}
 
         {/* ベストムーブ矢印（あれば） */}

@@ -18,6 +18,13 @@ const config: Config = {
           800: "#323c87",
           900: "#262d67",
         },
+        shogi: {
+          dark: "#1a1f3a",    // Deep Navy Background
+          panel: "#2d3561",   // Card/Panel Background
+          gold: "#d4af37",    // Accent Gold
+          pink: "#ff6b6b",    // Accent Pink
+          blue: "#4dabf7",    // Accent Blue
+        },
       },
       borderRadius: {
         xl: "1rem",

@@ -80,7 +80,8 @@
     outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
   }
   body {
-    background: var(--background);
-    color: var(--foreground);
+    /* Default to Dark Navy theme */
+    background-color: #1a1f3a;
+    color: #f8fafc;
   }
 }

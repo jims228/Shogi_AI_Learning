@@ -27,6 +27,7 @@ class DummyUSIEngine:
 # ============================================
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 # ====== 環境変数 ======
@@ -342,6 +343,74 @@ class USIEngine:
             self._send("isready")
             self._wait_for("readyok", timeout=ENGINE_READY_TIMEOUT)
             return SettingsResponse(ok=True, applied=applied)
+
+    def stream_analyze(self, req: AnalyzeRequest):
+        import json
+        with self.lock:
+            if not self.proc or self.proc.poll() is not None:
+                self.start()
+
+            self._drain()
+
+            mpv = max(1, int(req.multipv or 3))
+            self._send(f"setoption name MultiPV value {mpv}")
+
+            if req.sfen:
+                self._send(f"position sfen {req.sfen}")
+            elif req.moves:
+                seq = " ".join(req.moves)
+                self._send(f"position startpos moves {seq}")
+            else:
+                self._send("position startpos")
+
+            self._send("go infinite")
+
+            pv_map = {}
+            
+            try:
+                while True:
+                    try:
+                        line = self.q.get(timeout=0.5)
+                    except queue.Empty:
+                        yield f": keepalive\n\n"
+                        continue
+
+                    if line.startswith("info ") and "multipv" in line:
+                        item = self._parse_info(line)
+                        if item and "multipv" in item:
+                            m_idx = item["multipv"]
+                            
+                            score_obj = {"type": "cp", "cp": 0}
+                            if "score_mate" in item:
+                                score_obj = {"type": "mate", "mate": item["score_mate"]}
+                            elif "score_cp" in item:
+                                score_obj = {"type": "cp", "cp": item["score_cp"]}
+                            
+                            pv_str = " ".join(item.get("pv", []))
+                            
+                            pv_map[m_idx] = {
+                                "multipv": m_idx,
+                                "score": score_obj,
+                                "pv": pv_str
+                            }
+                            
+                            candidates = [pv_map[k] for k in sorted(pv_map.keys())]
+                            bestmove = candidates[0]["pv"].split()[0] if candidates else None
+                            
+                            resp = {
+                                "ok": True,
+                                "bestmove": bestmove,
+                                "multipv": candidates
+                            }
+                            yield f"data: {json.dumps(resp)}\n\n"
+                            
+            except GeneratorExit:
+                self._send("stop")
+                self._drain()
+            except Exception as e:
+                print(f"Stream error: {e}")
+                self._send("stop")
+                self._drain()
 
     def quit(self):
         try:
@@ -1040,3 +1109,9 @@ async def analyze_game(req: AnalyzeGameRequest):
             prev_pov_eval = pov_eval
     
     return AnalyzeGameResponse(moves=result_moves)
+
+@app.get("/api/analysis/stream")
+def analysis_stream(position: str):
+    moves = _parse_usi_to_moves(position)
+    areq = AnalyzeRequest(moves=moves, multipv=3)
+    return StreamingResponse(engine.stream_analyze(areq), media_type="text/event-stream")
