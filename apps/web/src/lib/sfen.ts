@@ -5,7 +5,7 @@ export type PieceCode = PieceBase | `+${PieceBase}` | Lowercase<PieceBase> | `+$
 
 export type Placed = { piece: PieceCode; x: number; y: number };
 
-const STARTPOS_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL";
+export const STARTPOS_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL";
 
 // SFENの1段を配列に（左→右＝9筋→1筋の順）
 function expandRow(row: string): (PieceCode|null)[] {
