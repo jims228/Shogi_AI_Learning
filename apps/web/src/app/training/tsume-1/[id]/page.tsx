@@ -48,7 +48,7 @@ export default function TsumeLessonPage() {
   }, [lesson]);
 
   if (!lesson) {
-    return <div className="min-h-screen bg-slate-950 text-white p-8">Lesson not found</div>;
+    return <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] p-8">Lesson not found</div>;
   }
 
   const handleSquareClick = (x: number, y: number) => {
@@ -103,11 +103,11 @@ export default function TsumeLessonPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white font-sans flex flex-col">
+    <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] font-sans flex flex-col">
       {/* Header */}
-      <header className="h-16 border-b border-white/10 flex items-center px-4 bg-slate-900/50 backdrop-blur-md">
-        <Link href="/learn" className="flex items-center text-slate-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-5 h-5 mr-2" />
+      <header className="h-16 border-b border-black/10 flex items-center px-4 bg-[#f9f3e5]/95">
+        <Link href="/learn" className="flex items-center text-[#555] hover:text-[#2b2b2b] transition-colors">
+          <ArrowLeft className="w-5 h-5 mr-2 text-[#555]" />
           マップに戻る
         </Link>
         <h1 className="ml-4 font-bold text-lg">1手詰レッスン</h1>
@@ -115,7 +115,7 @@ export default function TsumeLessonPage() {
 
       <div className="flex-1 flex flex-col md:flex-row max-w-6xl mx-auto w-full p-4 gap-8">
         {/* Left: Board */}
-        <div className="flex-1 flex items-center justify-center bg-slate-900/50 rounded-2xl border border-white/5 p-4 relative">
+        <div className="flex-1 flex items-center justify-center bg-[#fef8e6] rounded-2xl border border-black/10 p-4 relative shadow-[0_10px_25px_rgba(0,0,0,0.08)]">
           <Board 
             pieces={pieces} 
             highlightSquares={selectedSquare ? [selectedSquare] : []}
@@ -124,15 +124,15 @@ export default function TsumeLessonPage() {
           
           {/* Overlay for Incorrect */}
           {status === "incorrect" && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-2xl backdrop-blur-sm">
-              <div className="bg-slate-800 p-6 rounded-xl border border-red-500/30 shadow-2xl text-center">
-                <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">不正解...</h3>
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-2xl backdrop-blur-sm">
+              <div className="bg-[#fdf3de] p-6 rounded-xl border border-rose-200 shadow-2xl text-center text-[#2b2b2b]">
+                <XCircle className="w-16 h-16 text-[#555] mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-[#2b2b2b] mb-2">不正解...</h3>
                 <button 
                   onClick={handleRetry}
-                  className="mt-4 px-6 py-2 bg-white text-slate-900 font-bold rounded-lg hover:bg-slate-200 transition-colors flex items-center mx-auto gap-2"
+                  className="mt-4 px-6 py-2 bg-white text-[#2b2b2b] font-bold rounded-lg border border-black/10 hover:bg-amber-50 transition-colors flex items-center mx-auto gap-2"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-4 h-4 text-[#555]" />
                   もう一度
                 </button>
               </div>
@@ -142,36 +142,36 @@ export default function TsumeLessonPage() {
 
         {/* Right: Instructions */}
         <div className="w-full md:w-96 flex flex-col gap-6">
-          <div className={`bg-slate-800 border rounded-2xl p-6 shadow-lg transition-colors ${
-            status === "correct" ? "border-green-500/50 bg-green-900/10" : "border-white/10"
+          <div className={`bg-[#fdf3de] border rounded-2xl p-6 shadow-[0_10px_25px_rgba(0,0,0,0.08)] transition-colors ${
+            status === "correct" ? "border-emerald-300" : "border-black/10"
           }`}>
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xl ${
-                status === "correct" ? "bg-green-600" : "bg-blue-600"
+                status === "correct" ? "bg-[#e3f6d4]" : "bg-[#fef1d6]"
               }`}>
-                {status === "correct" ? <CheckCircle className="w-6 h-6" /> : "?"}
+                {status === "correct" ? <CheckCircle className="w-6 h-6 text-[#555]" /> : <span className="text-[#2b2b2b]">?</span>}
               </div>
               <h2 className="font-bold text-xl">
                 {status === "correct" ? "クリア！" : "問題"}
               </h2>
             </div>
             
-            <p className="text-lg text-slate-200 leading-relaxed mb-6">
+            <p className="text-lg text-[#444] leading-relaxed mb-6">
               {message}
             </p>
 
             {status === "correct" && (
               <button
                 onClick={handleFinish}
-                className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-[#e3f6d4] hover:bg-[#d1ecbc] text-[#2b2b2b] font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border border-black/10"
               >
                 マップに戻る
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 text-[#555]" />
               </button>
             )}
             
             {status === "playing" && (
-               <div className="text-sm text-slate-400 bg-slate-900/50 p-4 rounded-lg">
+               <div className="text-sm text-slate-600 bg-white/80 border border-black/10 p-4 rounded-lg">
                  ヒント: 自分の駒（下側）をクリックして選択し、移動先をクリックしてください。
                </div>
             )}

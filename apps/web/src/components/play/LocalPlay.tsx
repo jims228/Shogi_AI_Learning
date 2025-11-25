@@ -44,9 +44,9 @@ function HandView({ side, hands, turn, handSel, onSelectHand }: HandViewProps) {
           className={`
             px-3 py-2 rounded-lg border text-sm font-bold transition-all
             ${handSel && handSel.side===side && handSel.piece===k 
-              ? 'bg-shogi-gold text-black border-shogi-gold shadow-lg scale-105' 
-              : 'bg-black/20 border-white/10 text-slate-300 hover:bg-white/10'}
-            disabled:opacity-30 disabled:cursor-not-allowed
+              ? 'bg-amber-300 text-[#3a2b17] border-amber-500 shadow-md scale-[1.02]' 
+              : 'bg-white border-black/10 text-slate-700 hover:bg-amber-50'}
+            disabled:opacity-40 disabled:cursor-not-allowed
           `}
           onClick={() => onSelectHand(side, k)}
           disabled={(H[k]||0)===0 || turn!==side}
@@ -79,100 +79,107 @@ export default function LocalPlay() {
 
   function rebuildFromMoves(seq: string[]) {
     // 極簡易実装: 自前状態を初期化して、順に適用（合法性チェックしない）
-    let pcs = clonePieces(START_BOARD);
-    const h: {black: Hand; white: Hand} = { black: {P:0,L:0,N:0,S:0,G:0,B:0,R:0}, white: {P:0,L:0,N:0,S:0,G:0,B:0,R:0} };
-    let side: Side = "black";
-    const at = (x:number,y:number) => pcs.find(p => p.x===x && p.y===y);
-    for (const mv of seq) {
-      if (mv.includes("*")) {
-        // drop: "P*7f"
-        const pieceBase = mv[0] as keyof Hand;
-        const fx = 9 - Number(mv[2]);
-        const fy = mv.charCodeAt(3) - "a".charCodeAt(0);
-        // 手持ちから減らし、盤面に置く
-        const sideKey = side === "black" ? "black":"white";
-        if (h[sideKey][pieceBase] > 0) h[sideKey][pieceBase] -= 1;
-        pcs = pcs.filter(p => !(p.x===fx && p.y===fy));
-        const code = side === "black" ? pieceBase : (pieceBase.toLowerCase() as PieceCode);
-        pcs.push({ piece: code as PieceCode, x: fx, y: fy });
-      } else {
-        // normal move "7g7f" or with '+' (ignored for coord)
-        const fx = 9 - Number(mv[0]);
-        const fy = mv.charCodeAt(1) - "a".charCodeAt(0);
-        const tx = 9 - Number(mv[2]);
-        const ty = mv.charCodeAt(3) - "a".charCodeAt(0);
-        const src = at(fx, fy);
-        if (!src) { side = side === "black" ? "white" : "black"; continue; }
-        // capture (remove dst, add to hand demoted)
-        const dst = at(tx, ty);
-        if (dst) {
-          const base = demotePieceBase(dst.piece);
-          if (base) {
-            const captSide = side === "black" ? "black" : "white";
-            h[captSide][base] += 1;
-          }
-          pcs = pcs.filter(p => !(p.x===tx && p.y===ty));
-        }
-        // move
-        const prom = mv.length >= 5 && mv[4] === "+";
-        const moved = pcs.find(p => p===src)!;
-        moved.x = tx; moved.y = ty;
-        if (prom) {
-          const up = (moved.piece.startsWith("+") ? moved.piece[1] : moved.piece[0]).toUpperCase();
-          if (canPromoteBase(up)) {
-            moved.piece = (isBlackPiece(moved.piece) ? ("+"+up) : ("+"+up.toLowerCase())) as PieceCode;
-          }
-        }
-      }
-      side = side === "black" ? "white" : "black";
-    }
-    setPieces(clonePieces(pcs));
-    setHands(h);
-    setTurn(side);
-  }
+    return (
+      <div className="space-y-8">
+        <div className="rounded-2xl bg-white/85 border border-black/5 p-4 md:p-5 shadow-sm flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <h2 className="text-xl font-bold text-[#3a2b17] flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            ローカル対局（β）
+          </h2>
+          <div className="flex flex-wrap items-center gap-3 text-slate-700">
+            <Button
+              variant="outline"
+              onClick={undo}
+              disabled={!moves.length}
+              className="border-black/20 text-slate-700 hover:bg-amber-50"
+            >
+              一手戻す
+            </Button>
+            <Button
+              variant="outline"
+              onClick={resetAll}
+              className="border-black/20 text-slate-700 hover:bg-amber-50"
+            >
+              リセット
+            </Button>
+            <label className="ml-2 text-sm inline-flex items-center gap-2 text-slate-700 cursor-pointer bg-white border border-black/10 px-3 py-2 rounded-lg hover:bg-amber-50 transition-colors">
+              <input
+                type="checkbox"
+                checked={promote}
+                onChange={(e) => setPromote(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-400 text-amber-600 focus:ring-amber-500"
+              />
+              <span>成り</span>
+            </label>
+          </div>
+        </div>
 
-  function onBoardClick(x: number, y: number) {
-    // Hand drop
-    if (handSel) {
-      const destPiece = pieces.find(p => p.x===x && p.y===y);
-      if (destPiece) { setHandSel(null); return; }
-      const mv = `${handSel.piece}*${coordsToUsi(x,y)}`;
-      const seq = [...moves, mv];
-      setMoves(seq); setHandSel(null); setFromSel(null); setPromote(false);
-      rebuildFromMoves(seq);
-      return;
-    }
-    // Select or move
-    if (!fromSel) {
-      const p = pieces.find(pp => pp.x===x && pp.y===y);
-      if (!p) return;
-      const black = isBlackPiece(p.piece);
-      if ((turn === "black" && !black) || (turn === "white" && black)) return;
-      setFromSel({x,y});
-      return;
-    } else {
-      const mv = `${coordsToUsi(fromSel.x, fromSel.y)}${coordsToUsi(x,y)}${promote?"+":""}`;
-      const seq = [...moves, mv];
-      setMoves(seq); setFromSel(null); setPromote(false);
-      rebuildFromMoves(seq);
-    }
-  }
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-8">
+          <div className="rounded-2xl bg-[#fef8e6] text-[#2b2b2b] p-4 md:p-5 shadow-[0_15px_30px_rgba(0,0,0,0.08)]">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-1 text-sm border border-black/10">
+              手番: <span className="font-semibold text-[#2b2b2b]">{sideLabel}</span>
+            </div>
 
-  function selectHand(side: Side, piece: keyof Hand) {
-    if (turn !== side) return;
-    if ((hands[side][piece]||0) <= 0) return;
-    setFromSel(null);
-    setHandSel({ side, piece });
-  }
+            <div
+              className="relative p-1 rounded-xl bg-gradient-to-br from-amber-800 to-amber-900 shadow-2xl"
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={(e) => {
+                const svg = (e.target as HTMLElement).closest("svg");
+                if (!svg) return;
+                const rect = (svg as SVGSVGElement).getBoundingClientRect();
+                const x = Math.floor(((e.clientX - rect.left) - 10) / 50);
+                const y = Math.floor(((e.clientY - rect.top) - 10) / 50);
+                if (x >= 0 && x < 9 && y >= 0 && y < 9) onBoardClick(x, y);
+              }}
+            >
+              <Board pieces={pieces} bestmove={boardOverlay} />
+            </div>
+          </div>
 
-  function undo() {
-    if (!moves.length) return;
-    const seq = moves.slice(0, -1);
-    setMoves(seq);
-    setFromSel(null); setHandSel(null); setPromote(false);
-    rebuildFromMoves(seq);
-  }
+          <div className="space-y-6 w-full">
+            <div className="rounded-2xl bg-white/85 border border-black/5 p-4 shadow-sm">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">先手 (Black)</div>
+              <HandView side="black" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
+            </div>
 
+            <div className="rounded-2xl bg-white/85 border border-black/5 p-4 shadow-sm">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">後手 (White)</div>
+              <HandView side="white" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
+            </div>
+
+            <div className="rounded-2xl bg-white/90 border border-black/5 p-4 shadow-sm">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Game Log (USI)</div>
+              <div className="font-mono text-xs text-slate-800 bg-white border border-black/5 rounded-xl p-4 min-h-[100px] max-h-[200px] overflow-y-auto leading-relaxed break-all">
+                {moves.join(" ") || <span className="text-slate-400 italic">No moves yet...</span>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <Button
+                  variant="secondary"
+                  onClick={callDigest}
+                  disabled={!moves.length}
+                  className="bg-[#fef1d6] hover:bg-[#fde0a2] text-[#2b2b2b] border border-black/10"
+                >
+                  10秒ダイジェスト
+                </Button>
+                <Button
+                  onClick={callAnnotate}
+                  disabled={!moves.length}
+                  className="bg-[#fde7ef] hover:bg-[#fbd1e3] text-[#2b2b2b] border border-black/10"
+                >
+                  注釈を生成
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500 text-center">
+              注意: 現状は合法手判定を厳密には行いません（β版）。
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const boardOverlay = useMemo<BestmoveOverlay>(() => {
     if (!fromSel) return null;
     return { from: {x: fromSel.x, y: fromSel.y}, to: {x: fromSel.x, y: fromSel.y} };
@@ -228,15 +235,15 @@ export default function LocalPlay() {
   return (
     <div className="bg-shogi-panel rounded-3xl p-6 md:p-8 border border-white/5 shadow-xl max-w-5xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <h2 className="text-xl font-bold text-[#2b2b2b] flex items-center gap-2">
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
           ローカル対局（β）
         </h2>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" onClick={undo} disabled={!moves.length} className="bg-transparent border-white/20 text-slate-300 hover:bg-white/10 hover:text-white">
+          <Button variant="outline" onClick={undo} disabled={!moves.length} className="bg-transparent border-black/10 text-slate-600 hover:bg-black/5 hover:text-[#2b2b2b]">
             一手戻す
           </Button>
-          <Button variant="outline" onClick={resetAll} className="bg-transparent border-white/20 text-slate-300 hover:bg-white/10 hover:text-white">
+          <Button variant="outline" onClick={resetAll} className="bg-transparent border-black/10 text-slate-600 hover:bg-black/5 hover:text-[#2b2b2b]">
             リセット
           </Button>
           <label className="ml-2 text-sm inline-flex items-center gap-2 text-slate-300 cursor-pointer bg-black/20 px-3 py-2 rounded-lg hover:bg-black/30 transition-colors">
@@ -254,7 +261,7 @@ export default function LocalPlay() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
         <div className="flex flex-col items-center">
           <div className="mb-4 text-sm text-slate-400 bg-black/20 px-4 py-1 rounded-full">
-            手番: <span className={`font-bold ${turn === "black" ? "text-white" : "text-slate-300"}`}>{sideLabel}</span>
+            手番: <span className={`font-bold ${turn === "black" ? "text-[#2b2b2b]" : "text-slate-500"}`}>{sideLabel}</span>
           </div>
           
           {/* Board Wrapper */}
@@ -296,14 +303,14 @@ export default function LocalPlay() {
                 variant="secondary" 
                 onClick={callDigest} 
                 disabled={!moves.length}
-                className="bg-blue-600 hover:bg-blue-500 text-white border-none"
+                className="bg-[#fef1d6] hover:bg-[#fde0a2] text-[#2b2b2b] border border-black/10"
               >
                 10秒ダイジェスト
               </Button>
               <Button 
                 onClick={callAnnotate} 
                 disabled={!moves.length}
-                className="bg-shogi-pink hover:bg-rose-500 text-white border-none"
+                className="bg-[#fde7ef] hover:bg-[#fbd1e3] text-[#2b2b2b] border border-black/10"
               >
                 注釈を生成
               </Button>

@@ -20,17 +20,17 @@ export const RoadmapNode: React.FC<RoadmapNodeProps> = ({ lesson, isSelected, on
       <div 
         className={`
           w-16 h-16 rounded-full flex items-center justify-center border-4 shadow-lg z-10
-          ${isSelected ? "ring-4 ring-blue-400 ring-offset-2 ring-offset-slate-900" : ""}
-          ${isCompleted ? "bg-yellow-500 border-yellow-600" : 
-            isLocked ? "bg-slate-700 border-slate-600" : "bg-blue-500 border-blue-600"}
+          ${isSelected ? "ring-4 ring-amber-300 ring-offset-2 ring-offset-[#f6f1e6]" : ""}
+          ${isCompleted ? "bg-[#fef1d6] border-amber-300" : 
+            isLocked ? "bg-slate-200 border-slate-300" : "bg-[#fde7ef] border-rose-200"}
         `}
       >
         {isLocked ? (
-          <Lock className="text-slate-400 w-8 h-8" />
+          <Lock className="text-[#555] w-8 h-8" />
         ) : isCompleted ? (
-          <CheckCircle className="text-white w-8 h-8" />
+          <CheckCircle className="text-[#555] w-8 h-8" />
         ) : (
-          <Play className="text-white w-8 h-8 fill-current" />
+          <Play className="text-[#555] w-8 h-8 fill-current" />
         )}
       </div>
       
@@ -42,9 +42,8 @@ export const RoadmapNode: React.FC<RoadmapNodeProps> = ({ lesson, isSelected, on
           ))}
         </div>
       )}
-
-      <div className="mt-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700 shadow-md">
-        <span className="text-sm font-bold text-slate-200">{lesson.title}</span>
+      <div className="mt-2 bg-white px-3 py-1 rounded-full border border-black/10 shadow-md">
+        <span className="text-sm font-bold text-[#2b2b2b]">{lesson.title}</span>
       </div>
     </div>
   );

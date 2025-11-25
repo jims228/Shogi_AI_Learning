@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Turbopack warned about multiple lockfiles; force root to the monorepo base so it picks the top-level pnpm-lock.yaml.
+  turbopack: {
+    root: "../..",
+  },
 };
 
 export default nextConfig;

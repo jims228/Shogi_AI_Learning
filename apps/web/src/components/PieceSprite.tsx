@@ -7,23 +7,23 @@ const COLS = 8;
 const ROWS = 4;
 const SPRITE_URL = "/images/pieces.png";
 
-const spriteColumns: Record<string, number> = {
-  P: 0,
-  L: 1,
-  N: 2,
-  S: 3,
-  G: 4,
-  B: 5,
-  R: 6,
-  K: 7,
-  "+P": 0,
-  "+L": 1,
-  "+N": 2,
-  "+S": 3,
-  "+B": 5,
-  "+R": 6,
-  "+G": 4,
-  "+K": 7,
+const spriteMap: Record<string, { row: number; col: number }> = {
+  P: { row: 0, col: 0 },
+  L: { row: 0, col: 1 },
+  N: { row: 0, col: 2 },
+  S: { row: 0, col: 3 },
+  G: { row: 0, col: 4 },
+  B: { row: 0, col: 5 },
+  R: { row: 0, col: 6 },
+  K: { row: 0, col: 7 },
+  "+P": { row: 1, col: 0 },
+  "+L": { row: 1, col: 1 },
+  "+N": { row: 1, col: 2 },
+  "+S": { row: 1, col: 3 },
+  "+G": { row: 1, col: 4 },
+  "+B": { row: 1, col: 5 },
+  "+R": { row: 1, col: 6 },
+  "+K": { row: 1, col: 7 },
 };
 
 export type OrientationMode = "rotate" | "sprite";
@@ -61,8 +61,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   const resolvedOwner = owner ?? (baseChar === baseChar.toUpperCase() ? "sente" : "gote");
 
   const norm = isPromoted ? `+${baseChar.toUpperCase()}` : baseChar.toUpperCase();
-  const col = spriteColumns[norm] ?? spriteColumns["P"];
-  const baseRow = isPromoted ? 1 : 0;
+  const { row: baseRow, col } = spriteMap[norm] ?? spriteMap["P"];
   const ownerOffset = orientationMode === "sprite" && resolvedOwner === "gote" ? 2 : 0;
   const spriteRow = orientationMode === "sprite" ? baseRow + ownerOffset : baseRow;
 

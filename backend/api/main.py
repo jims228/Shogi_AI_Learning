@@ -2,6 +2,7 @@ import subprocess, threading, queue, time, os
 from statistics import mean
 from typing import List, Optional, Dict, Any, Literal
 import httpx
+import logging
 try:
     from . import principles as principles_mod
 except ImportError:
@@ -29,6 +30,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+# === ロガー ===
+logger = logging.getLogger(__name__)
 
 # ====== 環境変数 ======
 ENGINE_PATH = os.environ.get("ENGINE_PATH", "/usr/local/bin/yaneuraou")
@@ -64,6 +68,21 @@ class PVItem(BaseModel):
 class AnalyzeResponse(BaseModel):
     bestmove: str
     candidates: Optional[List[PVItem]] = None
+
+
+class BatchAnalysisRequest(BaseModel):
+    position: Optional[str] = None
+    usi: Optional[str] = None
+    max_ply: Optional[int] = None
+    movetime_ms: Optional[int] = None
+    multipv: Optional[int] = None
+    time_budget_ms: Optional[int] = None
+
+
+class BatchAnalysisResponse(BaseModel):
+    analyses: Dict[int, Dict[str, Any]]
+    elapsed_ms: int
+    analyzed_plies: int
 
 
 class QuickEvalItem(BaseModel):
@@ -182,6 +201,60 @@ def _parse_usi_to_moves(usi: str) -> List[str]:
         return []
     # スペース区切りのUSI列とみなす
     return [t for t in usi.split() if _is_valid_usi_move(t)]
+
+
+def _extract_position_components(position: str) -> Dict[str, Any]:
+    body = position.strip()
+    if body.startswith("position"):
+        body = body[len("position"):].strip()
+
+    base = body
+    moves: List[str] = []
+    if " moves " in body:
+        head, _, tail = body.partition(" moves ")
+        base = head.strip()
+        moves = [t for t in tail.split() if _is_valid_usi_move(t)]
+    else:
+        moves = _parse_usi_to_moves(body)
+
+    sfen = None
+    if base.startswith("sfen"):
+        sfen = base[len("sfen"):].strip()
+
+    return {"base": base, "moves": moves, "sfen": sfen}
+
+
+def _format_score_object(item: PVItem) -> Dict[str, Any]:
+    if item.score_mate is not None:
+        return {"type": "mate", "mate": item.score_mate}
+    if item.score_cp is not None:
+        return {"type": "cp", "cp": item.score_cp}
+    return {"type": "cp", "cp": 0}
+
+
+def _analyze_response_to_payload(res: AnalyzeResponse, default_multipv: int) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "ok": True,
+        "bestmove": getattr(res, "bestmove", None),
+        "multipv": [],
+    }
+
+    candidates = res.candidates or []
+    for idx, cand in enumerate(candidates, start=1):
+        score_obj = _format_score_object(cand)
+        pv_text = " ".join(cand.pv) if cand.pv else (cand.move or "")
+        payload["multipv"].append(
+            {
+                "multipv": idx,
+                "score": score_obj,
+                "pv": pv_text,
+                "depth": cand.depth,
+            }
+        )
+        if idx >= default_multipv:
+            break
+
+    return payload
 
 
 def _classify_by_delta(delta_cp: int) -> str:
@@ -305,6 +378,20 @@ class USIEngine:
         self.proc.stdin.write(cmd + "\n")
         self.proc.stdin.flush()
 
+    def _apply_position(self, req: AnalyzeRequest):
+        if req.sfen:
+            cmd = f"position sfen {req.sfen.strip()}"
+            if req.moves:
+                cmd += " moves " + " ".join(req.moves)
+            self._send(cmd)
+            return
+
+        if req.moves:
+            seq = " ".join(req.moves)
+            self._send(f"position startpos moves {seq}")
+        else:
+            self._send("position startpos")
+
     def _wait_for(self, token: str, timeout: float):
         end = time.time() + timeout
         while time.time() < end:
@@ -355,13 +442,7 @@ class USIEngine:
             mpv = max(1, int(req.multipv or 3))
             self._send(f"setoption name MultiPV value {mpv}")
 
-            if req.sfen:
-                self._send(f"position sfen {req.sfen}")
-            elif req.moves:
-                seq = " ".join(req.moves)
-                self._send(f"position startpos moves {seq}")
-            else:
-                self._send("position startpos")
+            self._apply_position(req)
 
             self._send("go infinite")
 
@@ -391,7 +472,8 @@ class USIEngine:
                             pv_map[m_idx] = {
                                 "multipv": m_idx,
                                 "score": score_obj,
-                                "pv": pv_str
+                                "pv": pv_str,
+                                "depth": item.get("depth")
                             }
                             
                             candidates = [pv_map[k] for k in sorted(pv_map.keys())]
@@ -442,13 +524,7 @@ class USIEngine:
             self._send(f"setoption name MultiPV value {mpv}")
 
             # 局面セット
-            if req.sfen:
-                self._send(f"position sfen {req.sfen}")
-            elif req.moves:
-                seq = " ".join(req.moves)
-                self._send(f"position startpos moves {seq}")
-            else:
-                self._send("position startpos")
+            self._apply_position(req)
 
             # go コマンド
             if req.btime is not None and req.wtime is not None:
@@ -1112,6 +1188,66 @@ async def analyze_game(req: AnalyzeGameRequest):
 
 @app.get("/api/analysis/stream")
 def analysis_stream(position: str):
-    moves = _parse_usi_to_moves(position)
-    areq = AnalyzeRequest(moves=moves, multipv=3)
+    components = _extract_position_components(position)
+    moves = components.get("moves") or []
+    sfen = components.get("sfen")
+    areq = AnalyzeRequest(
+        sfen=sfen or None,
+        moves=moves or None,
+        multipv=3,
+    )
     return StreamingResponse(engine.stream_analyze(areq), media_type="text/event-stream")
+
+
+@app.post("/api/analysis/batch", response_model=BatchAnalysisResponse)
+def analysis_batch(req: BatchAnalysisRequest):
+    position_literal = req.position or req.usi
+    if not position_literal:
+        raise HTTPException(status_code=400, detail="position or usi is required")
+
+    components = _extract_position_components(position_literal)
+    moves = components.get("moves") or []
+    sfen = components.get("sfen") or None
+    if not moves and not req.max_ply:
+        # still analyze starting position (ply 0)
+        target_moves = 0
+    else:
+        max_ply = req.max_ply if req.max_ply is not None else len(moves)
+        target_moves = min(max_ply, len(moves))
+
+    movetime_ms = req.movetime_ms or 200
+    time_budget_ms = req.time_budget_ms or 25000
+    multipv = max(1, req.multipv or 3)
+
+    start_time = time.monotonic()
+    analyses: Dict[int, Dict[str, Any]] = {}
+
+    for ply in range(0, target_moves + 1):
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+        if elapsed_ms >= time_budget_ms:
+            break
+
+        partial_moves = moves[:ply]
+        analyze_req = AnalyzeRequest(
+            sfen=sfen,
+            moves=partial_moves or None,
+            byoyomi_ms=movetime_ms,
+            multipv=multipv,
+        )
+
+        try:
+            res = engine.analyze(analyze_req)
+        except Exception as exc:
+            analyses[ply] = {"ok": False, "error": str(exc)}
+            continue
+
+        payload = _analyze_response_to_payload(res, multipv)
+        analyses[ply] = payload
+
+    total_elapsed_ms = int((time.monotonic() - start_time) * 1000)
+    response = BatchAnalysisResponse(
+        analyses=analyses,
+        elapsed_ms=total_elapsed_ms,
+        analyzed_plies=len(analyses),
+    )
+    return response

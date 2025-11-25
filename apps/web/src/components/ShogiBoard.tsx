@@ -346,7 +346,7 @@ const HandArea: React.FC<HandAreaProps> = ({ side, hands, orientationMode }) => 
           owner={owner}
         />
         {count > 1 && (
-          <span className="absolute -top-1 -right-1 rounded-full bg-black/80 px-1 text-xs font-semibold text-white">
+          <span className="absolute -top-1 -right-1 rounded-full bg-[#fef1d6] px-1 text-xs font-semibold text-[#2b2b2b] border border-black/10">
             {count}
           </span>
         )}

@@ -1,89 +1,106 @@
-// apps/web/src/app/page.tsx
+import "./home.css";
 import Link from "next/link";
 import { Swords, Map, BookOpenCheck, Bell, UserCircle } from "lucide-react";
 
+const metrics = [
+  { label: "継続日数", value: "22日" },
+  { label: "本日の修練", value: "45分" },
+  { label: "棋力レート", value: "1850" },
+];
+
+const trainingCards = [
+  {
+    href: "/play",
+    title: "実践対局",
+    description: "AIや道場メンバーとの真剣勝負",
+    icon: Swords,
+    modifier: "training-card--play",
+    iconColor: "#1b3b5f",
+  },
+  {
+    href: "/learn",
+    title: "特訓",
+    description: "弱点テーマを集中的に攻略",
+    icon: Map,
+    modifier: "training-card--learn",
+    iconColor: "#4b7b34",
+  },
+  {
+    href: "/annotate",
+    title: "復習",
+    description: "棋譜をアップロードしてAIと振り返り",
+    icon: BookOpenCheck,
+    modifier: "training-card--review",
+    iconColor: "#b43a32",
+  },
+];
+
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-slate-950 text-white pb-20">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-md border-b border-white/5">
-        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-           {/* Logo */}
-           <div className="font-bold text-xl tracking-tight select-none">
-             <span className="text-white">Shogi AI</span>
-             <span className="text-sky-400 ml-1">Learning</span>
-           </div>
-           {/* Icons */}
-           <div className="flex items-center gap-4">
-             <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
-               <Bell className="w-6 h-6 text-slate-300" />
-             </button>
-             <button className="p-1 hover:bg-white/10 rounded-full transition-colors">
-               <UserCircle className="w-8 h-8 text-slate-300" />
-             </button>
-           </div>
+    <div className="home-root">
+      <header className="home-header">
+        <div className="home-header-inner">
+          <div className="home-logo">
+            <span className="home-logo-main">Shogi AI</span>
+            <span className="home-logo-sub">Learning</span>
+          </div>
+          <div className="home-header-icons">
+            <button type="button" aria-label="notifications">
+              <Bell size={24} />
+            </button>
+            <button type="button" aria-label="profile">
+              <UserCircle size={32} />
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="pt-24 px-4 max-w-3xl mx-auto space-y-6">
-        
-        {/* Mascot Message Card */}
-        <div className="bg-slate-900/50 border border-white/10 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden backdrop-blur-sm">
-          <div className="z-10">
-            <div className="text-sky-400 font-bold text-sm mb-1">ドラゴ</div>
-            <p className="text-lg font-medium text-slate-100 leading-relaxed">
-              おかえり！今日は「棒銀」の復習から始めるといい感じだぞ！
-            </p>
-          </div>
-          {/* Avatar Placeholder */}
-          <div className="w-16 h-16 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center text-3xl shadow-lg border-4 border-slate-800 ml-4">
-            🐲
-          </div>
+      <main className="home-main">
+        <div className="home-shell">
+          <section className="home-metrics">
+            {metrics.map((metric, index) => (
+              <div
+                key={metric.label}
+                className={`home-metric-item${index === 1 ? " home-metric-item--divider" : ""}`}
+              >
+                <p className="home-metric-label">{metric.label}</p>
+                <p className="home-metric-value">{metric.value}</p>
+              </div>
+            ))}
+          </section>
+
+          <section className="home-mascot">
+            <div className="home-mascot-copy">
+              <p className="home-mascot-name">ドラゴ</p>
+              <p className="home-mascot-text">
+                おかえり！今日は「棒銀」の復習から始めるといい感じだぞ！
+              </p>
+            </div>
+            <div className="home-mascot-avatar" aria-hidden="true">
+              🐲
+            </div>
+          </section>
+
+          <section className="home-training">
+            <div className="home-training-header">
+              <div className="home-training-accent" />
+              <h2 className="home-training-title">修練の間</h2>
+            </div>
+            <div className="home-training-grid">
+              {trainingCards.map((card) => (
+                <Link key={card.title} href={card.href} className={`training-card ${card.modifier}`}>
+                  <div className="training-card-icon">
+                    <card.icon size={24} color={card.iconColor} />
+                  </div>
+                  <div>
+                    <div className="training-card-title">{card.title}</div>
+                    <div className="training-card-sub">{card.description}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
         </div>
-
-        {/* Feature Cards */}
-        <div className="space-y-4">
-          {/* Card 1: Play */}
-          <Link href="/play" className="block group">
-            <div className="bg-blue-600 rounded-[32px] p-6 md:p-8 flex items-center gap-6 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-900/20 cursor-pointer">
-               <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm">
-                 <Swords className="w-8 h-8 text-white" />
-               </div>
-               <div>
-                 <h2 className="text-2xl font-bold text-white mb-1">実践対局</h2>
-                 <p className="text-blue-100 font-medium">AIまたは人と対局</p>
-               </div>
-            </div>
-          </Link>
-
-          {/* Card 2: Learn */}
-          <Link href="/learn" className="block group">
-            <div className="bg-teal-600 rounded-[32px] p-6 md:p-8 flex items-center gap-6 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-teal-900/20 cursor-pointer">
-               <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm">
-                 <Map className="w-8 h-8 text-white" />
-               </div>
-               <div>
-                 <h2 className="text-2xl font-bold text-white mb-1">特訓</h2>
-                 <p className="text-teal-100 font-medium">ロードマップを進める</p>
-               </div>
-            </div>
-          </Link>
-
-          {/* Card 3: Annotate */}
-          <Link href="/annotate" className="block group">
-            <div className="bg-rose-600 rounded-[32px] p-6 md:p-8 flex items-center gap-6 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-rose-900/20 cursor-pointer">
-               <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm">
-                 <BookOpenCheck className="w-8 h-8 text-white" />
-               </div>
-               <div>
-                 <h2 className="text-2xl font-bold text-white mb-1">棋譜解析</h2>
-                 <p className="text-rose-100 font-medium">自分の対局をアップロードしてAI解析</p>
-               </div>
-            </div>
-          </Link>
-        </div>
-
       </main>
     </div>
   );

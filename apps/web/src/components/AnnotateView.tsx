@@ -15,43 +15,40 @@ export default function AnnotateView() {
   const orientationMode: OrientationMode = "sprite";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] gap-4 p-4 max-w-[1600px] mx-auto">
-      {/* Top Control Bar */}
-      <div className="flex flex-wrap items-center justify-between bg-shogi-panel p-3 rounded-xl border border-white/10 gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between rounded-2xl bg-white/85 border border-black/5 p-4 md:p-5 gap-4 text-[#1f1308]">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setActiveTab("analysis")}
-            className={`px-4 py-2 rounded-2xl font-semibold flex items-center gap-2 transition-colors ${activeTab === "analysis" ? "bg-white/15 text-white shadow-lg shadow-black/20" : "text-slate-400 hover:text-white"}`}
+            className={`px-4 py-2 rounded-2xl font-semibold flex items-center gap-2 transition-colors ${activeTab === "analysis" ? "bg-amber-200 text-[#3a2b17] shadow" : "bg-white text-[#2b1c10] hover:bg-amber-50"}`}
           >
-            <span className="text-shogi-gold">☗</span>
+            <span className="text-[#b67a3c]">☗</span>
             検討モード
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("review")}
-            className={`px-4 py-2 rounded-2xl font-semibold flex items-center gap-2 transition-colors ${activeTab === "review" ? "bg-white/15 text-white shadow-lg shadow-black/20" : "text-slate-400 hover:text-white"}`}
+            className={`px-4 py-2 rounded-2xl font-semibold flex items-center gap-2 transition-colors ${activeTab === "review" ? "bg-emerald-100 text-[#1b4332] shadow" : "bg-white text-[#2b1c10] hover:bg-emerald-50"}`}
           >
             <span role="img" aria-label="review">📚</span>
             復習
           </button>
         </div>
-        <div className="text-sm text-slate-400">
+        <div className="text-sm text-[#2b1c10]">
           {activeTab === "analysis"
             ? "矢印ボタンで手数を移動すると、その局面を自動解析します。"
             : "棋譜を再生して重要な局面を振り返りましょう。"}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0">
-        {activeTab === "analysis" ? (
-          <AnalysisTab usi={usi} setUsi={setUsi} orientationMode={orientationMode} />
-        ) : (
-          <div className="flex-1 w-full bg-shogi-panel rounded-2xl border border-white/10 p-4 overflow-y-auto h-full">
-            <ReviewTab usi={usi} orientationMode={orientationMode} />
-          </div>
-        )}
-      </div>
+      {activeTab === "analysis" ? (
+        <AnalysisTab usi={usi} setUsi={setUsi} orientationMode={orientationMode} />
+      ) : (
+        <div className="rounded-2xl bg-white/90 border border-black/5 p-4 md:p-6 shadow-sm">
+          <ReviewTab usi={usi} orientationMode={orientationMode} />
+        </div>
+      )}
     </div>
   );
 }

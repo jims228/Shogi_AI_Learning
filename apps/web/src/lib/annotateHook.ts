@@ -39,6 +39,7 @@ export type EngineMultipvItem = {
     mate?: number;
   };
   pv: string;
+  depth?: number;
 };
 export type EngineAnalyzeResponse = {
   ok: boolean;

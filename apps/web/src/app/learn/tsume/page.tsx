@@ -93,7 +93,7 @@ function TsumeLessonInner() {
             size="sm"
             onClick={() => setShowHint(!showHint)}
           >
-            <Lightbulb className="w-4 h-4 mr-1" />
+            <Lightbulb className="w-4 h-4 mr-1 text-[#555]" />
             ヒント
           </Button>
         </div>
@@ -121,7 +121,7 @@ function TsumeLessonInner() {
       {result === "correct" && (
         <Card className="p-4 bg-green-50 border-green-200">
           <div className="flex items-start gap-3">
-            <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="w-6 h-6 text-[#555] flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-bold text-green-900">正解です！ 🎉</h3>
               <p className="text-sm text-green-800 mt-1">
@@ -155,7 +155,7 @@ function TsumeLessonInner() {
       {result === "wrong" && (
         <Card className="p-4 bg-red-50 border-red-200">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-6 h-6 text-[#555] flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-bold text-red-900">もう一度考えてみましょう</h3>
               <p className="text-sm text-red-800 mt-1">

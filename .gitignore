@@ -53,7 +53,7 @@ docker/engine/book/*
 
 ### Environment / secrets
 .env
-.env.*
+.env*
 !.env.example
 apps/web/.env.local
 apps/backend/.env
@@ -76,6 +76,9 @@ Thumbs.db
 assets/**/*
 !assets/.gitkeep
 !assets/README.md
+
+# Scratch docs
+apps/web/src/components/annotate/Untitled-1.md
 
 ### Docker / Compose
 docker-compose.override.yml

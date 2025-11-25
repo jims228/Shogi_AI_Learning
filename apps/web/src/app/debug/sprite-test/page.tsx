@@ -16,14 +16,14 @@ export default function SpriteTestPage() {
   const boardSize = cellSize * 9;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6 space-y-6">
+    <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold mb-2">Sprite Debug</h1>
-        <p className="text-slate-400 text-sm">ベクターボード上で数枚の駒を表示して、スプライトの位置や回転を確認できます。</p>
+        <p className="text-slate-600 text-sm">ベクターボード上で数枚の駒を表示して、スプライトの位置や回転を確認できます。</p>
       </div>
 
       <div
-        className="relative border border-white/10 rounded-2xl bg-slate-900"
+        className="relative border border-black/10 rounded-2xl bg-white"
         style={{ width: boardSize, height: boardSize }}
       >
         <svg width={boardSize} height={boardSize} className="absolute inset-0">
@@ -58,8 +58,8 @@ export default function SpriteTestPage() {
       </div>
 
       <div>
-        <p className="text-sm text-slate-400 mb-2">元画像</p>
-        <img src="/images/pieces.png" alt="Pieces sprite" className="rounded-xl border border-white/10 max-w-full" />
+        <p className="text-sm text-slate-600 mb-2">元画像</p>
+        <img src="/images/pieces.png" alt="Pieces sprite" className="rounded-xl border border-black/10 max-w-full" />
       </div>
     </div>
   );

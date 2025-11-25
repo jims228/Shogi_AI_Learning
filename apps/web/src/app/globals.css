@@ -83,5 +83,39 @@
     /* Default to Dark Navy theme */
     background-color: #1a1f3a;
     color: #f8fafc;
+    background-image: url("/images/bg-ichimatsu.png");
+    background-repeat: repeat;
+    background-size: 120px 120px;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  body::before,
+  body::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 200px;
+    background-image: url("/images/bamboo-column.png");
+    background-repeat: repeat-y;
+    background-size: contain;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::before {
+    left: 0;
+  }
+
+  body::after {
+    right: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  body::before,
+  body::after {
+    content: none;
   }
 }
