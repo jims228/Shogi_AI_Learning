@@ -14,310 +14,377 @@ import {
 
 export type BoardMode = "view" | "edit";
 
-interface ShogiBoardProps {
+// 外部から使うための型定義をexport
+export interface ShogiBoardProps {
   board: BoardMatrix;
   mode?: BoardMode;
   bestmove?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   lastMove?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   onBoardChange?: (next: BoardMatrix) => void;
+  onHandsChange?: (next: HandsState) => void;
   onSquareClick?: (x: number, y: number) => void;
   highlightSquares?: { x: number; y: number }[];
-  flipped?: boolean;
+  flipped?: boolean; 
+  orientation?: "sente" | "gote";
   orientationMode?: OrientationMode;
   hands?: HandsState;
 }
 
-const FILES = ["９", "８", "７", "６", "５", "４", "３", "２", "１"];
-const RANKS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const CELL_SIZE = 50;
 const PIECE_SIZE = 44;
-const BOARD_PADDING = 20;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
 const HAND_CELL_SIZE = 40;
 const HAND_PIECE_SIZE = 34;
+const HOSHI_POINTS = [
+  { file: 2, rank: 2 }, { file: 5, rank: 2 }, { file: 8, rank: 2 },
+  { file: 2, rank: 5 }, { file: 5, rank: 5 }, { file: 8, rank: 5 },
+  { file: 2, rank: 8 }, { file: 5, rank: 8 }, { file: 8, rank: 8 },
+];
 
-type DragState = {
-  piece: PieceCode;
-  from: { x: number; y: number };
-  pointer: { x: number; y: number };
-};
+type Square = { x: number; y: number };
+type SelectedHand = { base: PieceBase; side: "b" | "w" } | null;
+
+const FILE_LABELS_SENTE = ["9", "8", "7", "6", "5", "4", "3", "2", "1"];
+const FILE_LABELS_GOTE = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+const RANK_LABELS_SENTE = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
+const RANK_LABELS_GOTE = ["九", "八", "七", "六", "五", "四", "三", "二", "一"];
+const LABEL_GAP = 26;
+const TOUCH_DOUBLE_TAP_MS = 320;
+
 export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   board,
   mode = "view",
   bestmove,
   lastMove,
   onBoardChange,
+  onHandsChange,
   onSquareClick,
   highlightSquares,
   flipped = false,
+  orientation = undefined,
   orientationMode = "sprite",
   hands,
 }) => {
   const boardSize = CELL_SIZE * 9;
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<DragState | null>(null);
+  const touchTapRef = useRef<{ square: Square; timestamp: number } | null>(null);
+  
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [selectedHand, setSelectedHand] = useState<SelectedHand>(null);
 
-  const getDisplayPos = useCallback((x: number, y: number) => {
-    if (flipped) {
-      return { x: 8 - x, y: 8 - y };
-    }
-    return { x, y };
-  }, [flipped]);
-
-  const toBoardCoords = useCallback((displayX: number, displayY: number) => {
-    if (flipped) {
-      return { x: 8 - displayX, y: 8 - displayY };
-    }
-    return { x: displayX, y: displayY };
-  }, [flipped]);
-
-  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, x: number, y: number) => {
-    if (mode === "edit") {
-      const piece = board[y]?.[x];
-      if (!piece || !onBoardChange) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setDrag({ piece, from: { x, y }, pointer: { x: event.clientX, y: event.clientY } });
-      return;
-    }
-    onSquareClick?.(x, y);
-  }, [board, mode, onBoardChange, onSquareClick]);
-
-  const handleDoubleClick = useCallback((x: number, y: number) => {
-    if (mode !== "edit" || !onBoardChange) return;
-    const piece = board[y]?.[x];
-    if (!piece) return;
-    const nextBoard = board.map((row) => row.slice());
-    nextBoard[y][x] = piece.startsWith("+") ? demotePiece(piece) : promotePiece(piece);
-    onBoardChange(nextBoard);
-  }, [board, mode, onBoardChange]);
-
-  const finishDrag = useCallback((point?: { x: number; y: number }) => {
-    if (!onBoardChange) {
-      setDrag(null);
-      return;
-    }
-    setDrag((current) => {
-      if (!current) return null;
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return null;
-      const pointer = point ?? current.pointer;
-      const relX = pointer.x - rect.left;
-      const relY = pointer.y - rect.top;
-      if (relX < 0 || relY < 0 || relX >= rect.width || relY >= rect.height) return null;
-      const displayX = Math.min(8, Math.max(0, Math.floor(relX / CELL_SIZE)));
-      const displayY = Math.min(8, Math.max(0, Math.floor(relY / CELL_SIZE)));
-      const target = toBoardCoords(displayX, displayY);
-      if (target.x === current.from.x && target.y === current.from.y) return null;
-      const nextBoard = board.map((row) => row.slice());
-      nextBoard[current.from.y][current.from.x] = null;
-      nextBoard[target.y][target.x] = current.piece;
-      onBoardChange(nextBoard);
-      return null;
-    });
-  }, [board, onBoardChange, toBoardCoords]);
+  const viewerOrientation: "sente" | "gote" = orientation ?? (flipped ? "gote" : "sente");
+  const isGoteView = viewerOrientation === "gote";
+  const canEdit = mode === "edit" && Boolean(onBoardChange);
 
   useEffect(() => {
-    if (!drag) return;
-    const handleMove = (event: PointerEvent) => {
-      setDrag((current) => (current ? { ...current, pointer: { x: event.clientX, y: event.clientY } } : current));
-    };
-    const handleUp = (event: PointerEvent) => {
-      finishDrag({ x: event.clientX, y: event.clientY });
-    };
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-    };
-  }, [drag, finishDrag]);
+    if (!canEdit) {
+      setSelectedSquare(null);
+      setSelectedHand(null);
+    }
+  }, [canEdit]);
 
-  const dragOverlay = (() => {
-    if (!drag || !containerRef.current) return null;
-    const rect = containerRef.current.getBoundingClientRect();
-    const left = drag.pointer.x - rect.left - CELL_SIZE / 2;
-    const top = drag.pointer.y - rect.top - CELL_SIZE / 2;
-    return (
-      <div className="absolute pointer-events-none z-40" style={{ left, top, width: CELL_SIZE, height: CELL_SIZE }}>
-        <PieceSprite
-          piece={drag.piece}
-          x={0}
-          y={0}
-          size={PIECE_SIZE}
-          cellSize={CELL_SIZE}
-          owner={getPieceOwner(drag.piece)}
-          orientationMode={orientationMode}
-        />
-      </div>
-    );
-  })();
+  const getDisplayPos = useCallback((x: number, y: number) => {
+    return isGoteView ? { x: 8 - x, y: 8 - y } : { x, y };
+  }, [isGoteView]);
 
   const isHighlighted = useCallback((x: number, y: number) => {
-    if (!highlightSquares) return false;
-    return highlightSquares.some((sq) => sq.x === x && sq.y === y);
+    return highlightSquares?.some((sq) => sq.x === x && sq.y === y) ?? false;
   }, [highlightSquares]);
 
+  const isTouchDoubleTap = useCallback((square: Square) => {
+    const now = performance.now();
+    const previous = touchTapRef.current;
+    if (previous && now - previous.timestamp < TOUCH_DOUBLE_TAP_MS && previous.square.x === square.x && previous.square.y === square.y) {
+      touchTapRef.current = null;
+      return true;
+    }
+    touchTapRef.current = { square, timestamp: now };
+    return false;
+  }, []);
+
+  const handleHandClick = useCallback((base: PieceBase, side: "b" | "w") => {
+    if (!canEdit) return;
+    if (selectedHand && selectedHand.base === base && selectedHand.side === side) {
+      setSelectedHand(null);
+    } else {
+      setSelectedHand({ base, side });
+      setSelectedSquare(null);
+    }
+  }, [canEdit, selectedHand]);
+
+  const togglePromotionAt = useCallback(
+    (square: Square) => {
+      if (!canEdit || !onBoardChange) return;
+      const piece = board[square.y]?.[square.x];
+      if (!piece) return;
+      const nextBoard = board.map((row) => row.slice());
+      nextBoard[square.y][square.x] = piece.startsWith("+") ? demotePiece(piece) : promotePiece(piece);
+      onBoardChange(nextBoard);
+      setSelectedSquare(null);
+      setSelectedHand(null);
+    },
+    [board, canEdit, onBoardChange],
+  );
+
+  const attemptAction = useCallback(
+    (target: Square) => {
+      if (!onBoardChange) return false;
+
+      // ケース1: 持ち駒を打つ
+      if (selectedHand) {
+        if (board[target.y][target.x]) return false;
+        if (!hands || !onHandsChange) return false;
+
+        const nextBoard = board.map(row => row.slice());
+        const pieceCode = (selectedHand.side === "b" ? selectedHand.base : selectedHand.base.toLowerCase()) as PieceCode;
+        nextBoard[target.y][target.x] = pieceCode;
+        
+        const nextHands = { b: { ...hands.b }, w: { ...hands.w } };
+        const currentCount = nextHands[selectedHand.side][selectedHand.base] || 0;
+        if (currentCount > 0) {
+            nextHands[selectedHand.side][selectedHand.base] = currentCount - 1;
+            if (nextHands[selectedHand.side][selectedHand.base] === 0) {
+                delete nextHands[selectedHand.side][selectedHand.base];
+            }
+        } else {
+            return false;
+        }
+
+        onBoardChange(nextBoard);
+        onHandsChange(nextHands);
+        setSelectedHand(null);
+        return true;
+      }
+
+      // ケース2: 盤上の駒を移動する
+      if (selectedSquare) {
+        if (selectedSquare.x === target.x && selectedSquare.y === target.y) return false;
+        
+        const sourcePiece = board[selectedSquare.y]?.[selectedSquare.x];
+        if (!sourcePiece) {
+          setSelectedSquare(null);
+          return false;
+        }
+
+        const targetPiece = board[target.y][target.x];
+        
+        if (targetPiece && getPieceOwner(targetPiece) === getPieceOwner(sourcePiece)) {
+            // 味方の駒なら再選択
+            return false;
+        }
+
+        // ★駒取り処理
+        if (targetPiece && hands && onHandsChange) {
+            const nextHands = { b: { ...hands.b }, w: { ...hands.w } };
+            const capturedBase = targetPiece.replace("+", "").toUpperCase() as PieceBase;
+            const capturerSide = getPieceOwner(sourcePiece) === "sente" ? "b" : "w";
+            
+            nextHands[capturerSide][capturedBase] = (nextHands[capturerSide][capturedBase] || 0) + 1;
+            onHandsChange(nextHands);
+        }
+
+        const nextBoard = board.map((row) => row.slice());
+        nextBoard[selectedSquare.y][selectedSquare.x] = null;
+        nextBoard[target.y][target.x] = sourcePiece;
+        
+        onBoardChange(nextBoard);
+        setSelectedSquare(null);
+        return true;
+      }
+
+      return false;
+    },
+    [board, hands, onBoardChange, onHandsChange, selectedHand, selectedSquare],
+  );
+
+  const handleEditSquareClick = useCallback(
+    (square: Square) => {
+      if (!onBoardChange) return;
+
+      if (attemptAction(square)) {
+        return;
+      }
+
+      const pieceAtTarget = board[square.y]?.[square.x];
+      if (pieceAtTarget) {
+        setSelectedSquare({ ...square });
+        setSelectedHand(null);
+      } else {
+        setSelectedSquare(null);
+      }
+    },
+    [attemptAction, board, onBoardChange],
+  );
+
+  const handleBoardClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+      if (!canEdit) return;
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      let clientX, clientY;
+
+      if ('touches' in event) {
+         if (event.touches.length > 0) {
+            clientX = event.touches[0].clientX;
+            clientY = event.touches[0].clientY;
+         } else return;
+      } else {
+         clientX = (event as React.MouseEvent).clientX;
+         clientY = (event as React.MouseEvent).clientY;
+      }
+
+      const xRel = clientX - rect.left;
+      const yRel = clientY - rect.top;
+      const rawX = Math.floor(xRel / CELL_SIZE);
+      const rawY = Math.floor(yRel / CELL_SIZE);
+
+      if (rawX < 0 || rawX > 8 || rawY < 0 || rawY > 8) return;
+
+      const x = isGoteView ? 8 - rawX : rawX;
+      const y = isGoteView ? 8 - rawY : rawY;
+      const square = { x, y };
+
+      if ('touches' in event && isTouchDoubleTap(square)) {
+        togglePromotionAt(square);
+        return;
+      }
+
+      handleEditSquareClick(square);
+    },
+    [canEdit, handleEditSquareClick, isGoteView, isTouchDoubleTap, togglePromotionAt]
+  );
+
+  const handleBoardDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+      if (!canEdit) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const xRel = event.clientX - rect.left;
+      const yRel = event.clientY - rect.top;
+      const rawX = Math.floor(xRel / CELL_SIZE);
+      const rawY = Math.floor(yRel / CELL_SIZE);
+      if (rawX < 0 || rawX > 8 || rawY < 0 || rawY > 8) return;
+      
+      const x = isGoteView ? 8 - rawX : rawX;
+      const y = isGoteView ? 8 - rawY : rawY;
+      
+      togglePromotionAt({ x, y });
+  }, [canEdit, isGoteView, togglePromotionAt]);
+
+
   const effectiveLastMove = mode === "edit" ? null : lastMove;
+  const effectiveBestMove = mode === "edit" ? null : bestmove;
 
   const boardElement = (
-    <div className="relative select-none" style={{ width: boardSize + BOARD_PADDING * 2, height: boardSize + BOARD_PADDING * 2 }}>
-      <div
-        className="absolute inset-0 rounded-lg shadow-2xl border-4 border-[#5d4037]"
-        style={{
-          background: "linear-gradient(135deg, #eecfa1 0%, #d4a373 100%)",
-          boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.5)",
-        }}
-      />
+    <div 
+      className="relative select-none shrink-0" 
+      style={{ 
+        width: boardSize, 
+        height: boardSize,
+        minWidth: boardSize,
+        minHeight: boardSize
+      }}
+    >
+      <div className="absolute inset-0 rounded-xl shadow-2xl border-[6px] border-[#5d4037]"
+        style={{ background: "linear-gradient(135deg, #eecfa1 0%, #d4a373 100%)", boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.5)" }} />
 
-      <div
-        ref={containerRef}
-        className="absolute"
-        style={{ left: BOARD_PADDING, top: BOARD_PADDING, width: boardSize, height: boardSize }}
-      >
+      <div ref={containerRef} className="absolute inset-0">
         <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-0">
           {[...Array(10)].map((_, i) => (
-            <line
-              key={`v-${i}`}
-              x1={i * CELL_SIZE}
-              y1={0}
-              x2={i * CELL_SIZE}
-              y2={boardSize}
-              stroke="#5d4037"
-              strokeWidth={i === 0 || i === 9 ? 2 : 1}
-            />
+            <line key={`v-${i}`} x1={i * CELL_SIZE} y1={0} x2={i * CELL_SIZE} y2={boardSize} stroke="#5d4037" strokeWidth={i === 0 || i === 9 ? 2 : 1} />
           ))}
           {[...Array(10)].map((_, i) => (
-            <line
-              key={`h-${i}`}
-              x1={0}
-              y1={i * CELL_SIZE}
-              x2={boardSize}
-              y2={i * CELL_SIZE}
-              stroke="#5d4037"
-              strokeWidth={i === 0 || i === 9 ? 2 : 1}
-            />
+            <line key={`h-${i}`} x1={0} y1={i * CELL_SIZE} x2={boardSize} y2={i * CELL_SIZE} stroke="#5d4037" strokeWidth={i === 0 || i === 9 ? 2 : 1} />
           ))}
-          {[2, 6].map((y) =>
-            [2, 6].map((x) => (
-              <circle
-                key={`star-${x}-${y}`}
-                cx={x * CELL_SIZE + CELL_SIZE / 2}
-                cy={y * CELL_SIZE + CELL_SIZE / 2}
-                r={3}
-                fill="#5d4037"
-              />
-            )),
-          )}
         </svg>
 
-        <div className="absolute inset-0 grid grid-cols-9 grid-rows-9 z-10">
+        <div className="absolute inset-0 pointer-events-none z-[1]">
+          {HOSHI_POINTS.map(({ file, rank }) => {
+            const boardX = file - 1;
+            const boardY = rank - 1;
+            const display = getDisplayPos(boardX, boardY);
+            return (
+              <div key={`hoshi-${file}-${rank}`} className="absolute h-1.5 w-1.5 rounded-full bg-amber-900"
+                style={{ left: `${((display.x + 0.5) / 9) * 100}%`, top: `${((display.y + 0.5) / 9) * 100}%`, transform: "translate(-50%, -50%)" }} />
+            );
+          })}
+        </div>
+
+        <div className="absolute inset-0 grid grid-cols-9 grid-rows-9 z-[5] pointer-events-none">
           {[...Array(81)].map((_, index) => {
             const x = index % 9;
             const y = Math.floor(index / 9);
             const display = getDisplayPos(x, y);
-            const isLastMoveFrom = effectiveLastMove && effectiveLastMove.from.x === x && effectiveLastMove.from.y === y;
-            const isLastMoveTo = effectiveLastMove && effectiveLastMove.to.x === x && effectiveLastMove.to.y === y;
-            const isBestMoveFrom = bestmove && bestmove.from.x === x && bestmove.from.y === y;
-            const isBestMoveTo = bestmove && bestmove.to.x === x && bestmove.to.y === y;
-
+            const isSelected = selectedSquare && selectedSquare.x === x && selectedSquare.y === y;
             return (
-              <div
-                key={`${x}-${y}`}
-                className="relative border border-transparent"
-                style={{
-                  gridColumnStart: display.x + 1,
-                  gridRowStart: display.y + 1,
+              <div key={`hl-${x}-${y}`} style={{
+                  gridColumnStart: display.x + 1, gridRowStart: display.y + 1,
                   backgroundColor: (() => {
-                    if (isLastMoveTo) return "rgba(255, 165, 0, 0.35)";
-                    if (isLastMoveFrom) return "rgba(255, 165, 0, 0.15)";
-                    if (isBestMoveFrom || isBestMoveTo) return "rgba(16, 185, 129, 0.12)";
+                    if (mode === "edit" && isSelected) return "rgba(251, 191, 36, 0.5)";
                     if (isHighlighted(x, y)) return "rgba(59, 130, 246, 0.18)";
                     return "transparent";
                   })(),
-                  cursor: mode === "edit" && board[y]?.[x] ? "grab" : "default",
-                }}
-                onPointerDown={(event) => handlePointerDown(event, x, y)}
-                onDoubleClick={() => handleDoubleClick(x, y)}
-              />
+                }} />
             );
           })}
         </div>
-
-        <div className="absolute inset-0 z-20 pointer-events-none">
+        
+        <div className="absolute inset-0 z-10 pointer-events-none">
           {placedPieces.map((piece, idx) => {
-            const isDraggingPiece = drag && drag.from.x === piece.x && drag.from.y === piece.y;
-            if (isDraggingPiece) return null;
             const display = getDisplayPos(piece.x, piece.y);
-            const owner = getPieceOwner(piece.piece);
             return (
-              <PieceSprite
-                key={`${idx}-${piece.x}-${piece.y}`}
-                piece={piece.piece}
-                x={display.x}
-                y={display.y}
-                size={PIECE_SIZE}
-                cellSize={CELL_SIZE}
-                owner={owner}
-                orientationMode={orientationMode}
-              />
+              <div key={`${idx}-${piece.x}-${piece.y}`} className="contents" style={{ pointerEvents: "none" }}>
+                <PieceSprite piece={piece.piece} x={display.x} y={display.y} size={PIECE_SIZE} cellSize={CELL_SIZE}
+                  owner={getPieceOwner(piece.piece)} orientationMode={orientationMode} viewerSide={viewerOrientation} />
+              </div>
             );
           })}
         </div>
 
-        {dragOverlay}
-
-        {bestmove && (
+        {effectiveBestMove && (
           <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-30">
-            <Arrow
-              x1={getDisplayPos(bestmove.from.x, bestmove.from.y).x * CELL_SIZE + CELL_SIZE / 2}
-              y1={getDisplayPos(bestmove.from.x, bestmove.from.y).y * CELL_SIZE + CELL_SIZE / 2}
-              x2={getDisplayPos(bestmove.to.x, bestmove.to.y).x * CELL_SIZE + CELL_SIZE / 2}
-              y2={getDisplayPos(bestmove.to.x, bestmove.to.y).y * CELL_SIZE + CELL_SIZE / 2}
-            />
+            <Arrow x1={getDisplayPos(effectiveBestMove.from.x, effectiveBestMove.from.y).x * CELL_SIZE + CELL_SIZE / 2}
+              y1={getDisplayPos(effectiveBestMove.from.x, effectiveBestMove.from.y).y * CELL_SIZE + CELL_SIZE / 2}
+              x2={getDisplayPos(effectiveBestMove.to.x, effectiveBestMove.to.y).x * CELL_SIZE + CELL_SIZE / 2}
+              y2={getDisplayPos(effectiveBestMove.to.x, effectiveBestMove.to.y).y * CELL_SIZE + CELL_SIZE / 2} />
           </svg>
         )}
-      </div>
 
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        {FILES.map((fileLabel, index) => {
-          const idx = flipped ? 8 - index : index;
-          return (
-            <div
-              key={`file-${index}`}
-              className="absolute text-xs font-bold text-[#5d4037]"
-              style={{ left: BOARD_PADDING + idx * CELL_SIZE, top: 2, width: CELL_SIZE, textAlign: "center" }}
-            >
-              {fileLabel}
-            </div>
-          );
-        })}
-        {RANKS.map((rankLabel, index) => {
-          const idx = flipped ? 8 - index : index;
-          return (
-            <div
-              key={`rank-${index}`}
-              className="absolute text-xs font-bold text-[#5d4037]"
-              style={{ right: 2, top: BOARD_PADDING + idx * CELL_SIZE, height: CELL_SIZE, lineHeight: `${CELL_SIZE}px` }}
-            >
-              {rankLabel}
-            </div>
-          );
-        })}
+        <div className="absolute top-0 left-0 z-[100]"
+          style={{ width: `${boardSize}px`, height: `${boardSize}px`, backgroundColor: "transparent", cursor: mode === "edit" ? "pointer" : "default", pointerEvents: "auto" }}
+          onClick={handleBoardClick}
+          onDoubleClick={handleBoardDoubleClick}
+        />
       </div>
     </div>
   );
 
-  if (!hands) {
-    return boardElement;
-  }
+  const topFileLabels = viewerOrientation === "sente" ? FILE_LABELS_SENTE : FILE_LABELS_GOTE;
+  const rightRankLabels = viewerOrientation === "sente" ? RANK_LABELS_SENTE : RANK_LABELS_GOTE;
+
+  const boardWithLabels = (
+    <div className="grid select-none" style={{ gridTemplateColumns: `repeat(9, ${CELL_SIZE}px) ${LABEL_GAP}px`, gridTemplateRows: `${LABEL_GAP}px repeat(9, ${CELL_SIZE}px)`, gap: 0 }}>
+      <div style={{ gridColumn: "1 / span 9", gridRow: "2 / span 9" }}>{boardElement}</div>
+      {topFileLabels.map((label, index) => (
+        <div key={`file-top-${label}-${index}`} className="flex items-center justify-center text-xs font-bold text-[#5d4037]" style={{ gridColumn: index + 1, gridRow: 1 }}>{label}</div>
+      ))}
+      {rightRankLabels.map((label, index) => (
+        <div key={`rank-right-${label}-${index}`} className="flex items-center justify-center text-xs font-bold text-[#5d4037]" style={{ gridColumn: 10, gridRow: index + 2 }}>{label}</div>
+      ))}
+    </div>
+  );
+
+  if (!hands) return boardWithLabels;
+
+  const topHandSide = viewerOrientation === "sente" ? "w" : "b";
+  const bottomHandSide = viewerOrientation === "sente" ? "b" : "w";
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <HandArea side="w" hands={hands.w} orientationMode={orientationMode} />
-      {boardElement}
-      <HandArea side="b" hands={hands.b} orientationMode={orientationMode} />
+      <HandArea side={topHandSide} hands={hands[topHandSide]} orientationMode={orientationMode} viewerSide={viewerOrientation} 
+        canEdit={canEdit} selectedHand={selectedHand} onHandClick={handleHandClick} />
+      {boardWithLabels}
+      <HandArea side={bottomHandSide} hands={hands[bottomHandSide]} orientationMode={orientationMode} viewerSide={viewerOrientation}
+        canEdit={canEdit} selectedHand={selectedHand} onHandClick={handleHandClick} />
     </div>
   );
 };
@@ -326,37 +393,42 @@ type HandAreaProps = {
   side: "b" | "w";
   hands?: Partial<Record<PieceBase, number>>;
   orientationMode: OrientationMode;
+  viewerSide: "sente" | "gote";
+  canEdit?: boolean;
+  selectedHand?: SelectedHand;
+  onHandClick?: (base: PieceBase, side: "b" | "w") => void;
 };
 
-const HandArea: React.FC<HandAreaProps> = ({ side, hands, orientationMode }) => {
+const HandArea: React.FC<HandAreaProps> = ({ side, hands, orientationMode, viewerSide, canEdit, selectedHand, onHandClick }) => {
   const owner = side === "b" ? "sente" : "gote";
+  const label = owner === "sente" ? "先手の持ち駒" : "後手の持ち駒";
   const items = HAND_ORDER.map((base) => {
     const count = hands?.[base];
     if (!count) return null;
     const piece = (side === "b" ? base : base.toLowerCase()) as PieceCode;
+    const isSelected = selectedHand && selectedHand.base === base && selectedHand.side === side;
+
     return (
-      <div key={`${side}-${base}`} className="relative" style={{ width: HAND_CELL_SIZE, height: HAND_CELL_SIZE }}>
-        <PieceSprite
-          piece={piece}
-          x={0}
-          y={0}
-          size={HAND_PIECE_SIZE}
-          cellSize={HAND_CELL_SIZE}
-          orientationMode={orientationMode}
-          owner={owner}
-        />
+      <div 
+        key={`${side}-${base}`} 
+        className={`relative transition-all rounded-md ${canEdit && isSelected ? "bg-amber-300 shadow-md scale-110" : ""}`}
+        style={{ width: HAND_CELL_SIZE, height: HAND_CELL_SIZE, cursor: canEdit ? "pointer" : "default" }}
+        onClick={() => canEdit && onHandClick?.(base, side)}
+      >
+        <PieceSprite piece={piece} x={0} y={0} size={HAND_PIECE_SIZE} cellSize={HAND_CELL_SIZE} orientationMode={orientationMode} owner={owner} viewerSide={viewerSide} />
         {count > 1 && (
-          <span className="absolute -top-1 -right-1 rounded-full bg-[#fef1d6] px-1 text-xs font-semibold text-[#2b2b2b] border border-black/10">
-            {count}
-          </span>
+          <span className="absolute -top-1 -right-1 rounded-full bg-[#fef1d6] px-1 text-xs font-semibold text-[#2b2b2b] border border-black/10">{count}</span>
         )}
       </div>
     );
   }).filter(Boolean) as React.ReactNode[];
 
   return (
-    <div className="flex items-center justify-center gap-2 min-h-[44px]">
-      {items.length ? items : <span className="text-xs text-slate-500">--</span>}
+    <div className="flex flex-col items-center justify-center gap-1 min-h-[60px]">
+      <span className="text-xs font-semibold text-[#5d4037]">{label}</span>
+      <div className="flex items-center justify-center gap-2">
+        {items.length ? items : <span className="text-xs text-slate-500">--</span>}
+      </div>
     </div>
   );
 };
@@ -373,11 +445,7 @@ const Arrow: React.FC<{ x1: number; y1: number; x2: number; y2: number }> = ({ x
   return (
     <g>
       <line x1={startX} y1={startY} x2={endX} y2={endY} stroke="#22c55e" strokeWidth={4} strokeOpacity={0.6} strokeLinecap="round" />
-      <polygon
-        points={`${endX},${endY} ${endX - 10 * Math.cos(angle - Math.PI / 6)},${endY - 10 * Math.sin(angle - Math.PI / 6)} ${endX - 10 * Math.cos(angle + Math.PI / 6)},${endY - 10 * Math.sin(angle + Math.PI / 6)}`}
-        fill="#22c55e"
-        fillOpacity={0.8}
-      />
+      <polygon points={`${endX},${endY} ${endX - 10 * Math.cos(angle - Math.PI / 6)},${endY - 10 * Math.sin(angle - Math.PI / 6)} ${endX - 10 * Math.cos(angle + Math.PI / 6)},${endY - 10 * Math.sin(angle + Math.PI / 6)}`} fill="#22c55e" fillOpacity={0.8} />
     </g>
   );
 };

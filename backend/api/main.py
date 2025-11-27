@@ -73,6 +73,8 @@ class AnalyzeResponse(BaseModel):
 class BatchAnalysisRequest(BaseModel):
     position: Optional[str] = None
     usi: Optional[str] = None
+    moves: Optional[List[str]] = None
+    sfen: Optional[str] = None
     max_ply: Optional[int] = None
     movetime_ms: Optional[int] = None
     multipv: Optional[int] = None
@@ -1202,18 +1204,30 @@ def analysis_stream(position: str):
 @app.post("/api/analysis/batch", response_model=BatchAnalysisResponse)
 def analysis_batch(req: BatchAnalysisRequest):
     position_literal = req.position or req.usi
-    if not position_literal:
-        raise HTTPException(status_code=400, detail="position or usi is required")
+    base_sfen = req.sfen or None
+    moves: List[str] = []
 
-    components = _extract_position_components(position_literal)
-    moves = components.get("moves") or []
-    sfen = components.get("sfen") or None
-    if not moves and not req.max_ply:
-        # still analyze starting position (ply 0)
-        target_moves = 0
-    else:
-        max_ply = req.max_ply if req.max_ply is not None else len(moves)
-        target_moves = min(max_ply, len(moves))
+    if req.moves:
+        moves = [mv for mv in req.moves if _is_valid_usi_move(mv)]
+
+    if not moves:
+        if not position_literal:
+            raise HTTPException(status_code=400, detail="position or usi is required")
+        components = _extract_position_components(position_literal)
+        moves = components.get("moves") or []
+        if base_sfen is None:
+            base_sfen = components.get("sfen") or None
+    elif base_sfen is None and position_literal:
+        # allow explicit moves + position so we can extract SFEN once without forcing clients to send it
+        preview = _extract_position_components(position_literal)
+        base_sfen = preview.get("sfen") or None
+
+    total_available = len(moves)
+    requested_max = req.max_ply if req.max_ply is not None else total_available
+    if requested_max is None:
+        requested_max = total_available
+    requested_max = max(0, requested_max)
+    target_moves = min(requested_max, total_available)
 
     movetime_ms = req.movetime_ms or 200
     time_budget_ms = req.time_budget_ms or 25000
@@ -1229,7 +1243,7 @@ def analysis_batch(req: BatchAnalysisRequest):
 
         partial_moves = moves[:ply]
         analyze_req = AnalyzeRequest(
-            sfen=sfen,
+            sfen=base_sfen,
             moves=partial_moves or None,
             byoyomi_ms=movetime_ms,
             multipv=multipv,

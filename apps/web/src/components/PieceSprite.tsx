@@ -7,7 +7,13 @@ const COLS = 8;
 const ROWS = 4;
 const SPRITE_URL = "/images/pieces.png";
 
-const spriteMap: Record<string, { row: number; col: number }> = {
+// pieces.png layout (130px tiles, 8 cols × 4 rows)
+//   row 0: viewer-side unpromoted   [P, L, N, S, G, B, R, K]
+//   row 1: viewer-side promoted     [+P, +L, +N, +S, (blank), +B, +R, (blank)]
+//   row 2: opponent-side unpromoted [same order]
+//   row 3: opponent-side promoted   [same order]
+// Rows 2/3 mirror rows 0/1, but are drawn as the far-side player.
+const spriteMap: Record<string, { row: 0 | 1; col: number }> = {
   P: { row: 0, col: 0 },
   L: { row: 0, col: 1 },
   N: { row: 0, col: 2 },
@@ -20,10 +26,13 @@ const spriteMap: Record<string, { row: number; col: number }> = {
   "+L": { row: 1, col: 1 },
   "+N": { row: 1, col: 2 },
   "+S": { row: 1, col: 3 },
-  "+G": { row: 1, col: 4 },
   "+B": { row: 1, col: 5 },
   "+R": { row: 1, col: 6 },
-  "+K": { row: 1, col: 7 },
+};
+
+const PLAYER_ROW_OFFSET: Record<"player" | "opponent", 0 | 2> = {
+  player: 0,
+  opponent: 2,
 };
 
 export type OrientationMode = "rotate" | "sprite";
@@ -38,6 +47,9 @@ interface PieceSpriteProps {
   offsetY?: number;     // board top offset
   owner?: "sente" | "gote";
   orientationMode?: OrientationMode;
+  viewerSide?: "sente" | "gote";
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 export const PieceSprite: React.FC<PieceSpriteProps> = ({
@@ -49,7 +61,10 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   offsetX = 0,
   offsetY = 0,
   owner,
-  orientationMode = "sprite",
+  orientationMode: orientationModeProp = "sprite",
+  viewerSide = "sente",
+  className,
+  style,
 }) => {
   const pieceSize = size ?? 46;
   const cell = cellSize ?? pieceSize;
@@ -59,11 +74,14 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   const isPromoted = piece.startsWith("+");
   const baseChar = isPromoted ? piece[1] : piece[0];
   const resolvedOwner = owner ?? (baseChar === baseChar.toUpperCase() ? "sente" : "gote");
+  const isViewerPiece = resolvedOwner === viewerSide;
+  const orientationMode = orientationModeProp;
 
   const norm = isPromoted ? `+${baseChar.toUpperCase()}` : baseChar.toUpperCase();
-  const { row: baseRow, col } = spriteMap[norm] ?? spriteMap["P"];
-  const ownerOffset = orientationMode === "sprite" && resolvedOwner === "gote" ? 2 : 0;
-  const spriteRow = orientationMode === "sprite" ? baseRow + ownerOffset : baseRow;
+  const fallbackKey = baseChar.toUpperCase();
+  const { row: baseRow, col } = spriteMap[norm] ?? spriteMap[fallbackKey] ?? spriteMap["P"];
+  const rowOffsetKey = orientationMode === "sprite" ? (isViewerPiece ? "player" : "opponent") : "player";
+  const spriteRow = baseRow + PLAYER_ROW_OFFSET[rowOffsetKey];
 
   const scale = pieceSize / TILE_SIZE;
   const bgWidth = COLS * TILE_SIZE * scale;
@@ -74,13 +92,15 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   const left = originX + x * cell + (cell - pieceSize) / 2;
   const top = originY + y * cell + (cell - pieceSize) / 2;
 
-  const transform = orientationMode === "rotate" && resolvedOwner === "gote" ? "rotate(180deg)" : "none";
+  const shouldRotate = orientationMode === "rotate" && !isViewerPiece;
+  const baseTransform = shouldRotate ? "rotate(180deg)" : undefined;
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.2 }}
+      className={className}
       style={{
         position: "absolute",
         left,
@@ -91,9 +111,10 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
         backgroundRepeat: "no-repeat",
         backgroundSize: `${bgWidth}px ${bgHeight}px`,
         backgroundPosition: `${bgPosX}px ${bgPosY}px`,
-        transform,
-        transformOrigin: "center center",
         pointerEvents: "none",
+        transform: baseTransform,
+        transformOrigin: "50% 50%",
+        ...style,
       }}
     />
   );

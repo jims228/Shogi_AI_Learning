@@ -26,9 +26,16 @@ function isBlackSide(pc: PieceCode) {
   return code === code.toUpperCase(); // 先手=大文字
 }
 
-export const Piece: React.FC<{ piece: PieceCode; x: number; y: number }> = ({ piece, x, y }) => {
+type PieceProps = {
+  piece: PieceCode;
+  x: number;
+  y: number;
+};
+
+export const Piece: React.FC<PieceProps> = ({ piece, x, y }) => {
   const label = getLabel(piece);
   const black = isBlackSide(piece);
+  const rotation = black ? 0 : 180;
 
   return (
     <motion.text
@@ -38,10 +45,10 @@ export const Piece: React.FC<{ piece: PieceCode; x: number; y: number }> = ({ pi
       fontSize="26"
       fontFamily="serif"
       fill={black ? "#111827" : "#b91c1c"}
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+      initial={{ scale: 0.9, opacity: 0, rotate: rotation }}
+      animate={{ scale: 1, opacity: 1, rotate: rotation }}
       transition={{ duration: 0.2 }}
-      style={{ userSelect: "none", pointerEvents: "none" }}
+      style={{ userSelect: "none", pointerEvents: "none", transformOrigin: "center" }}
     >
       {label}
     </motion.text>

@@ -19,7 +19,9 @@ const createEmptyHandsSnapshot = (): HandsState => ({ b: {}, w: {} });
 const ReviewTab: React.FC<ReviewTabProps> = ({ usi, orientationMode = DEFAULT_ORIENTATION }) => {
   const [currentPly, setCurrentPly] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
+  
   const [editedBoard, setEditedBoard] = useState<BoardMatrix | null>(null);
+  const [editedHands, setEditedHands] = useState<HandsState | null>(null);
 
   const timeline = useMemo(() => {
     try {
@@ -33,6 +35,7 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ usi, orientationMode = DEFAULT_OR
   useEffect(() => {
     setCurrentPly(0);
     setEditedBoard(null);
+    setEditedHands(null);
     setIsEditMode(false);
   }, [usi]);
 
@@ -45,16 +48,22 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ usi, orientationMode = DEFAULT_OR
 
   useEffect(() => {
     setEditedBoard(null);
+    setEditedHands(null);
   }, [currentPly]);
 
   useEffect(() => {
     if (!isEditMode) {
       setEditedBoard(null);
+      setEditedHands(null);
     }
   }, [isEditMode]);
 
   const handleBoardChange = useCallback((next: BoardMatrix) => {
     setEditedBoard(next);
+  }, []);
+
+  const handleHandsChange = useCallback((next: HandsState) => {
+    setEditedHands(next);
   }, []);
 
   const renderBoard = useCallback((ply: number) => {
@@ -64,25 +73,25 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ usi, orientationMode = DEFAULT_OR
     const prevMove = clamped > 0 ? timeline.moves[clamped - 1] : null;
     const lastMove = prevMove ? usiMoveToCoords(prevMove) : null;
     const hands = timeline.hands?.[clamped] ?? createEmptyHandsSnapshot();
-    const isActivePly = clamped === currentPly;
-    const boardForRender = isActivePly && editedBoard ? editedBoard : board;
-    const mode = isEditMode && isActivePly ? "edit" : "view";
-
+    
     return (
       <ShogiBoard
-        key={`${clamped}-${mode}`}
-        board={boardForRender}
+        key={`view-${clamped}`}
+        board={board}
         hands={hands}
-        mode={mode}
+        mode="view"
         lastMove={lastMove ?? undefined}
         bestmove={null}
         orientationMode={orientationMode}
-        onBoardChange={mode === "edit" ? handleBoardChange : undefined}
       />
     );
-  }, [timeline.boards, timeline.moves, timeline.hands, orientationMode, currentPly, editedBoard, isEditMode, handleBoardChange]);
+  }, [timeline.boards, timeline.moves, timeline.hands, orientationMode]);
 
   const maxPly = Math.max(timeline.boards.length - 1, 0);
+  
+  const safeCurrentPly = Math.max(0, Math.min(currentPly, maxPly));
+  const currentBoardForEdit = editedBoard ?? timeline.boards[safeCurrentPly] ?? getStartBoard();
+  const currentHandsForEdit = editedHands ?? timeline.hands?.[safeCurrentPly] ?? createEmptyHandsSnapshot();
 
   return (
     <div className="flex h-full w-full flex-col gap-3">
@@ -100,12 +109,33 @@ const ReviewTab: React.FC<ReviewTabProps> = ({ usi, orientationMode = DEFAULT_OR
           {isEditMode ? "編集モードを終了" : "編集モード"}
         </button>
       </div>
-      <KifuPlayer
-        moves={timeline.moves}
-        currentPly={currentPly}
-        onPlyChange={setCurrentPly}
-        renderBoard={renderBoard}
-      />
+
+      {isEditMode ? (
+        <div className="flex flex-1 items-center justify-center overflow-auto py-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-300">
+          <div style={{ pointerEvents: 'auto' }}>
+            <ShogiBoard
+              key={`edit-${safeCurrentPly}`}
+              board={currentBoardForEdit}
+              hands={currentHandsForEdit}
+              mode="edit"
+              bestmove={null}
+              orientationMode={orientationMode}
+              onBoardChange={handleBoardChange}
+              onHandsChange={handleHandsChange}
+            />
+          </div>
+          <p className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-xs pointer-events-none whitespace-nowrap">
+            編集モード: 駒移動・打ち・ダブルクリックで成り
+          </p>
+        </div>
+      ) : (
+        <KifuPlayer
+          moves={timeline.moves}
+          currentPly={currentPly}
+          onPlyChange={setCurrentPly}
+          renderBoard={renderBoard}
+        />
+      )}
     </div>
   );
 };

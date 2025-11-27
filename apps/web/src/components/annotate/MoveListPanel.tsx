@@ -14,6 +14,7 @@ type MoveListPanelProps = {
   entries: MoveListEntry[];
   activePly: number;
   onSelectPly: (ply: number) => void;
+  className?: string;
 };
 
 const badgeClassMap = {
@@ -25,9 +26,10 @@ const badgeClassMap = {
   unknown: styles.badgeNeutral,
 } as const;
 
-export default function MoveListPanel({ entries, activePly, onSelectPly }: MoveListPanelProps) {
+export default function MoveListPanel({ entries, activePly, onSelectPly, className }: MoveListPanelProps) {
+  const rootClass = className ? `${styles.panel} ${className}` : styles.panel;
   return (
-    <div className={styles.panel}>
+    <div className={rootClass}>
       <div className={styles.header}>棋譜リスト</div>
       <div className={styles.list}>
         {entries.length ? (
