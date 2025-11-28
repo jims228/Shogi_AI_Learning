@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useMemo } from "react";
-import styles from "./EvalGraph.module.css";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+} from "recharts";
 
-export type EvalPoint = {
+type EvalPoint = {
   ply: number;
   cp: number | null;
 };
@@ -11,138 +13,93 @@ export type EvalPoint = {
 type EvalGraphProps = {
   data: EvalPoint[];
   currentPly: number;
+  onPlyClick?: (ply: number) => void;
 };
 
-const VIEW_WIDTH = 600;
-const VIEW_HEIGHT = 260;
-const PADDING_X = 28;
-const PADDING_Y = 24;
+// 感度調整: 600 -> 1200 (数値が大きいほどグラフが緩やかになります)
+const SIGMOID_FACTOR = 1200;
 
-export default function EvalGraph({ data, currentPly }: EvalGraphProps) {
-  const maxPly = data.length ? data[data.length - 1].ply : 0;
-  const hasData = useMemo(() => data.some((point) => point.cp !== null), [data]);
+const toWinRate = (cp: number) => {
+  // cp=0 -> 50%, cp=1200 -> 73%
+  return 1 / (1 + Math.exp(-cp / SIGMOID_FACTOR));
+};
 
-  const { pathD, highlightPoint, zeroLineY, yTicks } = useMemo(() => {
-    if (!data.length || !hasData) {
-      return { pathD: "", highlightPoint: null, zeroLineY: VIEW_HEIGHT / 2, yTicks: [] as { value: number; y: number }[] };
-    }
+export default function EvalGraph({ data, currentPly, onPlyClick }: EvalGraphProps) {
+  const chartData = useMemo(() => {
+    return data.map((d) => {
+      if (d.cp === null) return { ply: d.ply, score: 50, rawCp: 0 };
 
-    const cpValues = data.map((d) => Math.abs(d.cp ?? 0));
-    const maxAbs = Math.max(100, ...cpValues);
-    const usableWidth = VIEW_WIDTH - PADDING_X * 2;
-    const usableHeight = VIEW_HEIGHT - PADDING_Y * 2;
+      // 視点補正（エンジンは常に手番側の値を返すと仮定し、後手番は反転）
+      const senteCp = d.cp * (d.ply % 2 !== 0 ? -1 : 1);
+      
+      // 勝率変換
+      let winRate = toWinRate(senteCp) * 100;
+      
+      // 詰みの極端な値を丸める（グラフが見づらくなるため）
+      if (Math.abs(senteCp) > 9000) {
+        winRate = senteCp > 0 ? 99.9 : 0.1;
+      }
 
-    const scaleX = (ply: number) => {
-      if (maxPly === 0) return PADDING_X;
-      return PADDING_X + (ply / maxPly) * usableWidth;
-    };
-
-    const scaleY = (cp: number) => PADDING_Y + (1 - (cp + maxAbs) / (maxAbs * 2)) * usableHeight;
-
-    let d = "";
-    data.forEach((point, index) => {
-      if (point.cp === null) return;
-      const x = scaleX(point.ply);
-      const y = scaleY(point.cp);
-      d += `${index === 0 ? "M" : "L"}${x},${y} `;
+      return {
+        ply: d.ply,
+        score: winRate,
+        rawCp: senteCp,
+      };
     });
+  }, [data]);
 
-    const current = data.find((p) => p.ply === currentPly && p.cp !== null);
-    const highlight = current
-      ? {
-          x: scaleX(current.ply),
-          y: scaleY(current.cp as number),
-          cp: current.cp,
-        }
-      : null;
-
-    const zeroLine = scaleY(0);
-    const ticks = [-400, -200, 0, 200, 400];
-
-    return {
-      pathD: d.trim(),
-      highlightPoint: highlight,
-      zeroLineY: zeroLine,
-      yTicks: ticks.map((t) => ({ value: t, y: scaleY(t) })),
-    };
-  }, [data, hasData, maxPly]);
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const dataItem = payload[0].payload;
+      return (
+        <div className="bg-white/95 border border-slate-200 p-2 rounded shadow-lg text-xs font-mono z-50">
+          <div className="font-bold text-slate-700">{label}手目</div>
+          <div className={`${dataItem.score >= 50 ? "text-emerald-600" : "text-rose-500"}`}>
+            先手勝率: {dataItem.score.toFixed(1)}%
+          </div>
+          <div className="text-slate-500">
+            評価値: {dataItem.rawCp > 0 ? "+" : ""}{dataItem.rawCp}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
-    <div className={styles.card}>
-      <div className={styles.header}>評価値グラフ</div>
-      {hasData ? (
-        <div className={styles.graphWrapper}>
-          <svg viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`} className={styles.svg} role="img" aria-label="評価値グラフ">
-            <rect
-              x={PADDING_X}
-              y={PADDING_Y}
-              width={VIEW_WIDTH - PADDING_X * 2}
-              height={VIEW_HEIGHT - PADDING_Y * 2}
-              fill="url(#washiTexture)"
-              className={styles.graphBackground}
-            />
-            <defs>
-              <linearGradient id="evalLine" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#36507a" />
-                <stop offset="100%" stopColor="#ab3f2b" />
-              </linearGradient>
-              <pattern id="washiTexture" width="6" height="6" patternUnits="userSpaceOnUse">
-                <rect width="6" height="6" fill="#f9f3e5" />
-                <circle cx="1" cy="1" r="0.35" fill="#e5dfcf" />
-                <circle cx="4" cy="4" r="0.4" fill="#e5dfcf" />
-              </pattern>
-            </defs>
-
-            {yTicks.map((tick) => (
-              <g key={tick.value}>
-                <line
-                  x1={PADDING_X}
-                  x2={VIEW_WIDTH - PADDING_X}
-                  y1={tick.y}
-                  y2={tick.y}
-                  className={styles.tickLine}
-                />
-                <text x={8} y={tick.y + 4} className={styles.tickLabel}>
-                  {tick.value}
-                </text>
-              </g>
-            ))}
-
-            <line
-              x1={PADDING_X}
-              x2={VIEW_WIDTH - PADDING_X}
-              y1={zeroLineY}
-              y2={zeroLineY}
-              className={styles.zeroLine}
-            />
-
-            {pathD && <path d={pathD} className={styles.path} stroke="url(#evalLine)" />}
-
-            {highlightPoint && (
-              <g className={styles.highlightGroup}>
-                <line
-                  x1={highlightPoint.x}
-                  x2={highlightPoint.x}
-                  y1={PADDING_Y}
-                  y2={VIEW_HEIGHT - PADDING_Y}
-                  className={styles.highlightLine}
-                />
-                <circle
-                  cx={highlightPoint.x}
-                  cy={highlightPoint.y}
-                  r={6}
-                  className={styles.highlightDot}
-                />
-                <text x={highlightPoint.x + 10} y={highlightPoint.y - 10} className={styles.highlightLabel}>
-                  {highlightPoint.cp}cp
-                </text>
-              </g>
-            )}
-          </svg>
-        </div>
-      ) : (
-        <div className={styles.empty}>解析データが揃うと評価値グラフが表示されます。</div>
-      )}
+    <div className="w-full h-[200px] select-none bg-white rounded-xl p-2 border border-slate-200">
+      <div className="text-xs font-bold text-slate-500 mb-1 px-2">AI評価値（勝率推移）</div>
+      <ResponsiveContainer width="100%" height="90%">
+        <AreaChart
+          data={chartData}
+          margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+          onClick={(e) => {
+            if (e && e.activeLabel !== undefined) onPlyClick?.(Number(e.activeLabel));
+          }}
+        >
+          <defs>
+            <linearGradient id="splitColor" x1="0" y1="0" x2="0" y2="1">
+              <stop offset={0} stopColor="#10b981" stopOpacity={0.6} />
+              <stop offset={1} stopColor="#f43f5e" stopOpacity={0.6} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+          <XAxis 
+            dataKey="ply" type="number" domain={['dataMin', 'dataMax']} 
+            tick={{ fontSize: 10, fill: '#aaa' }} tickLine={false} axisLine={false} 
+            interval="preserveStartEnd"
+          />
+          <YAxis 
+            domain={[0, 100]} ticks={[0, 50, 100]} 
+            tick={{ fontSize: 10, fill: '#aaa' }} tickFormatter={(v) => `${v}%`} 
+            tickLine={false} axisLine={false} 
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <ReferenceLine y={50} stroke="#cbd5e1" strokeDasharray="3 3" />
+          {currentPly >= 0 && <ReferenceLine x={currentPly} stroke="#f59e0b" strokeWidth={2} />}
+          <Area type="monotone" dataKey="score" stroke="#059669" strokeWidth={2} fill="url(#splitColor)" animationDuration={500} activeDot={{ r: 4, strokeWidth: 0, fill: "#f59e0b" }} />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }

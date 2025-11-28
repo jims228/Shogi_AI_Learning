@@ -91,3 +91,5 @@ temp/
 *.bak
 *.old
 *.patch
+backend/api/user_book1.db
+backend/api/standard_book.db:Zone.Identifier
