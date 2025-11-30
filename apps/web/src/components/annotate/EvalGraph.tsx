@@ -16,11 +16,10 @@ type EvalGraphProps = {
   onPlyClick?: (ply: number) => void;
 };
 
-// 感度調整: 600 -> 1200 (数値が大きいほどグラフが緩やかになります)
+// 感度調整: 600 -> 1200
 const SIGMOID_FACTOR = 1200;
 
 const toWinRate = (cp: number) => {
-  // cp=0 -> 50%, cp=1200 -> 73%
   return 1 / (1 + Math.exp(-cp / SIGMOID_FACTOR));
 };
 
@@ -29,13 +28,11 @@ export default function EvalGraph({ data, currentPly, onPlyClick }: EvalGraphPro
     return data.map((d) => {
       if (d.cp === null) return { ply: d.ply, score: 50, rawCp: 0 };
 
-      // 視点補正（エンジンは常に手番側の値を返すと仮定し、後手番は反転）
+      // 視点補正
       const senteCp = d.cp * (d.ply % 2 !== 0 ? -1 : 1);
       
-      // 勝率変換
+      // 勝率変換 & 極端な値の丸め
       let winRate = toWinRate(senteCp) * 100;
-      
-      // 詰みの極端な値を丸める（グラフが見づらくなるため）
       if (Math.abs(senteCp) > 9000) {
         winRate = senteCp > 0 ? 99.9 : 0.1;
       }

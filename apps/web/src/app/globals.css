@@ -73,6 +73,14 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ===== 高さ伝播のための設定 ===== */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 @layer base {
   * {
     /* TailwindユーティリティではなくCSS変数で直接指定 */
@@ -87,7 +95,7 @@
     background-repeat: repeat;
     background-size: 120px 120px;
     position: relative;
-    min-height: 100vh;
+    /* height: 100% はhtml,bodyで設定済み */
   }
 
   body::before,

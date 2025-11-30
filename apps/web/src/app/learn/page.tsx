@@ -7,6 +7,12 @@ import { Bell, UserCircle, Star, Play, Lock, Check, X } from "lucide-react";
 import { LESSONS } from "@/constants";
 import { Lesson } from "@/types";
 
+// レイアウト調整用の定数
+const ROW_HEIGHT = 160; // 各ステージの縦幅
+const AMPLITUDE = 60;   // 横揺れの幅
+const CENTER_X = 200;   // 描画領域の中心 (幅400px想定)
+const OFFSET_Y = 60;    // 開始位置のYオフセット
+
 export default function LearnPage() {
   const router = useRouter();
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
@@ -22,6 +28,9 @@ export default function LearnPage() {
     if (!selectedLesson) return;
     router.push(`/training/${selectedLesson.category}/${selectedLesson.id}`);
   };
+
+  // 全体の高さを計算
+  const totalHeight = OFFSET_Y + (LESSONS.length * ROW_HEIGHT) + 100;
 
   return (
     <div className="min-h-screen pb-20 bg-[#f6f1e6] text-[#2b2b2b]">
@@ -56,9 +65,16 @@ export default function LearnPage() {
               </div>
             </div>
 
-            <div className="relative min-h-[800px] pb-20">
-              <RoadmapPath lessons={LESSONS} />
-              <div className="relative z-10 space-y-8">
+            {/* ロードマップエリア: 幅400px固定で中央寄せ */}
+            <div 
+              className="relative w-full max-w-[400px] mx-auto"
+              style={{ height: `${totalHeight}px` }}
+            >
+              {/* 背景の道（線） */}
+              <RoadmapPath lessons={LESSONS} totalHeight={totalHeight} />
+              
+              {/* アイコン配置エリア */}
+              <div className="relative z-10 w-full h-full">
                 {LESSONS.map((lesson, index) => (
                   <LessonNode
                     key={lesson.id}
@@ -73,6 +89,7 @@ export default function LearnPage() {
         </div>
       </main>
 
+      {/* モーダル部分 (変更なし) */}
       {selectedLesson && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center pointer-events-none">
           <div
@@ -116,7 +133,7 @@ export default function LearnPage() {
 
             <button
               onClick={handleStartLesson}
-                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-[#fdf8ee] font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-[#fdf8ee] font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center gap-2"
             >
               <Play className="w-5 h-5 text-[#555]" />
               レッスンを始める
@@ -128,38 +145,31 @@ export default function LearnPage() {
   );
 }
 
-// Component to draw the curved dashed line behind nodes
-function RoadmapPath({ lessons }: { lessons: Lesson[] }) {
-  // Calculate path points
-  // We assume each node takes up roughly 120px vertical space (node + gap)
-  // We'll oscillate the X position.
-  const rowHeight = 140; // Adjust based on spacing
-  const amplitude = 60; // Horizontal sway amount
-  const centerX = 200; // Center of the SVG (assuming 400px width container)
-  
-  // Generate path string
-  let d = `M ${centerX} 40`; // Start point (top center-ish)
+// 曲線を描画するコンポーネント
+function RoadmapPath({ lessons, totalHeight }: { lessons: Lesson[]; totalHeight: number }) {
+  let d = `M ${CENTER_X} ${OFFSET_Y}`; // 開始点
 
   lessons.forEach((_, i) => {
     if (i === lessons.length - 1) return;
     
-    const startY = 40 + i * rowHeight;
-    const endY = 40 + (i + 1) * rowHeight;
+    const startY = OFFSET_Y + i * ROW_HEIGHT;
+    const endY = OFFSET_Y + (i + 1) * ROW_HEIGHT;
     
-    // Zig-zag logic: 0 -> -1 -> 0 -> 1 -> 0
-    // Let's use sine wave for smoother curves
-    const startX = centerX + Math.sin(i * 1.5) * amplitude;
-    const endX = centerX + Math.sin((i + 1) * 1.5) * amplitude;
+    // アイコンと同じ計算式
+    const startX = CENTER_X + Math.sin(i * 1.5) * AMPLITUDE;
+    const endX = CENTER_X + Math.sin((i + 1) * 1.5) * AMPLITUDE;
 
-    // Control points for Bezier curve
-    const cp1Y = startY + rowHeight * 0.5;
-    const cp2Y = endY - rowHeight * 0.5;
+    const cp1Y = startY + ROW_HEIGHT * 0.5;
+    const cp2Y = endY - ROW_HEIGHT * 0.5;
 
     d += ` C ${startX} ${cp1Y}, ${endX} ${cp2Y}, ${endX} ${endY}`;
   });
 
   return (
-    <svg className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-visible" preserveAspectRatio="none">
+    <svg 
+      className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-visible" 
+      viewBox={`0 0 400 ${totalHeight}`}
+    >
       <path
         d={d}
         fill="none"
@@ -172,10 +182,11 @@ function RoadmapPath({ lessons }: { lessons: Lesson[] }) {
   );
 }
 
+// 各ステージのノード
 function LessonNode({ lesson, index, onClick }: { lesson: Lesson; index: number; onClick: () => void }) {
-  // Calculate horizontal offset to match the SVG path
-  const amplitude = 60;
-  const xOffset = Math.sin(index * 1.5) * amplitude;
+  // SVGと同じ計算式で絶対座標を算出
+  const leftPos = CENTER_X + Math.sin(index * 1.5) * AMPLITUDE;
+  const topPos = OFFSET_Y + index * ROW_HEIGHT;
   
   const isCompleted = lesson.status === "completed";
   const isAvailable = lesson.status === "available";
@@ -183,12 +194,19 @@ function LessonNode({ lesson, index, onClick }: { lesson: Lesson; index: number;
 
   return (
     <div 
-      className="flex flex-col items-center justify-center relative"
-      style={{ transform: `translateX(${xOffset}px)` }}
+      className="absolute flex flex-col items-center justify-center"
+      style={{ 
+        // 以前の transform: translateX(...) ではなく、絶対配置 left/top を使用
+        left: `${leftPos}px`,
+        top: `${topPos}px`,
+        // 中心点を座標に合わせるために -50% ずらす
+        transform: 'translate(-50%, -50%)',
+        width: 'auto' // 幅指定を解除
+      }}
     >
       {/* Stars (Progress) */}
       {!isLocked && (
-        <div className="flex gap-1 mb-2 absolute -top-8">
+        <div className="flex gap-1 mb-2 absolute -top-10">
           {[1, 2, 3].map((star) => (
             <Star
               key={star}
@@ -203,25 +221,22 @@ function LessonNode({ lesson, index, onClick }: { lesson: Lesson; index: number;
         className="relative group cursor-pointer transition-transform active:scale-95"
         onClick={onClick}
       >
-        {/* Glow for available */}
         {isAvailable && (
-          <div className="absolute inset-0 bg-amber-200/60 rounded-full blur-xl"></div>
+          <div className="absolute inset-0 bg-amber-200/60 rounded-full blur-xl animate-pulse"></div>
         )}
 
         <div
           className={`
-            w-24 h-24 rounded-full flex items-center justify-center shadow-[0_8px_0_0_rgba(0,0,0,0.15)] border-4 border-white relative z-10
+            w-24 h-24 rounded-full flex items-center justify-center shadow-[0_8px_0_0_rgba(0,0,0,0.15)] border-4 border-white relative z-10 transition-colors
             ${isCompleted ? "bg-gradient-to-b from-indigo-400 to-blue-500" : ""}
             ${isAvailable ? "bg-gradient-to-b from-amber-200 to-orange-300" : ""}
             ${isLocked ? "bg-slate-200" : ""}
           `}
         >
-          {/* Inner Icon */}
           {isCompleted && <Check className="w-10 h-10 text-[#555] drop-shadow-md" strokeWidth={4} />}
           {isAvailable && <Play className="w-10 h-10 text-[#555] fill-[#555] drop-shadow-md ml-1" />}
           {isLocked && <Lock className="w-8 h-8 text-[#555]/40" />}
           
-          {/* Shine effect */}
           {!isLocked && (
             <div className="absolute top-2 left-4 w-6 h-3 bg-white/20 rounded-full transform -rotate-45"></div>
           )}
@@ -229,7 +244,7 @@ function LessonNode({ lesson, index, onClick }: { lesson: Lesson; index: number;
       </div>
 
       {/* Label Pill */}
-      <div className="mt-3 bg-white/90 border border-black/5 px-3 py-1.5 rounded-xl shadow z-20 max-w-[160px] text-center">
+      <div className="mt-4 bg-white/90 border border-black/5 px-3 py-1.5 rounded-xl shadow z-20 w-max text-center">
         <span className={`text-sm font-bold ${isLocked ? "text-slate-400" : "text-[#3a2b17]"}`}>
           {lesson.title}
         </span>
@@ -237,5 +252,3 @@ function LessonNode({ lesson, index, onClick }: { lesson: Lesson; index: number;
     </div>
   );
 }
-
-

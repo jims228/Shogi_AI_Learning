@@ -15,8 +15,8 @@ export default function AnnotateView() {
   const orientationMode: OrientationMode = "sprite";
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between rounded-2xl bg-white/85 border border-black/5 p-4 md:p-5 gap-4 text-[#1f1308]">
+    <div className="h-full flex flex-col gap-4 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between rounded-2xl bg-white/85 border border-black/5 p-4 md:p-5 gap-4 text-[#1f1308] shrink-0">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -42,13 +42,15 @@ export default function AnnotateView() {
         </div>
       </div>
 
-      {activeTab === "analysis" ? (
-        <AnalysisTab usi={usi} setUsi={setUsi} orientationMode={orientationMode} />
-      ) : (
-        <div className="rounded-2xl bg-white/90 border border-black/5 p-4 md:p-6 shadow-sm">
-          <ReviewTab usi={usi} orientationMode={orientationMode} />
-        </div>
-      )}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {activeTab === "analysis" ? (
+          <AnalysisTab usi={usi} setUsi={setUsi} orientationMode={orientationMode} />
+        ) : (
+          <div className="h-full rounded-2xl bg-white/90 border border-black/5 p-4 md:p-6 shadow-sm overflow-auto">
+            <ReviewTab usi={usi} orientationMode={orientationMode} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -24,12 +24,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="ja" className="h-full">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}>
         <ToastProvider>
           <Toaster />
-          <div className="relative z-[1] min-h-screen flex flex-col px-4 sm:px-6 lg:px-12 xl:px-[220px] 2xl:px-[260px] py-6 gap-6">
-            <main className="flex-1 w-full">
+          <div className="relative z-[1] h-full flex flex-col px-4 sm:px-6 lg:px-12 xl:px-[220px] 2xl:px-[260px] py-6 gap-6">
+            <main className="flex-1 w-full min-h-0 flex flex-col">
               {children}
             </main>
           </div>

@@ -6,6 +6,7 @@ import { PieceSprite, type OrientationMode } from "@/components/PieceSprite";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { showToast } from "@/components/ui/toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   boardToPlaced,
   buildBoardTimeline,
@@ -21,7 +22,7 @@ import { formatUsiMoveJapanese, usiMoveToCoords, type PieceBase, type PieceCode 
 import { buildUsiPositionForPly } from "@/lib/usi";
 import type { EngineAnalyzeResponse, EngineMultipvItem } from "@/lib/annotateHook";
 import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/analysisUtils";
-import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight } from "lucide-react";
+import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
 
@@ -40,7 +41,7 @@ type BatchAnalysisResponsePayload = {
   analyzed_plies?: number;
 };
 
-// Helper Functions
+// --- Helper Functions ---
 const boardToSfen = (board: BoardMatrix, hands: HandsState, turn: Side): string => {
   let sfen = "";
   let emptyCount = 0;
@@ -85,6 +86,7 @@ const formatScoreLabel = (score?: EngineMultipvItem["score"]): string => {
 };
 const HAND_DISPLAY_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
 
+// === Main Component ===
 export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }: AnalysisTabProps) {
   // State
   const [currentPly, setCurrentPly] = useState(0);
@@ -98,6 +100,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [errorMessage, setErrorMessage] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
   const [boardOrientation, setBoardOrientation] = useState<"sente" | "gote">("sente");
+  
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [snapshotOverrides, setSnapshotOverrides] = useState<Record<number, BoardMatrix>>({});
   const [handsOverrides, setHandsOverrides] = useState<Record<number, HandsState>>({});
@@ -153,8 +158,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const prevMove = safeCurrentPly > 0 ? moveSequence[safeCurrentPly - 1] : null;
   const lastMoveCoords = !isEditMode && prevMove ? usiMoveToCoords(prevMove) : null;
   const bestmoveCoords = !isEditMode && currentAnalysis?.bestmove ? usiMoveToCoords(currentAnalysis.bestmove) : null;
-  const currentMoveUsi = safeCurrentPly === 0 ? null : moveSequence[safeCurrentPly - 1] ?? null;
-
+  
   // Callbacks
   const stopEngineAnalysis = useCallback(() => {
     if (eventSourceRef.current) {
@@ -345,32 +349,32 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setErrorMessage("");
     if (!kifuText.trim()) return;
     try {
-      setUsi(toStartposUSI(kifuText));
+      const newUsi = toStartposUSI(kifuText);
+      if (!newUsi) throw new Error("形式を認識できませんでした");
+      setUsi(newUsi);
       showToast({ title: "読み込みました", variant: "default" });
-    } catch (e) { setErrorMessage(String(e)); }
+      setIsModalOpen(false);
+    } catch (e) { 
+        const msg = String(e);
+        setErrorMessage(msg); 
+        showToast({ title: "エラー", description: msg, variant: "destructive" });
+    }
   }, [kifuText, setUsi]);
 
-  // ★候補手クリック時のハンドラ
   const handleCandidateClick = useCallback((pvStr: string) => {
       const moves = pvStr.trim().split(/\s+/);
       if (moves.length === 0) return;
       const nextMove = moves[0];
-      
-      // 現在の局面にこの手を適用して次の手数を表示する
-      // (簡易実装: USI文字列に指し手を追加してSetUsiする)
-      // ※本来は分岐を作るべきですが、今回は一直線に更新します
       if (!isEditMode) {
-          // 現在の手数以降を切り捨てて、新しい手を追加する
           const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
           if (currentUsi) {
               setUsi(`${currentUsi} ${nextMove}`);
-              // 1手進める
               setTimeout(() => setCurrentPly(safeCurrentPly + 1), 50);
           }
       }
   }, [usi, safeCurrentPly, isEditMode, setUsi]);
 
-
+  // Effects
   useEffect(() => stopEngineAnalysis, [stopEngineAnalysis]);
   useEffect(() => {
     setCurrentPly(0);
@@ -396,7 +400,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     requestAnalysisForPly(safeCurrentPly);
   }, [analysisByPly, isAnalyzing, isStreaming, isEditMode, requestAnalysisForPly, safeCurrentPly, timeline.boards.length]);
 
+  // Helpers
+  const primaryPv = currentAnalysis?.multipv?.[0];
   const moveImpacts = useMemo(() => buildMoveImpacts(analysisByPly, totalMoves, initialTurn), [analysisByPly, initialTurn, totalMoves]);
+  
   const moveListEntries = useMemo(() => {
     if (!moveSequence.length) return [];
     return moveSequence.map((move, index) => {
@@ -419,14 +426,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const bottomHandSide: Side = boardOrientation === "sente" ? "b" : "w";
 
   return (
-    <div className="space-y-4 text-[#1c1209] h-full">
+    <div className="relative h-screen flex flex-col gap-4 p-4 text-[#1c1209] overflow-hidden bg-[#fbf7ef]">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
+      <div className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm relative z-10">
         <div className="flex items-center gap-4">
             <div className="text-sm font-bold text-slate-700">検討モード</div>
             <div className="text-xs text-slate-500">局面: {safeCurrentPly} / {maxPly}</div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* 棋譜読み込みボタン */}
+          <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)} className="border-slate-300 text-slate-700 h-8 text-xs cursor-pointer active:scale-95 transition-transform">
+            <Upload className="w-3 h-3 mr-1" /> 棋譜読み込み
+          </Button>
+
           {!isEditMode ? (
             <>
               <Button variant="outline" size="sm" onClick={handleBatchAnalysis} disabled={isBatchAnalyzing} className="border-slate-300 text-slate-700 h-8 text-xs">全体解析</Button>
@@ -448,110 +460,150 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         </div>
       </div>
 
-      {/* Main Grid Layout (3 Columns) */}
-      <div className="grid grid-cols-1 xl:grid-cols-[auto_320px_280px] gap-4 items-start">
-        
-        {/* Col 1: Board */}
-        <div className="flex flex-col gap-4">
-          <div className="rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4">
+      {/* Main Layout */}
+      <div className="flex-1 flex flex-row gap-4 min-h-0 overflow-hidden relative z-0">
+        {/* Col 1: Board (Left) */}
+        <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-[400px]">
+          <div className="flex-none rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4" style={{ minHeight: "550px" }}>
             <div className="flex items-center justify-center w-full gap-4 mb-2">
                 <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToStart} disabled={navDisabled || !canGoPrev}><ChevronFirst className="w-4 h-4"/></Button>
                 <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToPrev} disabled={navDisabled || !canGoPrev}><ChevronLeft className="w-4 h-4"/></Button>
                 <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToNext} disabled={navDisabled || !canGoNext}><ChevronRight className="w-4 h-4"/></Button>
                 <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToEnd} disabled={navDisabled || !canGoNext}><ChevronLast className="w-4 h-4"/></Button>
             </div>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4">
-              <HandsColumn side={topHandSide} hands={activeHands[topHandSide] ?? {}} orientationMode={orientationMode} align="start" />
-              <div className="flex justify-center shadow-lg rounded-lg overflow-hidden border-4 border-[#5d4037]">
-                <ShogiBoard
-                  board={displayedBoard}
-                  hands={activeHands}
-                  mode={boardMode}
-                  lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
-                  bestmove={isEditMode ? undefined : bestmoveCoords ?? null}
-                  orientationMode={orientationMode}
-                  orientation={boardOrientation}
-                  onBoardChange={isEditMode ? handleBoardEdit : undefined}
-                  onHandsChange={isEditMode ? handleHandsEdit : undefined}
-                />
-              </div>
-              <HandsColumn side={bottomHandSide} hands={activeHands[bottomHandSide] ?? {}} orientationMode={orientationMode} align="end" />
+            <div className="flex items-center justify-center w-full h-full">
+                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4">
+                    <HandsColumn side={topHandSide} hands={activeHands[topHandSide] ?? {}} orientationMode={orientationMode} align="start" />
+                    <div className="flex justify-center shadow-lg rounded-lg overflow-hidden border-4 border-[#5d4037]">
+                        <ShogiBoard
+                        board={displayedBoard}
+                        hands={activeHands}
+                        mode={boardMode}
+                        lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
+                        bestmove={isEditMode ? undefined : bestmoveCoords ?? null}
+                        orientationMode={orientationMode}
+                        orientation={boardOrientation}
+                        onBoardChange={isEditMode ? handleBoardEdit : undefined}
+                        onHandsChange={isEditMode ? handleHandsEdit : undefined}
+                        />
+                    </div>
+                    <HandsColumn side={bottomHandSide} hands={activeHands[bottomHandSide] ?? {}} orientationMode={orientationMode} align="end" />
+                </div>
             </div>
           </div>
-          
-          {/* Graph & Input (Bottom of Col 1) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-                <EvalGraph data={evalPoints} currentPly={safeCurrentPly} onPlyClick={handlePlyChange} />
-             </div>
-             <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm h-[260px] flex flex-col">
-                <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold text-slate-600 flex items-center gap-1"><FileText className="w-3 h-3"/> 棋譜入力</span>
-                    <Button size="sm" variant="ghost" onClick={handleLoadKifu} className="h-6 text-[10px] bg-slate-100 hover:bg-amber-50 text-slate-700"><Upload className="w-3 h-3 mr-1"/> 読込</Button>
-                </div>
-                <Textarea value={kifuText} onChange={(e) => setKifuText(e.target.value)} className="flex-1 w-full text-[10px] font-mono border-slate-200 bg-slate-50 focus:bg-white resize-none mb-1" placeholder="ここにKIF/CSA/USIを貼り付け" />
-             </div>
-          </div>
-        </div>
 
-        {/* Col 2: Candidates (Vertical) */}
-        <div className="flex flex-col gap-4 h-full max-h-[calc(100vh-140px)] overflow-y-auto">
-            {/* AI Explanation */}
-            {explanation && (
-                <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 text-sm text-slate-800 shadow-sm shrink-0">
-                    <div className="font-bold text-purple-700 mb-1 flex items-center gap-2"><Sparkles className="w-4 h-4"/> AI解説</div>
+          {explanation && (
+            <div className="flex-none p-4 bg-white rounded-xl border border-purple-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+                <div className="font-bold text-purple-700 mb-2 flex items-center gap-2 border-b border-purple-100 pb-2">
+                    <Sparkles className="w-5 h-5 fill-purple-100"/> 将棋仙人の解説
+                </div>
+                <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">
                     {explanation}
                 </div>
-            )}
+            </div>
+          )}
+        </div>
 
-            {/* Candidates List */}
-            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm flex-1 min-h-[300px]">
-                <div className="text-xs font-bold text-slate-500 mb-3 pb-2 border-b border-slate-100 flex justify-between">
-                    <span>AI候補手 (MultiPV)</span>
-                    {isAnalyzing && !hasCurrentAnalysis && <span className="text-[10px] text-green-600 animate-pulse">解析中...</span>}
-                </div>
-                <div className="flex flex-col gap-2">
-                    {currentAnalysis?.multipv?.length ? currentAnalysis.multipv.map((pv) => (
-                      <div 
-                        key={`${pv.multipv}`} 
-                        onClick={() => handleCandidateClick(pv.pv || "")}
-                        className="group flex flex-col p-2 rounded-lg border border-slate-100 hover:border-amber-300 hover:bg-amber-50 cursor-pointer transition-all"
-                      >
-                          <div className="flex justify-between items-center mb-1">
-                              <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold bg-slate-100 group-hover:bg-white px-1.5 py-0.5 rounded text-slate-600">#{pv.multipv}</span>
-                                  <span className="text-sm font-bold text-slate-800">{formatUsiMoveJapanese(pv.pv?.split(" ")[0] || "", currentPlacedPieces, currentSideToMove)}</span>
-                              </div>
-                              <span className={`text-sm font-mono font-bold ${pv.score.type === 'mate' ? 'text-rose-600' : ((pv.score.cp ?? 0) > 0 ? 'text-emerald-600' : 'text-slate-600')}`}>
-                                  {formatScoreLabel(pv.score)}
-                              </span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[10px] text-slate-400 group-hover:text-slate-600">
-                              <ArrowRight className="w-3 h-3" />
-                              <span className="truncate">{pv.pv}</span>
-                          </div>
-                      </div>
-                    )) : <div className="text-xs text-slate-400 text-center py-10">解析データなし</div>}
-                </div>
+        {/* Col 2: Candidates (Middle) */}
+        <div className="w-[300px] flex-none flex flex-col gap-2 h-full overflow-hidden border-x border-slate-100 px-2">
+            <div className="text-sm font-bold text-slate-600 flex items-center gap-2 px-1">
+                <BrainCircuit className="w-4 h-4" />
+                AI解析 (候補手)
+                {isAnalyzing && !hasCurrentAnalysis && <span className="text-[10px] text-green-600 animate-pulse ml-auto">思考中...</span>}
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+                {currentAnalysis?.multipv?.length ? currentAnalysis.multipv.map((pv) => (
+                    <div 
+                    key={`${pv.multipv}`} 
+                    onClick={() => handleCandidateClick(pv.pv || "")}
+                    className="group p-3 rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50 cursor-pointer transition-all shadow-sm"
+                    >
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold bg-slate-100 group-hover:bg-white px-2 py-0.5 rounded-full text-slate-600">#{pv.multipv}</span>
+                                <span className="text-base font-bold text-slate-800">{formatUsiMoveJapanese(pv.pv?.split(" ")[0] || "", currentPlacedPieces, currentSideToMove)}</span>
+                            </div>
+                            <span className={`text-sm font-mono font-bold ${pv.score.type === 'mate' ? 'text-rose-600' : ((pv.score.cp ?? 0) > 0 ? 'text-emerald-600' : 'text-slate-600')}`}>
+                                {formatScoreLabel(pv.score)}
+                            </span>
+                        </div>
+                        <div className="flex items-start gap-1 text-xs text-slate-400 group-hover:text-slate-600">
+                            <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" />
+                            <span className="break-words leading-tight">{pv.pv}</span>
+                        </div>
+                    </div>
+                )) : (
+                    <div className="h-40 flex items-center justify-center text-slate-400 text-xs border-2 border-dashed border-slate-100 rounded-xl">
+                        解析データなし
+                    </div>
+                )}
             </div>
         </div>
 
-        {/* Col 3: Move List (Tall) */}
-        <div className="h-full max-h-[calc(100vh-140px)] shadow-md border border-slate-200 rounded-xl overflow-hidden bg-white">
-             <MoveListPanel 
-                entries={moveListEntries} 
-                activePly={safeCurrentPly} 
-                onSelectPly={handlePlyChange} 
-                className="h-full border-0 rounded-none" 
-            />
+        {/* Col 3: List & Graph (Right) */}
+        <div className="w-[320px] flex-none flex flex-col gap-4 h-full overflow-hidden pl-1">
+            <div className="flex-1 min-h-0 shadow-md border border-slate-300 rounded-xl overflow-hidden bg-white">
+                <MoveListPanel 
+                    entries={moveListEntries} 
+                    activePly={safeCurrentPly} 
+                    onSelectPly={handlePlyChange} 
+                    className="h-full border-0 rounded-none" 
+                />
+            </div>
+            <div className="h-[180px] shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+                <EvalGraph data={evalPoints} currentPly={safeCurrentPly} onPlyClick={handlePlyChange} />
+            </div>
         </div>
-
       </div>
+
+      {/* Modal (Dialog) */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-0 shadow-2xl border border-slate-200 gap-0 [&>button]:hidden">
+          <DialogHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 space-y-0">
+            <div className="flex flex-col gap-0.5 text-left">
+                <DialogTitle className="flex items-center gap-2 text-slate-700 text-base font-bold">
+                <FileText className="w-4 h-4 text-slate-500" /> 棋譜読み込み
+                </DialogTitle>
+                <DialogDescription className="text-slate-500 text-xs">
+                KIF, CSA, USI形式、またはSFEN
+                </DialogDescription>
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full" onClick={() => setIsModalOpen(false)}>
+                <X className="w-4 h-4" />
+            </Button>
+          </DialogHeader>
+          
+          <div className="p-4 flex flex-col gap-4 bg-white">
+            <Textarea 
+              value={kifuText} 
+              onChange={(e) => setKifuText(e.target.value)} 
+              className="min-h-[200px] font-mono text-xs resize-none bg-white text-slate-900 border-slate-300 focus:border-slate-400 focus:ring-slate-200 placeholder:text-slate-400" 
+              placeholder={`Example:\nposition startpos moves 7g7f 3c3d...`} 
+            />
+            {errorMessage && (
+              <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200 font-bold">
+                エラー: {errorMessage}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3 sm:justify-end">
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} className="text-slate-600 border-slate-300 bg-white hover:bg-slate-50">
+              キャンセル
+            </Button>
+            <Button onClick={handleLoadKifu} className="bg-slate-800 hover:bg-slate-700 text-white shadow-sm">
+              <Upload className="w-4 h-4 mr-2" /> 読み込む
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
 
-// HandsColumn (変更なし)
+// HandsColumn
 type HandsColumnProps = { side: Side; hands: Partial<Record<PieceBase, number>>; orientationMode: OrientationMode; align?: "start" | "end"; };
 const HandsColumn: React.FC<HandsColumnProps> = ({ side, hands, orientationMode, align = "start" }) => {
   const owner = side === "b" ? "sente" : "gote";
