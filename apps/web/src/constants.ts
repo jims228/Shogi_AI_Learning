@@ -2,10 +2,11 @@ import { Lesson } from "./types";
 
 export const LESSONS: Lesson[] = [
   {
-    id: "piece_pawn_basic",
+    // ★ここを変更しました：作ったページのパス (basics/pawn) に合わせる
+    id: "pawn",
     title: "基本の駒の動き",
     description: "まずは歩の動きを覚えましょう。将棋の基本となる駒です。",
-    category: "piece-move",
+    category: "basics", 
     status: "available",
     order: 1,
   },
@@ -24,7 +25,8 @@ export const LESSONS: Lesson[] = [
     category: "tsume-1",
     status: "locked",
     order: 3,
-    prerequisites: ["piece_pawn_basic"],
+    // IDが変わったので、ここも合わせる必要があります
+    prerequisites: ["pawn"], 
   },
   {
     id: "tsume_1_002",

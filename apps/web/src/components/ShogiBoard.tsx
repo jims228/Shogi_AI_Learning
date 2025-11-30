@@ -22,6 +22,7 @@ export interface ShogiBoardProps {
   lastMove?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   onBoardChange?: (next: BoardMatrix) => void;
   onHandsChange?: (next: HandsState) => void;
+  onMove?: (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => void;
   onSquareClick?: (x: number, y: number) => void;
   highlightSquares?: { x: number; y: number }[];
   flipped?: boolean; 
@@ -51,20 +52,21 @@ const RANK_LABELS_GOTE = ["九", "八", "七", "六", "五", "四", "三", "二"
 const LABEL_GAP = 26;
 const TOUCH_DOUBLE_TAP_MS = 320;
 
-export const ShogiBoard: React.FC<ShogiBoardProps> = ({
-  board,
-  mode = "view",
-  bestmove,
-  lastMove,
-  onBoardChange,
-  onHandsChange,
-  onSquareClick,
-  highlightSquares,
-  flipped = false,
-  orientation = undefined,
-  orientationMode = "sprite",
-  hands,
-}) => {
+export const ShogiBoard: React.FC<ShogiBoardProps> = (props) => {
+  const {
+    board,
+    mode = "view",
+    bestmove,
+    lastMove,
+    onBoardChange,
+    onHandsChange,
+    onSquareClick,
+    highlightSquares,
+    flipped = false,
+    orientation = undefined,
+    orientationMode = "sprite",
+    hands,
+  } = props;
   const boardSize = CELL_SIZE * 9;
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -153,6 +155,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
         onBoardChange(nextBoard);
         onHandsChange(nextHands);
+        props.onMove?.({ to: target, piece: pieceCode, drop: true });
         setSelectedHand(null);
         return true;
       }
@@ -189,13 +192,14 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         nextBoard[target.y][target.x] = sourcePiece;
         
         onBoardChange(nextBoard);
+        props.onMove?.({ from: selectedSquare, to: target, piece: sourcePiece, drop: false });
         setSelectedSquare(null);
         return true;
       }
 
       return false;
     },
-    [board, hands, onBoardChange, onHandsChange, selectedHand, selectedSquare],
+    [board, hands, onBoardChange, onHandsChange, selectedHand, selectedSquare, props.onMove],
   );
 
   const handleEditSquareClick = useCallback(
