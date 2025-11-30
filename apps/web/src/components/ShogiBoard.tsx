@@ -21,16 +21,14 @@ export interface ShogiBoardProps {
   lastMove?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
   onBoardChange?: (next: BoardMatrix) => void;
   onHandsChange?: (next: HandsState) => void;
-  onMove?: (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => void;
+  onMove?: (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: PieceCode; drop?: boolean }) => void;
   onSquareClick?: (x: number, y: number) => void;
   highlightSquares?: { x: number; y: number }[];
   flipped?: boolean; 
   orientation?: "sente" | "gote";
   orientationMode?: OrientationMode;
   hands?: HandsState;
-  // ★追加: 敵陣に入ったら自動で成るかどうかのフラグ
   autoPromote?: boolean;
-  // ★追加: 敵陣（1-3段目）を光らせるかどうかのフラグ
   showPromotionZone?: boolean;
 }
 
@@ -47,6 +45,11 @@ const HOSHI_POINTS = [
 
 type Square = { x: number; y: number };
 type SelectedHand = { base: PieceBase; side: "b" | "w" } | null;
+type PendingMove = {
+    sourceSquare: Square;
+    targetSquare: Square;
+    piece: PieceCode;
+};
 
 const FILE_LABELS_SENTE = ["9", "8", "7", "6", "5", "4", "3", "2", "1"];
 const FILE_LABELS_GOTE = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -62,7 +65,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   lastMove,
   onBoardChange,
   onHandsChange,
-  onMove, // ここで受け取っているので、下では onMove を直接使います
+  onMove,
   onSquareClick,
   highlightSquares,
   flipped = false,
@@ -79,6 +82,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [selectedHand, setSelectedHand] = useState<SelectedHand>(null);
+  
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
   const viewerOrientation: "sente" | "gote" = orientation ?? (flipped ? "gote" : "sente");
   const isGoteView = viewerOrientation === "gote";
@@ -88,6 +93,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     if (!canEdit) {
       setSelectedSquare(null);
       setSelectedHand(null);
+      setPendingMove(null);
     }
   }, [canEdit]);
 
@@ -99,10 +105,14 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     return highlightSquares?.some((sq) => sq.x === x && sq.y === y) ?? false;
   }, [highlightSquares]);
 
-  // ★敵陣（成りエリア）かどうかを判定
   const isPromotionZone = useCallback((y: number) => {
     return y <= 2;
   }, []);
+
+  const canPromotePiece = (piece: string) => {
+      const base = piece.toUpperCase().replace("+", "");
+      return ["P", "L", "N", "S", "B", "R"].includes(base) && !piece.startsWith("+");
+  };
 
   const isTouchDoubleTap = useCallback((square: Square) => {
     const now = performance.now();
@@ -115,6 +125,18 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     return false;
   }, []);
 
+  // ★追加: 音を鳴らす関数
+  const playPieceSound = useCallback(() => {
+    try {
+        const audio = new Audio("/sounds/koma.mp3");
+        audio.volume = 0.6; // 音量調整 (0.0 ~ 1.0)
+        audio.currentTime = 0;
+        audio.play().catch(e => console.log("Audio play blocked", e));
+    } catch (e) {
+        // エラーは無視（ファイルがない場合など）
+    }
+  }, []);
+
   const handleHandClick = useCallback((base: PieceBase, side: "b" | "w") => {
     if (!canEdit) return;
     if (selectedHand && selectedHand.base === base && selectedHand.side === side) {
@@ -125,19 +147,49 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     }
   }, [canEdit, selectedHand]);
 
-  const togglePromotionAt = useCallback(
-    (square: Square) => {
-      if (!canEdit || !onBoardChange) return;
-      const piece = board[square.y]?.[square.x];
-      if (!piece) return;
-      const nextBoard = board.map((row) => row.slice());
-      nextBoard[square.y][square.x] = piece.startsWith("+") ? demotePiece(piece) : promotePiece(piece);
+  const executeMove = useCallback((source: Square, target: Square, pieceCode: PieceCode, isDrop: boolean) => {
+      if (!onBoardChange) return;
+
+      const nextBoard = board.map(row => row.slice());
+      
+      if (isDrop && selectedHand && hands && onHandsChange) {
+          const nextHands = { b: { ...hands.b }, w: { ...hands.w } };
+          const count = nextHands[selectedHand.side][selectedHand.base] || 0;
+          if (count > 0) {
+              nextHands[selectedHand.side][selectedHand.base] = count - 1;
+              if (nextHands[selectedHand.side][selectedHand.base] === 0) delete nextHands[selectedHand.side][selectedHand.base];
+              onHandsChange(nextHands);
+          }
+      } else {
+          nextBoard[source.y][source.x] = null;
+      }
+
+      const targetPiece = board[target.y][target.x];
+      if (!isDrop && targetPiece && hands && onHandsChange) {
+          const nextHands = { b: { ...hands.b }, w: { ...hands.w } };
+          const sourcePieceObj = board[source.y][source.x];
+          if (sourcePieceObj) {
+            const capturedBase = targetPiece.replace("+", "").toUpperCase() as PieceBase;
+            const capturerSide = getPieceOwner(sourcePieceObj) === "sente" ? "b" : "w";
+            nextHands[capturerSide][capturedBase] = (nextHands[capturerSide][capturedBase] || 0) + 1;
+            onHandsChange(nextHands);
+          }
+      }
+
+      nextBoard[target.y][target.x] = pieceCode;
+      
       onBoardChange(nextBoard);
+      
+      // ★追加: ここで音を鳴らす
+      playPieceSound();
+
+      onMove?.({ from: isDrop ? undefined : source, to: target, piece: pieceCode, drop: isDrop });
+      
       setSelectedSquare(null);
       setSelectedHand(null);
-    },
-    [board, canEdit, onBoardChange],
-  );
+      setPendingMove(null);
+  }, [board, hands, onBoardChange, onHandsChange, onMove, selectedHand, playPieceSound]);
+
 
   const attemptAction = useCallback(
     (target: Square) => {
@@ -146,28 +198,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       // ケース1: 持ち駒を打つ
       if (selectedHand) {
         if (board[target.y][target.x]) return false;
-        if (!hands || !onHandsChange) return false;
-
-        const nextBoard = board.map(row => row.slice());
         const pieceCode = (selectedHand.side === "b" ? selectedHand.base : selectedHand.base.toLowerCase()) as PieceCode;
-        nextBoard[target.y][target.x] = pieceCode;
-        
-        const nextHands = { b: { ...hands.b }, w: { ...hands.w } };
-        const currentCount = nextHands[selectedHand.side][selectedHand.base] || 0;
-        if (currentCount > 0) {
-            nextHands[selectedHand.side][selectedHand.base] = currentCount - 1;
-            if (nextHands[selectedHand.side][selectedHand.base] === 0) {
-                delete nextHands[selectedHand.side][selectedHand.base];
-            }
-        } else {
-            return false;
-        }
-
-        onBoardChange(nextBoard);
-        onHandsChange(nextHands);
-        // ★修正: props.onMove -> onMove
-        onMove?.({ to: target, piece: pieceCode, drop: true });
-        setSelectedHand(null);
+        executeMove({x: -1, y: -1}, target, pieceCode, true);
         return true;
       }
 
@@ -182,52 +214,55 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         }
 
         const targetPiece = board[target.y][target.x];
-        
         if (targetPiece && getPieceOwner(targetPiece) === getPieceOwner(sourcePiece)) {
             return false;
         }
 
-        // 駒取り処理
-        if (targetPiece && hands && onHandsChange) {
-            const nextHands = { b: { ...hands.b }, w: { ...hands.w } };
-            const capturedBase = targetPiece.replace("+", "").toUpperCase() as PieceBase;
-            const capturerSide = getPieceOwner(sourcePiece) === "sente" ? "b" : "w";
-            
-            nextHands[capturerSide][capturedBase] = (nextHands[capturerSide][capturedBase] || 0) + 1;
-            onHandsChange(nextHands);
+        const isZone = isPromotionZone(target.y) || isPromotionZone(selectedSquare.y);
+        if (isZone && canPromotePiece(sourcePiece)) {
+            if (autoPromote && isPromotionZone(target.y)) {
+                executeMove(selectedSquare, target, promotePiece(sourcePiece) as PieceCode, false);
+            } else {
+                setPendingMove({
+                    sourceSquare: selectedSquare,
+                    targetSquare: target,
+                    piece: sourcePiece
+                });
+            }
+            return true;
         }
 
-        const nextBoard = board.map((row) => row.slice());
-        nextBoard[selectedSquare.y][selectedSquare.x] = null;
-
-        // ★自動成りの判定ロジック
-        let finalPiece = sourcePiece;
-        if (autoPromote && isPromotionZone(target.y)) {
-            finalPiece = promotePiece(sourcePiece);
-        }
-        
-        nextBoard[target.y][target.x] = finalPiece;
-        
-        onBoardChange(nextBoard);
-        // ★修正: props.onMove -> onMove
-        onMove?.({ from: selectedSquare, to: target, piece: finalPiece, drop: false });
-        setSelectedSquare(null);
+        executeMove(selectedSquare, target, sourcePiece, false);
         return true;
       }
 
       return false;
     },
-    // ★修正: props.onMove -> onMove
-    [board, hands, onBoardChange, onHandsChange, selectedHand, selectedSquare, onMove, autoPromote, isPromotionZone],
+    [board, hands, onBoardChange, onHandsChange, selectedHand, selectedSquare, autoPromote, isPromotionZone, executeMove],
+  );
+
+  const togglePromotionAt = useCallback(
+    (square: Square) => {
+      if (!canEdit || !onBoardChange) return;
+      const piece = board[square.y]?.[square.x];
+      if (!piece) return;
+      const nextBoard = board.map((row) => row.slice());
+      nextBoard[square.y][square.x] = piece.startsWith("+") ? demotePiece(piece) : promotePiece(piece);
+      onBoardChange(nextBoard);
+      
+      // ★追加: 成り/不成の変更時にも音を鳴らす
+      playPieceSound();
+
+      setSelectedSquare(null);
+      setSelectedHand(null);
+    },
+    [board, canEdit, onBoardChange, playPieceSound],
   );
 
   const handleEditSquareClick = useCallback(
     (square: Square) => {
       if (!onBoardChange) return;
-
-      if (attemptAction(square)) {
-        return;
-      }
+      if (attemptAction(square)) return;
 
       const pieceAtTarget = board[square.y]?.[square.x];
       if (pieceAtTarget) {
@@ -243,6 +278,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   const handleBoardClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       if (!canEdit) return;
+      if (pendingMove) return;
 
       const rect = event.currentTarget.getBoundingClientRect();
       let clientX, clientY;
@@ -275,7 +311,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
       handleEditSquareClick(square);
     },
-    [canEdit, handleEditSquareClick, isGoteView, isTouchDoubleTap, togglePromotionAt]
+    [canEdit, handleEditSquareClick, isGoteView, pendingMove, isTouchDoubleTap, togglePromotionAt]
   );
 
   const handleBoardDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -300,12 +336,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   const boardElement = (
     <div 
       className="relative select-none shrink-0" 
-      style={{ 
-        width: boardSize, 
-        height: boardSize,
-        minWidth: boardSize,
-        minHeight: boardSize
-      }}
+      style={{ width: boardSize, height: boardSize }}
     >
       <div className="absolute inset-0 rounded-xl shadow-2xl border-[6px] border-[#5d4037]"
         style={{ background: "linear-gradient(135deg, #eecfa1 0%, #d4a373 100%)", boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.5)" }} />
@@ -322,9 +353,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
         <div className="absolute inset-0 pointer-events-none z-[1]">
           {HOSHI_POINTS.map(({ file, rank }) => {
-            const boardX = file - 1;
-            const boardY = rank - 1;
-            const display = getDisplayPos(boardX, boardY);
+            const display = getDisplayPos(file - 1, rank - 1);
             return (
               <div key={`hoshi-${file}-${rank}`} className="absolute h-1.5 w-1.5 rounded-full bg-amber-900"
                 style={{ left: `${((display.x + 0.5) / 9) * 100}%`, top: `${((display.y + 0.5) / 9) * 100}%`, transform: "translate(-50%, -50%)" }} />
@@ -338,8 +367,6 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             const y = Math.floor(index / 9);
             const display = getDisplayPos(x, y);
             const isSelected = selectedSquare && selectedSquare.x === x && selectedSquare.y === y;
-            
-            // ★敵陣ハイライトのスタイル
             const isZone = showPromotionZone && isPromotionZone(y);
 
             return (
@@ -350,7 +377,6 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   backgroundColor: (() => {
                     if (mode === "edit" && isSelected) return "rgba(251, 191, 36, 0.5)";
                     if (isHighlighted(x, y)) return "rgba(59, 130, 246, 0.18)";
-                    // 敵陣ハイライト（赤っぽく点滅）
                     if (isZone) return "rgba(239, 68, 68, 0.25)"; 
                     return "transparent";
                   })(),
@@ -363,7 +389,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
             return (
-              <div key={`${idx}-${piece.x}-${piece.y}`} className="contents" style={{ pointerEvents: "none" }}>
+              <div key={`${idx}-${piece.x}-${piece.y}`} className="contents">
                 <PieceSprite piece={piece.piece} x={display.x} y={display.y} size={PIECE_SIZE} cellSize={CELL_SIZE}
                   owner={getPieceOwner(piece.piece)} orientationMode={orientationMode} viewerSide={viewerOrientation} />
               </div>
@@ -385,6 +411,33 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           onClick={handleBoardClick}
           onDoubleClick={handleBoardDoubleClick}
         />
+
+        {pendingMove && (
+            <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl animate-in fade-in duration-200">
+                <div className="bg-white p-4 rounded-xl shadow-2xl flex gap-4 border border-slate-200 transform scale-110">
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, promotePiece(pendingMove.piece) as PieceCode, false);
+                        }}
+                        className="flex flex-col items-center gap-2 p-3 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 min-w-[80px]"
+                    >
+                        <div className="scale-125"><PieceSprite piece={promotePiece(pendingMove.piece) as PieceCode} x={0} y={0} size={40} cellSize={40} orientationMode="sprite" owner="sente" viewerSide="sente" /></div>
+                        <span className="font-bold text-amber-900 text-sm">成る</span>
+                    </button>
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
+                        }}
+                        className="flex flex-col items-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 min-w-[80px]"
+                    >
+                        <div className="scale-125"><PieceSprite piece={pendingMove.piece} x={0} y={0} size={40} cellSize={40} orientationMode="sprite" owner="sente" viewerSide="sente" /></div>
+                        <span className="font-bold text-slate-700 text-sm">成らず</span>
+                    </button>
+                </div>
+            </div>
+        )}
       </div>
     </div>
   );
@@ -420,6 +473,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   );
 };
 
+// HandAreaとArrowコンポーネントはそのまま使用可能
 type HandAreaProps = {
   side: "b" | "w";
   hands?: Partial<Record<PieceBase, number>>;
