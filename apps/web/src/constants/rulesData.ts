@@ -234,13 +234,14 @@ export const TSUME_1_LESSONS: TrainingStep[] = [
     step: 1,
     title: "1手詰 第1問",
     description: "相手の玉は「2一」にいます。「2三」には相手の歩がいて、逃げ道をふさいでくれています。持ち駒の「金」を使って、一撃で詰ませてください！",
-    sfen: "position sfen 7k1/9/7p1/9/9/9/9/9/9 b G 1",
+    // ★修正: 2三の歩を 'p' (小文字=相手の歩) に変更
+    sfen: "position sfen 7k1/9/7P1/9/9/9/9/9/9 b G 1",
     checkMove: (move) => {
+      // 2二(x:7, y:1)に金を打てば正解
       return move.drop === true && move.to.x === 7 && move.to.y === 1;
     },
     successMessage: "正解！頭金（あたまきん）です。2三の歩が邪魔で、玉は逃げられません。"
   },
-  // ★追加: 第2問（銀の不成）
   {
     step: 2,
     title: "1手詰 第2問（不成）",
@@ -248,10 +249,119 @@ export const TSUME_1_LESSONS: TrainingStep[] = [
     sfen: "position sfen 8l/6GSk/7Np/9/9/9/9/9/9 b - 1",
     checkMove: (move) => {
       if (!move.from) return false;
-      // 2二(x:7, y:1) から 2一(x:7, y:0) へ移動
-      // move.piece === "S" (成っていない銀) であることを確認
       return move.from.x === 7 && move.from.y === 1 && move.to.x === 7 && move.to.y === 0 && move.piece === "S";
     },
     successMessage: "大正解！銀は成らないことで、斜め後ろへの効きを残せます。これを「銀の不成（ならず）」と言います。"
+  },
+  // ★修正: 第3問
+  {
+    step: 3,
+    title: "1手詰 第3問（金の死角）",
+    description: "相手の「金」の弱点を突く問題です。金は「斜め後ろ」には動けません。持ち駒の「銀」を、金に取られない場所に打って詰ませてください！",
+    // ★修正: 不要な歩を消し、全体を1筋(右端)に寄せました
+    // 1一玉(k), 1三金(g), 1四香(l)
+    sfen: "position sfen 7k1/9/7G1/7L1/9/9/9/9/9 b S 1",
+    checkMove: (move) => {
+      // 2二(x:7, y:1)に銀を打てば正解
+      // ※1筋に寄ったので、正解の場所も変わらず2二です
+      return move.to.x === 7 && move.to.y === 1 && move.piece === "G";
+    },
+    successMessage: "お見事！金は斜め後ろ（2二）に下がれないため、この銀を取ることができません。"
+  }
+];
+
+
+export const TSUME_2_LESSONS: TrainingStep[] = [
+  {
+    step: 1,
+    title: "1手詰・中盤 第1問",
+    description: "持ち駒はありませんが、盤上の駒が協力して詰ませる形です。4四にいる「角」のライン（利き）が重要です。3三の「金」をどこに動かせば詰むでしょうか？",
+    // 盤面: 2一玉(k), 1三銀(s), 3三金(G), 4四角(B)
+    // 持ち駒なし (-)
+    sfen: "position sfen 7k1/9/6G1S/5b3/9/9/9/9/9 b - 1",
+    checkMove: (move) => {
+      // 3三(x:6, y:2) にある金を 2二(x:7, y:1) に移動すれば正解
+      // ※角の利きがあるので、玉は金を取れません
+      if (!move.from) return false;
+      return move.to.x === 7 && move.to.y === 1 && move.piece === "+S";
+    },
+    successMessage: "正解！角の紐（サポート）がついているので、相手は金を取ることができません。"
+  },
+  
+  {
+    step: 3,
+    title: "1手詰・中盤 第3問",
+    description: "盤上にある自分の「馬」を使って詰ませる問題です。邪魔な相手の駒を取り除きながら王手をかけてください！",
+    sfen: "position sfen 7B+B/9/6pk1/7pp/9/9/9/9/9 b - 1",
+    checkMove: (move) => {
+      // 1一(x:8, y:0) の馬を 2一(x:7, y:0) に移動（角を取る）
+      if (!move.from) return false;
+      return (
+        move.from.x === 8 && move.from.y === 0 && // 移動元: 1一
+        move.to.x === 8 && move.to.y === 1 &&     // 移動先: 2一
+        move.piece === "+B"                       // 駒: 馬
+      );
+    },
+    successMessage: "正解！相手の角を取ることで、玉の逃げ道を完全に塞ぎました。"
+  },
+
+  {
+    step: 3,
+    title: "1手詰・中盤 第3問",
+    description: "相手の守りは堅そうに見えますが、「角の頭（2二）」が弱点です！角は斜めにしか動けないため、目の前は守れていません。持ち駒の「金」を打って詰ませてください。",
+    // 盤面:
+    // 1段目: 7マス空き, 2一角(b), 1一玉(k) -> 7bk
+    // 2段目: 9マス空き -> 9
+    // 3段目: 7マス空き, 2三馬(+B・自), 1三桂(n) -> 7+Bn
+    // 持ち駒: 金(G)
+    sfen: "position sfen 6bk1/9/6+BN1/9/9/9/9/9/9 b G 1",
+    checkMove: (move) => {
+      // 2二(x:7, y:1) に金(G)を打てば正解
+      return move.to.x === 8 && move.to.y === 0 && move.piece === "+N";
+    },
+    successMessage: "お見事！相手の角は頭（前）を守れないため、打った金を取れません。また、2三の馬が効いているので玉でも取れません。"
+  }
+];
+
+
+// 詰将棋 (1手詰・実戦編)
+export const TSUME_3_LESSONS: TrainingStep[] = [
+  {
+    step: 1,
+    title: "1手詰・実戦編 第1問",
+    description: "3三にいる「飛車」を使って詰ませる問題です。このまま動かすだけでは逃げられてしまいますが、「成る（パワーアップ）」とどうなるでしょうか？",
+    // 盤面:
+    // 1一香(l)
+    // 1二玉(k)
+    // 1三歩(p), 2三歩(p), 3三飛(R) ※飛車は自分の駒
+    sfen: "position sfen 8l/8k/6RPp/9/9/9/9/9/9 b - 1",
+    checkMove: (move) => {
+      // 3三(x:6, y:2) の飛車を 3二(x:6, y:1) に「成って」移動
+      if (!move.from) return false;
+      return (
+        move.from.x === 6 && move.from.y === 2 && // 移動元: 3三
+        move.to.x === 6 && move.to.y === 1 &&     // 移動先: 3二
+        move.piece === "+R"                       // 駒: 龍(成った飛車)
+      );
+    },
+    successMessage: "正解！飛車が「龍」に成ることで斜めにも動けるようになり、玉の逃げ道（2一）を塞ぐことができました。"
+  },
+
+  {
+    step: 2,
+    title: "1手詰・実戦編 第2問",
+    description: "持ち駒の「飛車」を使って詰ませる問題です。近づけて打つと逃げられてしまいます。大駒は「離して打つ」のがコツです！",
+    // 盤面:
+    // 1段目: 4マス空き, 5一龍(+R・自), 4マス空き -> 4+R4
+    // 2段目: 2マス空き, 7二玉(k), 6マス空き -> 2k6
+    // 3段目: 3マス空き, 6三歩(p), 3マス空き, 2三歩(p), 1マス空き -> 3p3p1
+    // 持ち駒: 飛(R)
+    sfen: "position sfen 4+R4/6k2/4p1pp1/9/9/9/9/9/9 b R 1",
+    checkMove: (move) => {
+      // 4二(x:5, y:1) に飛車(R)を打てば正解
+      // ※3二(x:6, y:1)だと4三に逃げられるため不正解
+      return move.drop === true && move.to.x === 5 && move.to.y === 1 && move.piece === "R";
+    },
+    successMessage: "正解！4二に打つことで玉の逃げ道をなくせます。"
   }
 ];

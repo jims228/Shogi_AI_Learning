@@ -1,5 +1,5 @@
 export type LessonStatus = "locked" | "available" | "completed";
-export type LessonCategory = "basics" | "piece-move" | "tsume-1";
+export type LessonCategory = "basics" | "piece-move" | "tsume-1" | "tsume-2" | "tsume-3";
 
 export interface Lesson {
   id: string;
