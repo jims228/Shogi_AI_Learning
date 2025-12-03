@@ -218,9 +218,15 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             return false;
         }
 
-        const isZone = isPromotionZone(target.y) || isPromotionZone(selectedSquare.y);
+        const owner = getPieceOwner(sourcePiece);
+        const isSente = owner === "sente";
+        const isZone = isSente 
+            ? (target.y <= 2 || selectedSquare.y <= 2)
+            : (target.y >= 6 || selectedSquare.y >= 6);
+
         if (isZone && canPromotePiece(sourcePiece)) {
-            if (autoPromote && isPromotionZone(target.y)) {
+            if (autoPromote) {
+                // Auto promote if entering zone (simplified)
                 executeMove(selectedSquare, target, promotePiece(sourcePiece) as PieceCode, false);
             } else {
                 setPendingMove({
