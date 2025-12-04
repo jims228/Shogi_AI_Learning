@@ -24,20 +24,32 @@ export default function OnlineGamePage() {
 
   // Sync state with moves history
   useEffect(() => {
+    // 指し手がない場合は初期盤面
+    if (moves.length === 0) {
+        setBoard(getStartBoard());
+        setHands({ b: {}, w: {} });
+        setTurn("sente");
+        return;
+    }
+
     const usi = "startpos moves " + moves.join(" ");
-    const timeline = buildBoardTimeline(usi);
-    const currentBoard = timeline.boards[timeline.boards.length - 1];
-    const currentHands = timeline.hands[timeline.hands.length - 1];
-    const nextTurn = moves.length % 2 === 0 ? "sente" : "gote";
-    
-    setBoard(currentBoard);
-    setHands(currentHands);
-    setTurn(nextTurn);
+    try {
+        const timeline = buildBoardTimeline(usi);
+        const currentBoard = timeline.boards[timeline.boards.length - 1];
+        const currentHands = timeline.hands[timeline.hands.length - 1];
+        // 次の手番は、指し手の数で決まる (偶数なら先手番)
+        const nextTurn = moves.length % 2 === 0 ? "sente" : "gote";
+        
+        setBoard(currentBoard);
+        setHands(currentHands);
+        setTurn(nextTurn);
+    } catch (e) {
+        console.error("Board sync error:", e);
+    }
   }, [moves]);
 
   // Socket connection
   const handleSocketMessage = useCallback((data: any) => {
-    // Try parsing as JSON for system messages
     try {
         const json = JSON.parse(data);
         if (json.type === "init") {
@@ -46,7 +58,7 @@ export default function OnlineGamePage() {
             return;
         }
     } catch (e) {
-        // Not JSON, assume it's a move string
+        // Not JSON
     }
 
     console.log("Received move:", data);
@@ -59,13 +71,12 @@ export default function OnlineGamePage() {
 
   // Handle local move
   const handleMove = useCallback((move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: PieceCode; drop?: boolean }) => {
-    // Check turn
-    // Calculate turn directly from moves length to ensure accuracy
-    const isSenteTurn = moves.length % 2 === 0;
-    const currentTurnCode = isSenteTurn ? "b" : "w";
+    
+    // ★修正: turn ステートを使って判定
+    const currentTurnCode = turn === "sente" ? "b" : "w";
     
     if (myRole !== currentTurnCode) {
-        console.log("Not your turn");
+        console.log("Not your turn. MyRole:", myRole, "Turn:", currentTurnCode);
         return;
     }
 
@@ -79,8 +90,8 @@ export default function OnlineGamePage() {
         const from = `${fileMap[move.from.x]}${rankMap[move.from.y]}`;
         const to = `${fileMap[move.to.x]}${rankMap[move.to.y]}`;
         
-        // Check for promotion
-        // Note: 'board' here is the state BEFORE the move is applied visually (due to closure)
+        // 成りの判定 (move.piece は移動後の駒の状態)
+        // 移動前の盤面から駒情報を取得して比較
         const pieceAtSource = board[move.from.y][move.from.x];
         const isPromotedNow = move.piece.startsWith("+");
         const wasPromoted = pieceAtSource?.startsWith("+");
@@ -92,9 +103,10 @@ export default function OnlineGamePage() {
 
     if (usiMove) {
         sendMessage(usiMove);
+        // ★重要: 送信した瞬間に自分の画面にも反映させる
         setMoves(prev => [...prev, usiMove]);
     }
-  }, [board, sendMessage, turn, myRole]);
+  }, [board, sendMessage, turn, myRole]); // moves は依存配列に入れなくても setMoves(prev => ...) でOK
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-stone-100 gap-8 p-4">
