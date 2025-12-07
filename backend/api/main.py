@@ -206,6 +206,9 @@ class EngineState(BaseEngine):
             await self._send_line("usi")
             await self._wait_until(lambda l: "usiok" in l, USI_BOOT_TIMEOUT)
             
+            # ★修正: MultiPVを3に固定
+            await self._send_line("setoption name MultiPV value 3")
+            
             await self._send_line("setoption name Threads value 1")
             await self._send_line("setoption name USI_Hash value 128")
             await self._send_line("setoption name OwnBook value false")

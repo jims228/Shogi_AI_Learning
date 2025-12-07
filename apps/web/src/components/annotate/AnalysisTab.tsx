@@ -22,7 +22,7 @@ import { formatUsiMoveJapanese, usiMoveToCoords, type PieceBase, type PieceCode 
 import { buildUsiPositionForPly } from "@/lib/usi";
 import type { EngineAnalyzeResponse, EngineMultipvItem } from "@/lib/annotateHook";
 import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/analysisUtils";
-import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText } from "lucide-react";
+import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
 
@@ -78,7 +78,7 @@ const convertFullPvToJapanese = (baseUsi: string, pv: string): string => {
             result.push(jp);
         }
         return result.join(" ");
-    } catch (e) { return pv; }
+    } catch { return pv; }
 };
 
 const boardToSfen = (board: BoardMatrix, hands: HandsState, turn: Side): string => {
@@ -144,7 +144,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeStreamPlyRef = useRef<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   const [kifuText, setKifuText] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -160,6 +159,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [gameDigest, setGameDigest] = useState<string>("");
   const [isExplaining, setIsExplaining] = useState(false);
   const [isDigesting, setIsDigesting] = useState(false);
+
+  // 読み筋プレビュー用のState
+  const [previewSequence, setPreviewSequence] = useState<string[] | null>(null);
+  const [previewStep, setPreviewStep] = useState<number>(0);
 
   const timeline = useMemo(() => {
     try { return buildBoardTimeline(usi); } 
@@ -182,11 +185,37 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const safeCurrentPly = useMemo(() => clampIndex(currentPly, timeline.boards), [currentPly, timeline.boards]);
 
   const baseBoard = timeline.boards[safeCurrentPly] ?? getStartBoard();
-  const displayedBoard = snapshotOverrides[safeCurrentPly] ?? baseBoard;
+  
+  // プレビュー用の盤面計算
+  const previewState = useMemo(() => {
+    if (!previewSequence) return null;
+    const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
+    if (!currentUsi) return null;
+    
+    // プレビュー手順の結合
+    const activeMoves = previewSequence.slice(0, previewStep);
+    const fullPreviewUsi = activeMoves.length > 0 
+        ? `${currentUsi} ${activeMoves.join(" ")}`
+        : currentUsi;
+
+    try {
+        const previewTimeline = buildBoardTimeline(fullPreviewUsi);
+        const lastIndex = previewTimeline.boards.length - 1;
+        return {
+            board: previewTimeline.boards[lastIndex],
+            hands: previewTimeline.hands[lastIndex],
+            lastMove: previewTimeline.moves[previewTimeline.moves.length - 1]
+        };
+    } catch {
+        return null;
+    }
+  }, [previewSequence, previewStep, usi, safeCurrentPly]);
+
+  const displayedBoard = previewState ? previewState.board : (snapshotOverrides[safeCurrentPly] ?? baseBoard);
   const fallbackHands = useMemo<HandsState>(() => ({ b: {}, w: {} }), []);
   const timelineHands = useMemo<HandsState[]>(() => timeline.hands ?? [], [timeline.hands]);
   const baseHands = timelineHands[safeCurrentPly] ?? fallbackHands;
-  const activeHands = handsOverrides[safeCurrentPly] ?? baseHands;
+  const activeHands = previewState ? previewState.hands : (handsOverrides[safeCurrentPly] ?? baseHands);
 
   const timelinePlacedPieces = useMemo(() => {
     if (!timeline.boards.length) return [boardToPlaced(getStartBoard())];
@@ -207,9 +236,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       eventSourceRef.current = null;
     }
     activeStreamPlyRef.current = null;
-    setIsStreaming(false);
     setIsAnalyzing(false);
-    // 停止時は全データをクリアせず、現在の状態を維持する（UX向上）
   }, []);
 
   // Data Selection Logic
@@ -219,23 +246,23 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   // UI表示条件: 編集モードでなく、かつ（解析中 または データが存在する）
   const showArrow = !isEditMode && (isAnalyzing || !!currentAnalysis);
 
-  const bestmoveCoords = (showArrow && currentAnalysis?.bestmove) 
+  const bestmoveCoords = (showArrow && currentAnalysis?.bestmove && !previewSequence) 
       ? usiMoveToCoords(currentAnalysis.bestmove) 
       : null;
   
   const prevMove = safeCurrentPly > 0 ? moveSequence[safeCurrentPly - 1] : null;
-  const lastMoveCoords = !isEditMode && prevMove ? usiMoveToCoords(prevMove) : null;
+  const lastMoveCoords = previewState 
+      ? (previewState.lastMove ? usiMoveToCoords(previewState.lastMove) : null)
+      : (!isEditMode && prevMove ? usiMoveToCoords(prevMove) : null);
   
   const startEngineAnalysis = useCallback((command: string, ply: number) => {
     if (!command) return;
     
-    // 1. 既存の接続を確実に閉じる
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
 
-    // 2. 新しい局面の解析を始める際、現在の局面のデータだけをリセット
     setRealtimeAnalysis(prev => {
         const next = { ...prev };
         delete next[ply];
@@ -246,8 +273,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     const es = new EventSource(url);
     eventSourceRef.current = es;
     activeStreamPlyRef.current = ply;
-    setIsStreaming(true);
-    // ここでは setIsAnalyzing(true) を呼ばない（呼び出し元で管理、または既にtrue）
 
     es.onopen = () => {
       console.log(`[Analysis] Connection opened for ply ${ply}`);
@@ -261,20 +286,16 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         if (payload.multipv_update) {
             setRealtimeAnalysis((prev) => {
                 const previousEntry = prev[ply] || { ok: true, multipv: [] };
-                // 既存の配列をコピー、なければ空配列
                 const currentList = previousEntry.multipv ? [...previousEntry.multipv] : [];
                 
                 const newItem = payload.multipv_update;
-                // multipv値がない場合は無視
                 if (!newItem.multipv) return prev;
 
-                // 同じmultipv順位のものが既にあるか探す
+                // マージロジック: multipv順位で更新
                 const index = currentList.findIndex(item => item.multipv === newItem.multipv);
                 if (index !== -1) {
-                    // 更新
                     currentList[index] = newItem;
                 } else {
-                    // 追加
                     currentList.push(newItem);
                 }
                 
@@ -291,7 +312,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
             });
         }
         
-        // 最善手受信（解析完了）
         if (payload.bestmove) {
             setRealtimeAnalysis(prev => {
                 const previousEntry = prev[ply] || { ok: true };
@@ -300,18 +320,15 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     [ply]: {
                         ...previousEntry,
                         bestmove: payload.bestmove,
-                        // 候補手リストは消さずに維持する
                         multipv: previousEntry.multipv 
                     }
                 };
             });
             
-            // 接続を閉じて完了扱いにする
             es.close();
             if (eventSourceRef.current === es) {
                 eventSourceRef.current = null;
                 activeStreamPlyRef.current = null;
-                setIsStreaming(false);
             }
         }
       } catch (e) {
@@ -319,14 +336,12 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       }
     };
     
-    // エラーハンドリング（静かに閉じる）
-    es.onerror = (e) => { 
+    es.onerror = () => { 
         console.debug("[Analysis] Stream closed/ended (onerror)"); 
         es.close();
         if (eventSourceRef.current === es) {
             eventSourceRef.current = null;
             activeStreamPlyRef.current = null;
-            setIsStreaming(false);
         }
     };
   }, []);
@@ -339,10 +354,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     if (command) startEngineAnalysis(command, ply);
   }, [startEngineAnalysis, usi]);
 
-  // ★追加: 局面追従（オート解析）
   useEffect(() => {
     if (isAnalyzing && !isEditMode) {
-        // 現在の局面の解析結果がまだなく、かつ現在ストリーミング中でなければ開始
         const hasResult = !!realtimeAnalysis[safeCurrentPly]?.bestmove;
         const isCurrentlyStreamingThis = activeStreamPlyRef.current === safeCurrentPly;
         
@@ -384,21 +397,68 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const handlePlyChange = useCallback((nextPly: number) => {
     if (isEditMode) return;
+    // プレビュー解除
+    setPreviewSequence(null);
+    setPreviewStep(0);
     setCurrentPly(clampIndex(nextPly, timeline.boards));
   }, [isEditMode, timeline.boards]);
 
-  const goToStart = useCallback(() => handlePlyChange(0), [handlePlyChange]);
-  const goToPrev = useCallback(() => handlePlyChange(safeCurrentPly - 1), [handlePlyChange, safeCurrentPly]);
-  const goToNext = useCallback(() => handlePlyChange(safeCurrentPly + 1), [handlePlyChange, safeCurrentPly]);
-  const goToEnd = useCallback(() => handlePlyChange(maxPly), [handlePlyChange, maxPly]);
+  // ナビゲーション操作の乗っ取り
+  const goToStart = useCallback(() => {
+      if (previewSequence) {
+          setPreviewStep(0);
+      } else {
+          handlePlyChange(0);
+      }
+  }, [handlePlyChange, previewSequence]);
+
+  const goToPrev = useCallback(() => {
+      if (previewSequence) {
+          setPreviewStep(p => Math.max(0, p - 1));
+      } else {
+          handlePlyChange(safeCurrentPly - 1);
+      }
+  }, [handlePlyChange, safeCurrentPly, previewSequence]);
+
+  const goToNext = useCallback(() => {
+      if (previewSequence) {
+          setPreviewStep(p => Math.min(previewSequence.length, p + 1));
+      } else {
+          handlePlyChange(safeCurrentPly + 1);
+      }
+  }, [handlePlyChange, safeCurrentPly, previewSequence]);
+
+  const goToEnd = useCallback(() => {
+      if (previewSequence) {
+          setPreviewStep(previewSequence.length);
+      } else {
+          handlePlyChange(maxPly);
+      }
+  }, [handlePlyChange, maxPly, previewSequence]);
   
   const navDisabled = isEditMode;
-  const canGoPrev = safeCurrentPly > 0;
-  const canGoNext = safeCurrentPly < maxPly;
+  // ★修正: プレビュー中はプレビューの手数で判定
+  const canGoPrev = previewSequence ? previewStep > 0 : safeCurrentPly > 0;
+  const canGoNext = previewSequence ? previewStep < previewSequence.length : safeCurrentPly < maxPly;
+
+  // ★追加: キーボード操作
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isEditMode) return;
+      // 入力フォーム等での操作を除外したい場合は e.target をチェックするが、
+      // ここでは簡易的に矢印キーのみ対応
+      if (e.key === "ArrowLeft") {
+        goToPrev();
+      } else if (e.key === "ArrowRight") {
+        goToNext();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEditMode, goToPrev, goToNext]);
 
   const handleStartStreamingAnalysis = useCallback(() => {
     if (isEditMode || !timeline.boards.length) return;
-    // 強制的に開始
     setIsAnalyzing(true);
     requestAnalysisForPly(safeCurrentPly, { force: true });
   }, [isEditMode, requestAnalysisForPly, safeCurrentPly, timeline.boards.length]);
@@ -441,7 +501,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       if (!res.ok) throw new Error();
       const data = await res.json();
       setExplanation(data.explanation);
-    } catch (e) {
+    } catch {
       showToast({ title: "解説生成エラー", variant: "error" });
     } finally {
       setIsExplaining(false);
@@ -471,7 +531,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         if (!res.ok) throw new Error();
         const data = await res.json();
         setGameDigest(data.explanation);
-    } catch (e) {
+    } catch {
         setGameDigest("レポート生成に失敗しました。");
     } finally {
         setIsDigesting(false);
@@ -509,7 +569,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         return next;
       });
       showToast({ title: "全体解析完了", variant: "default" });
-    } catch (error) {
+    } catch {
       showToast({ title: "解析失敗", variant: "default" });
     } finally {
       setIsBatchAnalyzing(false);
@@ -534,15 +594,11 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const handleCandidateClick = useCallback((pvStr: string) => {
       const moves = pvStr.trim().split(/\s+/);
       if (moves.length === 0) return;
-      const nextMove = moves[0];
-      if (!isEditMode) {
-          const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
-          if (currentUsi) {
-              setUsi(`${currentUsi} ${nextMove}`);
-              setTimeout(() => setCurrentPly(safeCurrentPly + 1), 50);
-          }
-      }
-  }, [usi, safeCurrentPly, isEditMode, setUsi]);
+      
+      // プレビューモードに設定
+      setPreviewSequence(moves);
+      setPreviewStep(1);
+  }, []);
 
   // コンポーネントアンマウント時のクリーンアップ
   useEffect(() => {
@@ -562,6 +618,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setEditHistory([]);
     setExplanation("");
     setGameDigest("");
+    setPreviewSequence(null);
+    setPreviewStep(0);
     stopEngineAnalysis();
   }, [stopEngineAnalysis, usi]);
 
@@ -569,6 +627,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     if (isEditMode) {
       setEditHistory([]);
       setExplanation("");
+      setPreviewSequence(null);
+      setPreviewStep(0);
     } else {
       // 編集モード終了時も解析を停止
       setIsAnalyzing(false);
@@ -576,7 +636,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     }
   }, [isEditMode, stopEngineAnalysis]);
 
-  const evalSource = Object.keys(batchData).length > 0 ? batchData : (isAnalyzing ? realtimeAnalysis : {});
+  const evalSource = useMemo(() => {
+    return Object.keys(batchData).length > 0 ? batchData : (isAnalyzing ? realtimeAnalysis : {});
+  }, [batchData, isAnalyzing, realtimeAnalysis]);
   const moveImpacts = useMemo(() => buildMoveImpacts(evalSource, totalMoves, initialTurn), [evalSource, initialTurn, totalMoves]);
   
   const moveListEntries = useMemo(() => {
@@ -639,17 +701,34 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
       <div className="flex-1 flex flex-row gap-4 min-h-0 overflow-hidden relative z-0">
         <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-[400px]">
-          <div className="flex-none rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4" style={{ minHeight: "550px" }}>
-            <div className="flex items-center justify-center w-full gap-4 mb-2">
-                <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToStart} disabled={navDisabled || !canGoPrev}><ChevronFirst className="w-4 h-4"/></Button>
-                <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToPrev} disabled={navDisabled || !canGoPrev}><ChevronLeft className="w-4 h-4"/></Button>
-                <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToNext} disabled={navDisabled || !canGoNext}><ChevronRight className="w-4 h-4"/></Button>
-                <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToEnd} disabled={navDisabled || !canGoNext}><ChevronLast className="w-4 h-4"/></Button>
+          <div className="flex-none rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4 relative" style={{ minHeight: "550px" }}>
+            
+            {/* ナビゲーションエリアにバナーを移動 */}
+            <div className="flex flex-col items-center justify-center w-full gap-2 mb-2">
+                {previewSequence && (
+                    <div className="bg-amber-100 text-amber-800 px-4 py-1.5 rounded-full flex items-center gap-3 animate-in fade-in slide-in-from-top-2 mb-1 shadow-sm border border-amber-200">
+                        <div className="flex items-center gap-1.5 font-bold text-sm">
+                            <Eye className="w-4 h-4" />
+                            <span>読み筋を確認中: {previewStep}手目</span>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => { setPreviewSequence(null); setPreviewStep(0); }} className="h-6 text-xs hover:bg-amber-200 px-2 text-amber-900">
+                            本譜に戻る
+                        </Button>
+                    </div>
+                )}
+
+                <div className="flex items-center justify-center gap-4">
+                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToStart} disabled={navDisabled || !canGoPrev}><ChevronFirst className="w-4 h-4"/></Button>
+                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToPrev} disabled={navDisabled || !canGoPrev}><ChevronLeft className="w-4 h-4"/></Button>
+                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToNext} disabled={navDisabled || !canGoNext}><ChevronRight className="w-4 h-4"/></Button>
+                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToEnd} disabled={navDisabled || !canGoNext}><ChevronLast className="w-4 h-4"/></Button>
+                </div>
             </div>
+
             <div className="flex items-center justify-center w-full h-full">
                 <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4">
                     <HandsColumn side={topHandSide} hands={activeHands[topHandSide] ?? {}} orientationMode={orientationMode} align="start" />
-                    <div className="flex justify-center shadow-lg rounded-lg overflow-hidden border-4 border-[#5d4037]">
+                    <div className={`flex justify-center shadow-lg rounded-lg overflow-hidden border-4 transition-colors duration-300 ${previewSequence ? 'border-amber-500' : 'border-[#5d4037]'}`}>
                         <ShogiBoard
                         board={displayedBoard}
                         hands={activeHands}
@@ -691,8 +770,14 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     const firstMoveUSI = pv.pv?.split(" ")[0] || "";
                     const firstMoveLabel = formatUsiMoveJapanese(firstMoveUSI, currentPlacedPieces, currentSideToMove);
                     const fullPvLabel = convertFullPvToJapanese(currentUsi, pv.pv || "");
+                    const isSelected = previewSequence && pv.pv === previewSequence.join(" ");
+                    
                     return (
-                    <div key={`${idx}-${pv.score.cp}`} onClick={() => handleCandidateClick(pv.pv || "")} className="group p-3 rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50 cursor-pointer transition-all shadow-sm">
+                    <div 
+                        key={`${idx}-${pv.score.cp}`} 
+                        onClick={() => handleCandidateClick(pv.pv || "")} 
+                        className={`group p-3 rounded-xl border cursor-pointer transition-all shadow-sm ${isSelected ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500' : 'border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50'}`}
+                    >
                         <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center gap-2">
                                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>#{idx + 1}</span>
