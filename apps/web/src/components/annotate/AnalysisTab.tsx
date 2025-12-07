@@ -257,39 +257,53 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       try {
         const payload = JSON.parse(event.data);
         
-        // 候補手更新
+        // 候補手更新 (multipv_update)
         if (payload.multipv_update) {
             setRealtimeAnalysis((prev) => {
-                const previous = prev[ply];
-                const currentMultipv = previous?.multipv ? [...previous.multipv] : [];
-                const newItem = payload.multipv_update;
-                const existingIndex = currentMultipv.findIndex(item => item.multipv === newItem.multipv);
-                if (existingIndex !== -1) {
-                    currentMultipv[existingIndex] = newItem;
-                } else {
-                    currentMultipv.push(newItem);
-                }
-                currentMultipv.sort((a, b) => (a.multipv || 0) - (b.multipv || 0));
+                const previousEntry = prev[ply] || { ok: true, multipv: [] };
+                // 既存の配列をコピー、なければ空配列
+                const currentList = previousEntry.multipv ? [...previousEntry.multipv] : [];
                 
-                const newEntry: EngineAnalyzeResponse = {
-                    ok: true,
-                    ...previous,
-                    multipv: currentMultipv
+                const newItem = payload.multipv_update;
+                // multipv値がない場合は無視
+                if (!newItem.multipv) return prev;
+
+                // 同じmultipv順位のものが既にあるか探す
+                const index = currentList.findIndex(item => item.multipv === newItem.multipv);
+                if (index !== -1) {
+                    // 更新
+                    currentList[index] = newItem;
+                } else {
+                    // 追加
+                    currentList.push(newItem);
+                }
+                
+                // 順位(multipv)の昇順にソート (1 -> 2 -> 3)
+                currentList.sort((a, b) => (a.multipv || 0) - (b.multipv || 0));
+                
+                return {
+                    ...prev,
+                    [ply]: {
+                        ...previousEntry,
+                        multipv: currentList
+                    }
                 };
-                return { ...prev, [ply]: newEntry };
             });
         }
         
         // 最善手受信（解析完了）
         if (payload.bestmove) {
             setRealtimeAnalysis(prev => {
-                const previous = prev[ply];
-                const newEntry: EngineAnalyzeResponse = {
-                    ok: true,
-                    ...previous,
-                    bestmove: payload.bestmove
+                const previousEntry = prev[ply] || { ok: true };
+                return {
+                    ...prev,
+                    [ply]: {
+                        ...previousEntry,
+                        bestmove: payload.bestmove,
+                        // 候補手リストは消さずに維持する
+                        multipv: previousEntry.multipv 
+                    }
                 };
-                return { ...prev, [ply]: newEntry };
             });
             
             // 接続を閉じて完了扱いにする
