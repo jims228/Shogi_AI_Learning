@@ -22,26 +22,65 @@ import { formatUsiMoveJapanese, usiMoveToCoords, type PieceBase, type PieceCode 
 import { buildUsiPositionForPly } from "@/lib/usi";
 import type { EngineAnalyzeResponse, EngineMultipvItem } from "@/lib/annotateHook";
 import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/analysisUtils";
-import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X } from "lucide-react";
+import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
-type AnalysisTabProps = {
-  usi: string;
-  setUsi: (next: string) => void;
-  orientationMode?: OrientationMode;
+const HAND_DISPLAY_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
+
+const formatHandLabel = (base: PieceBase): string => { 
+    switch (base) { case "P": return "歩"; case "L": return "香"; case "N": return "桂"; case "S": return "銀"; case "G": return "金"; case "B": return "角"; case "R": return "飛"; case "K": return "玉"; default: return base; } 
 };
 
-type BatchAnalysisResponsePayload = {
-  analyses?: Record<string, EngineAnalyzeResponse>;
-  results?: Record<string, EngineAnalyzeResponse>;
-  elapsed_ms?: number;
-  analyzed_plies?: number;
+type HandsColumnProps = { side: Side; hands: Partial<Record<PieceBase, number>>; orientationMode: OrientationMode; align?: "start" | "end"; };
+const HandsColumn: React.FC<HandsColumnProps> = ({ side, hands, orientationMode, align = "start" }) => {
+  const owner = side === "b" ? "sente" : "gote";
+  const entries = HAND_DISPLAY_ORDER.map((base) => {
+    const count = hands?.[base];
+    if (!count) return null;
+    const piece = (side === "b" ? base : base.toLowerCase()) as PieceCode;
+    return (
+      <div key={`${side}-${base}`} className="flex items-center gap-2 text-sm text-[#2b1c10]">
+        <div className="relative h-10 w-10">
+          <PieceSprite piece={piece} x={0} y={0} size={34} cellSize={40} orientationMode={orientationMode} owner={owner} />
+          {count > 1 && <span className="absolute -top-1 -right-1 rounded-full bg-white/90 px-1 text-xs font-semibold text-[#2b1c10]">x{count}</span>}
+        </div>
+        <span className="font-semibold">{formatHandLabel(base)} x{count}</span>
+      </div>
+    );
+  }).filter(Boolean) as React.ReactNode[];
+  
+  return (
+    <div className={`flex w-24 flex-col gap-3 ${align === "end" ? "self-end items-end text-right" : "items-start text-left"}`}>
+      <span className="text-xs font-semibold text-[#7a5f36]">{side === "b" ? "先手の持ち駒" : "後手の持ち駒"}</span>
+      <div className="flex flex-col gap-2">{entries.length ? entries : <span className="text-[11px] text-[#9a8a78]">持ち駒なし</span>}</div>
+    </div>
+  );
 };
 
-// --- Helper Functions ---
+const convertFullPvToJapanese = (baseUsi: string, pv: string): string => {
+    if (!pv) return "";
+    const moves = pv.trim().split(" ");
+    const displayMoves = moves.slice(0, 5);
+    try {
+        const baseMoveCount = baseUsi.split(" ").filter(s => s !== "startpos" && s !== "moves").length;
+        const fullUsi = baseUsi + " " + displayMoves.join(" ");
+        const timeline = buildBoardTimeline(fullUsi);
+        const result: string[] = [];
+        for (let i = 0; i < displayMoves.length; i++) {
+            const boardState = timeline.boards[baseMoveCount + i];
+            const turn = (baseMoveCount + i) % 2 === 0 ? "b" : "w";
+            if (!boardState) break;
+            const placed = boardToPlaced(boardState);
+            const jp = formatUsiMoveJapanese(displayMoves[i], placed, turn);
+            result.push(jp);
+        }
+        return result.join(" ");
+    } catch (e) { return pv; }
+};
+
 const boardToSfen = (board: BoardMatrix, hands: HandsState, turn: Side): string => {
   let sfen = "";
   let emptyCount = 0;
@@ -84,13 +123,24 @@ const formatScoreLabel = (score?: EngineMultipvItem["score"]): string => {
   const cp = typeof score.cp === "number" ? score.cp : 0;
   return `${cp > 0 ? "+" : ""}${cp}cp`;
 };
-const HAND_DISPLAY_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
 
-// === Main Component ===
+type AnalysisTabProps = {
+  usi: string;
+  setUsi: (next: string) => void;
+  orientationMode?: OrientationMode;
+};
+
+type BatchAnalysisResponsePayload = {
+  analyses?: Record<string, EngineAnalyzeResponse>;
+  results?: Record<string, EngineAnalyzeResponse>;
+  elapsed_ms?: number;
+  analyzed_plies?: number;
+};
+
 export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }: AnalysisTabProps) {
-  // State
   const [currentPly, setCurrentPly] = useState(0);
-  const [analysisByPly, setAnalysisByPly] = useState<AnalysisCache>({});
+  const [realtimeAnalysis, setRealtimeAnalysis] = useState<AnalysisCache>({});
+  const [batchData, setBatchData] = useState<AnalysisCache>({});
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeStreamPlyRef = useRef<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -101,22 +151,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [isEditMode, setIsEditMode] = useState(false);
   const [boardOrientation, setBoardOrientation] = useState<"sente" | "gote">("sente");
   
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [snapshotOverrides, setSnapshotOverrides] = useState<Record<number, BoardMatrix>>({});
   const [handsOverrides, setHandsOverrides] = useState<Record<number, HandsState>>({});
   const [editHistory, setEditHistory] = useState<{ board: BoardMatrix; hands: HandsState }[]>([]);
   const [explanation, setExplanation] = useState<string>("");
+  const [gameDigest, setGameDigest] = useState<string>("");
   const [isExplaining, setIsExplaining] = useState(false);
+  const [isDigesting, setIsDigesting] = useState(false);
 
-  // Data & Memo
   const timeline = useMemo(() => {
-    try {
-      return buildBoardTimeline(usi);
-    } catch (error) {
-      return { boards: [getStartBoard()], hands: [{ b: {}, w: {} }], moves: [] };
-    }
+    try { return buildBoardTimeline(usi); } 
+    catch { return { boards: [getStartBoard()], hands: [{ b: {}, w: {} }], moves: [] }; }
   }, [usi]);
 
   const parsedPosition = useMemo(() => {
@@ -153,13 +200,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     return side;
   }, [safeCurrentPly, initialTurn]);
 
-  const currentAnalysis = analysisByPly[safeCurrentPly];
-  const hasCurrentAnalysis = Boolean(currentAnalysis);
-  const prevMove = safeCurrentPly > 0 ? moveSequence[safeCurrentPly - 1] : null;
-  const lastMoveCoords = !isEditMode && prevMove ? usiMoveToCoords(prevMove) : null;
-  const bestmoveCoords = !isEditMode && currentAnalysis?.bestmove ? usiMoveToCoords(currentAnalysis.bestmove) : null;
-  
-  // Callbacks
+  // 停止処理
   const stopEngineAnalysis = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -167,44 +208,135 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     }
     activeStreamPlyRef.current = null;
     setIsStreaming(false);
+    setIsAnalyzing(false);
+    // 停止時は全データをクリアせず、現在の状態を維持する（UX向上）
   }, []);
 
+  // Data Selection Logic
+  const currentAnalysis = realtimeAnalysis[safeCurrentPly] || batchData[safeCurrentPly];
+  const hasCurrentAnalysis = Boolean(currentAnalysis);
+  
+  // UI表示条件: 編集モードでなく、かつ（解析中 または データが存在する）
+  const showArrow = !isEditMode && (isAnalyzing || !!currentAnalysis);
+
+  const bestmoveCoords = (showArrow && currentAnalysis?.bestmove) 
+      ? usiMoveToCoords(currentAnalysis.bestmove) 
+      : null;
+  
+  const prevMove = safeCurrentPly > 0 ? moveSequence[safeCurrentPly - 1] : null;
+  const lastMoveCoords = !isEditMode && prevMove ? usiMoveToCoords(prevMove) : null;
+  
   const startEngineAnalysis = useCallback((command: string, ply: number) => {
     if (!command) return;
-    stopEngineAnalysis();
+    
+    // 1. 既存の接続を確実に閉じる
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    // 2. 新しい局面の解析を始める際、現在の局面のデータだけをリセット
+    setRealtimeAnalysis(prev => {
+        const next = { ...prev };
+        delete next[ply];
+        return next;
+    });
     
     const url = `${API_BASE}/api/analysis/stream?position=${encodeURIComponent(command)}`;
     const es = new EventSource(url);
     eventSourceRef.current = es;
     activeStreamPlyRef.current = ply;
     setIsStreaming(true);
+    // ここでは setIsAnalyzing(true) を呼ばない（呼び出し元で管理、または既にtrue）
+
+    es.onopen = () => {
+      console.log(`[Analysis] Connection opened for ply ${ply}`);
+    };
 
     es.onmessage = (event) => {
       try {
-        const payload = JSON.parse(event.data) as EngineAnalyzeResponse;
-        setAnalysisByPly((prev) => {
-          const previous = prev[ply] || {};
-          const merged = { ...previous, ...payload };
-          if (payload.multipv?.length) merged.multipv = payload.multipv;
-          if (payload.bestmove) merged.bestmove = payload.bestmove;
-          return { ...prev, [ply]: merged };
-        });
-      } catch (e) { console.warn("Stream parse error", e); }
+        const payload = JSON.parse(event.data);
+        
+        // 候補手更新
+        if (payload.multipv_update) {
+            setRealtimeAnalysis((prev) => {
+                const previous = prev[ply];
+                const currentMultipv = previous?.multipv ? [...previous.multipv] : [];
+                const newItem = payload.multipv_update;
+                const existingIndex = currentMultipv.findIndex(item => item.multipv === newItem.multipv);
+                if (existingIndex !== -1) {
+                    currentMultipv[existingIndex] = newItem;
+                } else {
+                    currentMultipv.push(newItem);
+                }
+                currentMultipv.sort((a, b) => (a.multipv || 0) - (b.multipv || 0));
+                
+                const newEntry: EngineAnalyzeResponse = {
+                    ok: true,
+                    ...previous,
+                    multipv: currentMultipv
+                };
+                return { ...prev, [ply]: newEntry };
+            });
+        }
+        
+        // 最善手受信（解析完了）
+        if (payload.bestmove) {
+            setRealtimeAnalysis(prev => {
+                const previous = prev[ply];
+                const newEntry: EngineAnalyzeResponse = {
+                    ok: true,
+                    ...previous,
+                    bestmove: payload.bestmove
+                };
+                return { ...prev, [ply]: newEntry };
+            });
+            
+            // 接続を閉じて完了扱いにする
+            es.close();
+            if (eventSourceRef.current === es) {
+                eventSourceRef.current = null;
+                activeStreamPlyRef.current = null;
+                setIsStreaming(false);
+            }
+        }
+      } catch (e) {
+        console.error("[Analysis] Parse error:", e);
+      }
     };
-    es.onerror = (e) => { console.warn("Stream error", e); stopEngineAnalysis(); };
-  }, [stopEngineAnalysis]);
+    
+    // エラーハンドリング（静かに閉じる）
+    es.onerror = (e) => { 
+        console.debug("[Analysis] Stream closed/ended (onerror)"); 
+        es.close();
+        if (eventSourceRef.current === es) {
+            eventSourceRef.current = null;
+            activeStreamPlyRef.current = null;
+            setIsStreaming(false);
+        }
+    };
+  }, []);
 
   const requestAnalysisForPly = useCallback((ply: number, options?: { force?: boolean }) => {
     if (options?.force) {
-      setAnalysisByPly((prev) => {
-        if (!prev[ply]) return prev;
-        const { [ply]: _, ...rest } = prev;
-        return rest as AnalysisCache;
-      });
+      setRealtimeAnalysis({});
     }
     const command = buildUsiPositionForPly(usi, ply);
     if (command) startEngineAnalysis(command, ply);
   }, [startEngineAnalysis, usi]);
+
+  // ★追加: 局面追従（オート解析）
+  useEffect(() => {
+    if (isAnalyzing && !isEditMode) {
+        // 現在の局面の解析結果がまだなく、かつ現在ストリーミング中でなければ開始
+        const hasResult = !!realtimeAnalysis[safeCurrentPly]?.bestmove;
+        const isCurrentlyStreamingThis = activeStreamPlyRef.current === safeCurrentPly;
+        
+        if (!isCurrentlyStreamingThis && !hasResult) {
+             requestAnalysisForPly(safeCurrentPly);
+        }
+    }
+  }, [safeCurrentPly, isAnalyzing, isEditMode, requestAnalysisForPly, usi, realtimeAnalysis]);
 
   const saveToHistory = useCallback((board: BoardMatrix, hands: HandsState) => {
     setEditHistory((prev) => {
@@ -219,21 +351,21 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setEditHistory((prev) => prev.slice(0, -1));
     setSnapshotOverrides((prev) => ({ ...prev, [safeCurrentPly]: cloneBoard(prevState.board) }));
     setHandsOverrides((prev) => ({ ...prev, [safeCurrentPly]: { ...prevState.hands } }));
-    if (isAnalyzing) { stopEngineAnalysis(); setIsAnalyzing(false); }
+    if (isAnalyzing) { stopEngineAnalysis(); }
   }, [editHistory, safeCurrentPly, isAnalyzing, stopEngineAnalysis]);
 
   const handleBoardEdit = useCallback((next: BoardMatrix) => {
     if (!isEditMode) return;
     saveToHistory(displayedBoard, activeHands);
     setSnapshotOverrides((prev) => ({ ...prev, [safeCurrentPly]: cloneBoard(next) }));
-    if (isAnalyzing) { stopEngineAnalysis(); setIsAnalyzing(false); }
+    if (isAnalyzing) { stopEngineAnalysis(); }
   }, [isEditMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
 
   const handleHandsEdit = useCallback((next: HandsState) => {
     if (!isEditMode) return;
     saveToHistory(displayedBoard, activeHands);
     setHandsOverrides((prev) => ({ ...prev, [safeCurrentPly]: next }));
-    if (isAnalyzing) { stopEngineAnalysis(); setIsAnalyzing(false); }
+    if (isAnalyzing) { stopEngineAnalysis(); }
   }, [isEditMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
 
   const handlePlyChange = useCallback((nextPly: number) => {
@@ -252,19 +384,18 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const handleStartStreamingAnalysis = useCallback(() => {
     if (isEditMode || !timeline.boards.length) return;
+    // 強制的に開始
     setIsAnalyzing(true);
     requestAnalysisForPly(safeCurrentPly, { force: true });
   }, [isEditMode, requestAnalysisForPly, safeCurrentPly, timeline.boards.length]);
 
   const handleStopAnalysis = useCallback(() => {
-    setIsAnalyzing(false);
     stopEngineAnalysis();
   }, [stopEngineAnalysis]);
 
   const handleAnalyzeEditedPosition = useCallback(() => {
     if (!isEditMode) return;
     const sfenCommand = `position ${boardToSfen(displayedBoard, activeHands, currentSideToMove)}`;
-    setIsAnalyzing(true);
     startEngineAnalysis(sfenCommand, safeCurrentPly);
     showToast({ title: "編集局面の解析を開始しました", variant: "default" });
   }, [isEditMode, displayedBoard, activeHands, currentSideToMove, safeCurrentPly, startEngineAnalysis]);
@@ -273,11 +404,13 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     const currentSfen = isEditMode 
       ? `position ${boardToSfen(displayedBoard, activeHands, currentSideToMove)}`
       : buildUsiPositionForPly(usi, safeCurrentPly);
-    const analysis = analysisByPly[safeCurrentPly];
+    const analysis = realtimeAnalysis[safeCurrentPly] || batchData[safeCurrentPly];
     if (!analysis || !analysis.bestmove) {
       showToast({ title: "先に解析を行ってください", variant: "default" });
       return;
     }
+    const recentMoves = moveSequence.slice(Math.max(0, safeCurrentPly - 5), safeCurrentPly);
+
     setIsExplaining(true);
     setExplanation("");
     try {
@@ -288,18 +421,48 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
           sfen: currentSfen, ply: safeCurrentPly, bestmove: analysis.bestmove,
           score_cp: analysis.multipv?.[0]?.score.type === 'cp' ? analysis.multipv[0].score.cp : null,
           score_mate: analysis.multipv?.[0]?.score.type === 'mate' ? analysis.multipv[0].score.mate : null,
-          pv: analysis.multipv?.[0]?.pv || "", turn: currentSideToMove
+          pv: analysis.multipv?.[0]?.pv || "", turn: currentSideToMove, history: recentMoves 
         }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setExplanation(data.explanation);
     } catch (e) {
-      showToast({ title: "解説生成エラー", variant: "default" });
+      showToast({ title: "解説生成エラー", variant: "error" });
     } finally {
       setIsExplaining(false);
     }
-  }, [analysisByPly, safeCurrentPly, usi, isEditMode, displayedBoard, activeHands, currentSideToMove]);
+  }, [realtimeAnalysis, batchData, safeCurrentPly, usi, isEditMode, displayedBoard, activeHands, currentSideToMove, moveSequence]);
+
+  const handleGenerateGameDigest = useCallback(async () => {
+    const hasData = Object.keys(batchData).length > 0;
+    if (!hasData) {
+        showToast({ title: "先に全体解析を行ってください", variant: "default" });
+        return;
+    }
+    setIsDigesting(true);
+    setIsReportModalOpen(true);
+    setGameDigest("");
+    const evalList = [];
+    for (let i = 0; i <= totalMoves; i++) {
+        const score = getPrimaryEvalScore(batchData[i]);
+        evalList.push(score || 0);
+    }
+    try {
+        const res = await fetch(`${API_BASE}/api/explain/digest`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ total_moves: totalMoves, eval_history: evalList, winner: null }),
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setGameDigest(data.explanation);
+    } catch (e) {
+        setGameDigest("レポート生成に失敗しました。");
+    } finally {
+        setIsDigesting(false);
+    }
+  }, [batchData, totalMoves]);
 
   const handleBatchAnalysis = useCallback(async () => {
     if (isEditMode || isBatchAnalyzing) return;
@@ -309,27 +472,21 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
     setIsBatchAnalyzing(true);
     stopEngineAnalysis();
-    setIsAnalyzing(false);
-
+    
     try {
       const response = await fetch(`${API_BASE}/api/analysis/batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          position: basePosition,
-          usi: basePosition,
-          moves: moveSequence,
-          max_ply: totalMoves,
-          movetime_ms: 250,
-          multipv: 3,
-          time_budget_ms: 30000
+          position: basePosition, usi: basePosition, moves: moveSequence,
+          max_ply: totalMoves, movetime_ms: 250, multipv: 3, time_budget_ms: 30000
         }),
       });
       if (!response.ok) throw new Error();
       const payload = (await response.json()) as BatchAnalysisResponsePayload;
       const analysisMap = payload.analyses ?? payload.results;
       if (!analysisMap) throw new Error();
-      setAnalysisByPly((prev) => {
+      setBatchData((prev) => {
         const next = { ...prev } as AnalysisCache;
         Object.entries(analysisMap).forEach(([key, value]) => {
           const ply = Number(key);
@@ -355,9 +512,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       showToast({ title: "読み込みました", variant: "default" });
       setIsModalOpen(false);
     } catch (e) { 
-        const msg = String(e);
-        setErrorMessage(msg); 
-        showToast({ title: "エラー", description: msg, variant: "destructive" });
+        setErrorMessage(String(e)); 
+        showToast({ title: "エラー", description: String(e), variant: "error" });
     }
   }, [kifuText, setUsi]);
 
@@ -374,41 +530,46 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       }
   }, [usi, safeCurrentPly, isEditMode, setUsi]);
 
-  // Effects
-  useEffect(() => stopEngineAnalysis, [stopEngineAnalysis]);
+  // コンポーネントアンマウント時のクリーンアップ
+  useEffect(() => {
+      return () => {
+          if (eventSourceRef.current) {
+              eventSourceRef.current.close();
+          }
+      };
+  }, []);
+  
+  // 局面(usi)が変わったら全てリセット
   useEffect(() => {
     setCurrentPly(0);
-    setAnalysisByPly({});
+    setRealtimeAnalysis({});
     setSnapshotOverrides({});
     setHandsOverrides({});
     setEditHistory([]);
     setExplanation("");
+    setGameDigest("");
     stopEngineAnalysis();
   }, [stopEngineAnalysis, usi]);
+
   useEffect(() => {
     if (isEditMode) {
       setEditHistory([]);
       setExplanation("");
     } else {
+      // 編集モード終了時も解析を停止
       setIsAnalyzing(false);
       stopEngineAnalysis();
     }
   }, [isEditMode, stopEngineAnalysis]);
-  useEffect(() => {
-    if (!isAnalyzing || isEditMode || !timeline.boards.length) return;
-    if (analysisByPly[safeCurrentPly] || (activeStreamPlyRef.current === safeCurrentPly && isStreaming)) return;
-    requestAnalysisForPly(safeCurrentPly);
-  }, [analysisByPly, isAnalyzing, isStreaming, isEditMode, requestAnalysisForPly, safeCurrentPly, timeline.boards.length]);
 
-  // Helpers
-  const primaryPv = currentAnalysis?.multipv?.[0];
-  const moveImpacts = useMemo(() => buildMoveImpacts(analysisByPly, totalMoves, initialTurn), [analysisByPly, initialTurn, totalMoves]);
+  const evalSource = Object.keys(batchData).length > 0 ? batchData : (isAnalyzing ? realtimeAnalysis : {});
+  const moveImpacts = useMemo(() => buildMoveImpacts(evalSource, totalMoves, initialTurn), [evalSource, initialTurn, totalMoves]);
   
   const moveListEntries = useMemo(() => {
     if (!moveSequence.length) return [];
     return moveSequence.map((move, index) => {
       const ply = index + 1;
-      const analysis = analysisByPly[ply];
+      const analysis = evalSource[ply];
       const score = analysis?.multipv?.[0]?.score;
       return {
         ply: ply,
@@ -417,9 +578,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         score: score
       };
     });
-  }, [initialTurn, moveImpacts, moveSequence, timelinePlacedPieces, analysisByPly]);
+  }, [initialTurn, moveImpacts, moveSequence, timelinePlacedPieces, evalSource]);
   
-  const evalPoints = useMemo(() => Array.from({ length: timeline.boards.length || totalMoves + 1 }, (_, ply) => ({ ply, cp: getPrimaryEvalScore(analysisByPly[ply]) })), [analysisByPly, timeline.boards.length, totalMoves]);
+  const evalPoints = useMemo(() => Array.from({ length: timeline.boards.length || totalMoves + 1 }, (_, ply) => ({ ply, cp: getPrimaryEvalScore(evalSource[ply]) })), [evalSource, timeline.boards.length, totalMoves]);
 
   const boardMode: BoardMode = isEditMode ? "edit" : "view";
   const topHandSide: Side = boardOrientation === "sente" ? "w" : "b";
@@ -427,21 +588,23 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   return (
     <div className="relative h-screen flex flex-col gap-4 p-4 text-[#1c1209] overflow-hidden bg-[#fbf7ef]">
-      {/* Header */}
       <div className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm relative z-10">
         <div className="flex items-center gap-4">
             <div className="text-sm font-bold text-slate-700">検討モード</div>
             <div className="text-xs text-slate-500">局面: {safeCurrentPly} / {maxPly}</div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* 棋譜読み込みボタン */}
           <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)} className="border-slate-300 text-slate-700 h-8 text-xs cursor-pointer active:scale-95 transition-transform">
             <Upload className="w-3 h-3 mr-1" /> 棋譜読み込み
           </Button>
-
           {!isEditMode ? (
             <>
               <Button variant="outline" size="sm" onClick={handleBatchAnalysis} disabled={isBatchAnalyzing} className="border-slate-300 text-slate-700 h-8 text-xs">全体解析</Button>
+              {Object.keys(batchData).length > 5 && (
+                  <Button variant="outline" size="sm" onClick={handleGenerateGameDigest} className="border-amber-400 text-amber-700 bg-amber-50 h-8 text-xs">
+                      <ScrollText className="w-3 h-3 mr-1" /> レポート
+                  </Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleStartStreamingAnalysis} disabled={isAnalyzing} className="border-slate-300 text-slate-700 h-8 text-xs"><Play className="w-3 h-3 mr-1" /> 検討開始</Button>
               <Button variant="default" size="sm" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-8 text-xs">{isExplaining ? "思考中..." : <><Sparkles className="w-3 h-3 mr-1" /> AI解説</>}</Button>
             </>
@@ -460,9 +623,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         </div>
       </div>
 
-      {/* Main Layout */}
       <div className="flex-1 flex flex-row gap-4 min-h-0 overflow-hidden relative z-0">
-        {/* Col 1: Board (Left) */}
         <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-[400px]">
           <div className="flex-none rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4" style={{ minHeight: "550px" }}>
             <div className="flex items-center justify-center w-full gap-4 mb-2">
@@ -480,7 +641,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                         hands={activeHands}
                         mode={boardMode}
                         lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
-                        bestmove={isEditMode ? undefined : bestmoveCoords ?? null}
+                        bestmove={bestmoveCoords} /* ここがガード済み変数 */
                         orientationMode={orientationMode}
                         orientation={boardOrientation}
                         onBoardChange={isEditMode ? handleBoardEdit : undefined}
@@ -491,7 +652,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 </div>
             </div>
           </div>
-
           {explanation && (
             <div className="flex-none p-4 bg-white rounded-xl border border-purple-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
                 <div className="font-bold text-purple-700 mb-2 flex items-center gap-2 border-b border-purple-100 pb-2">
@@ -504,60 +664,50 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
           )}
         </div>
 
-        {/* Col 2: Candidates (Middle) */}
         <div className="w-[300px] flex-none flex flex-col gap-2 h-full overflow-hidden border-x border-slate-100 px-2">
             <div className="text-sm font-bold text-slate-600 flex items-center gap-2 px-1">
                 <BrainCircuit className="w-4 h-4" />
                 AI解析 (候補手)
                 {isAnalyzing && !hasCurrentAnalysis && <span className="text-[10px] text-green-600 animate-pulse ml-auto">思考中...</span>}
             </div>
-            
             <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                {currentAnalysis?.multipv?.length ? currentAnalysis.multipv.map((pv) => (
-                    <div 
-                    key={`${pv.multipv}`} 
-                    onClick={() => handleCandidateClick(pv.pv || "")}
-                    className="group p-3 rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50 cursor-pointer transition-all shadow-sm"
-                    >
+                {/* 矢印表示条件と同じガードを使用してリストを表示 */}
+                {(showArrow && currentAnalysis?.multipv?.length) ? currentAnalysis.multipv.map((pv, idx) => {
+                    const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
+                    const firstMoveUSI = pv.pv?.split(" ")[0] || "";
+                    const firstMoveLabel = formatUsiMoveJapanese(firstMoveUSI, currentPlacedPieces, currentSideToMove);
+                    const fullPvLabel = convertFullPvToJapanese(currentUsi, pv.pv || "");
+                    return (
+                    <div key={`${idx}-${pv.score.cp}`} onClick={() => handleCandidateClick(pv.pv || "")} className="group p-3 rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50 cursor-pointer transition-all shadow-sm">
                         <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold bg-slate-100 group-hover:bg-white px-2 py-0.5 rounded-full text-slate-600">#{pv.multipv}</span>
-                                <span className="text-base font-bold text-slate-800">{formatUsiMoveJapanese(pv.pv?.split(" ")[0] || "", currentPlacedPieces, currentSideToMove)}</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>#{idx + 1}</span>
+                                <span className="text-base font-bold text-slate-800">{firstMoveLabel}</span>
                             </div>
-                            <span className={`text-sm font-mono font-bold ${pv.score.type === 'mate' ? 'text-rose-600' : ((pv.score.cp ?? 0) > 0 ? 'text-emerald-600' : 'text-slate-600')}`}>
-                                {formatScoreLabel(pv.score)}
-                            </span>
+                            <span className={`text-sm font-mono font-bold ${pv.score.type === 'mate' ? 'text-rose-600' : ((pv.score.cp ?? 0) > 0 ? 'text-emerald-600' : 'text-slate-600')}`}>{formatScoreLabel(pv.score)}</span>
                         </div>
-                        <div className="flex items-start gap-1 text-xs text-slate-400 group-hover:text-slate-600">
+                        <div className="flex items-start gap-1 text-xs text-slate-400 group-hover:text-slate-600 bg-slate-50 p-1 rounded">
                             <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" />
-                            <span className="break-words leading-tight">{pv.pv}</span>
+                            <span className="break-words leading-tight font-mono opacity-80">{fullPvLabel || pv.pv}</span>
                         </div>
                     </div>
-                )) : (
+                )}) : (
                     <div className="h-40 flex items-center justify-center text-slate-400 text-xs border-2 border-dashed border-slate-100 rounded-xl">
-                        解析データなし
+                        {isAnalyzing ? "解析中..." : "解析データなし"}
                     </div>
                 )}
             </div>
         </div>
 
-        {/* Col 3: List & Graph (Right) */}
         <div className="w-[320px] flex-none flex flex-col gap-4 h-full overflow-hidden pl-1">
             <div className="flex-1 min-h-0 shadow-md border border-slate-300 rounded-xl overflow-hidden bg-white">
-                <MoveListPanel 
-                    entries={moveListEntries} 
-                    activePly={safeCurrentPly} 
-                    onSelectPly={handlePlyChange} 
-                    className="h-full border-0 rounded-none" 
-                />
+                <MoveListPanel entries={moveListEntries} activePly={safeCurrentPly} onSelectPly={handlePlyChange} className="h-full border-0 rounded-none" />
             </div>
             <div className="h-[180px] shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
                 <EvalGraph data={evalPoints} currentPly={safeCurrentPly} onPlyClick={handlePlyChange} />
             </div>
         </div>
       </div>
-
-      {/* Modal (Dialog) */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-0 shadow-2xl border border-slate-200 gap-0 [&>button]:hidden">
           <DialogHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 space-y-0">
@@ -573,7 +723,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 <X className="w-4 h-4" />
             </Button>
           </DialogHeader>
-          
           <div className="p-4 flex flex-col gap-4 bg-white">
             <Textarea 
               value={kifuText} 
@@ -587,7 +736,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
               </div>
             )}
           </div>
-
           <DialogFooter className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3 sm:justify-end">
             <Button variant="outline" onClick={() => setIsModalOpen(false)} className="text-slate-600 border-slate-300 bg-white hover:bg-slate-50">
               キャンセル
@@ -598,34 +746,30 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
+      <Dialog open={isReportModalOpen} onOpenChange={setIsReportModalOpen}>
+        <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-0 shadow-2xl border border-slate-200 gap-0">
+          <DialogHeader className="border-b border-purple-100 bg-purple-50 px-6 py-4">
+            <DialogTitle className="flex items-center gap-2 text-purple-800 text-lg font-bold">
+                <ScrollText className="w-5 h-5" /> 対局総評レポート
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 max-h-[60vh] overflow-y-auto">
+            {isDigesting ? (
+                <div className="flex flex-col items-center justify-center gap-4 py-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    <p className="text-sm text-slate-500">将棋仙人が対局を振り返っています...</p>
+                </div>
+            ) : (
+                <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    {gameDigest}
+                </div>
+            )}
+          </div>
+          <DialogFooter className="border-t border-slate-100 bg-slate-50 px-6 py-3">
+            <Button onClick={() => setIsReportModalOpen(false)}>閉じる</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-// HandsColumn
-type HandsColumnProps = { side: Side; hands: Partial<Record<PieceBase, number>>; orientationMode: OrientationMode; align?: "start" | "end"; };
-const HandsColumn: React.FC<HandsColumnProps> = ({ side, hands, orientationMode, align = "start" }) => {
-  const owner = side === "b" ? "sente" : "gote";
-  const entries = HAND_DISPLAY_ORDER.map((base) => {
-    const count = hands?.[base];
-    if (!count) return null;
-    const piece = (side === "b" ? base : base.toLowerCase()) as PieceCode;
-    return (
-      <div key={`${side}-${base}`} className="flex items-center gap-2 text-sm text-[#2b1c10]">
-        <div className="relative h-10 w-10">
-          <PieceSprite piece={piece} x={0} y={0} size={34} cellSize={40} orientationMode={orientationMode} owner={owner} />
-          {count > 1 && <span className="absolute -top-1 -right-1 rounded-full bg-white/90 px-1 text-xs font-semibold text-[#2b1c10]">x{count}</span>}
-        </div>
-        <span className="font-semibold">{formatHandLabel(base)} x{count}</span>
-      </div>
-    );
-  }).filter(Boolean) as React.ReactNode[];
-  return (
-    <div className={`flex w-24 flex-col gap-3 ${align === "end" ? "self-end items-end text-right" : "items-start text-left"}`}>
-      <span className="text-xs font-semibold text-[#7a5f36]">{side === "b" ? "先手の持ち駒" : "後手の持ち駒"}</span>
-      <div className="flex flex-col gap-2">{entries.length ? entries : <span className="text-[11px] text-[#9a8a78]">持ち駒なし</span>}</div>
-    </div>
-  );
-};
-const formatHandLabel = (base: PieceBase): string => { switch (base) { case "P": return "歩"; case "L": return "香"; case "N": return "桂"; case "S": return "銀"; case "G": return "金"; case "B": return "角"; case "R": return "飛"; case "K": return "玉"; default: return base; } };
