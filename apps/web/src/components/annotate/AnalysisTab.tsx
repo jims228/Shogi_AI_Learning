@@ -125,6 +125,25 @@ const formatScoreLabel = (score?: EngineMultipvItem["score"]): string => {
   return `${cp > 0 ? "+" : ""}${cp}cp`;
 };
 
+// ヘルパー関数: 指定手数でUSI文字列をカットする
+const getSubsetUSI = (originalUsi: string, ply: number): string => {
+  const parts = originalUsi.trim().split(" moves ");
+  const header = parts[0]; 
+  const moveStr = parts[1];
+  
+  if (!moveStr) return header;
+  
+  const moves = moveStr.trim().split(" ");
+  
+  if (ply === 0) return header;
+
+  const neededMoves = moves.slice(0, ply);
+  
+  if (neededMoves.length === 0) return header;
+  
+  return `${header} moves ${neededMoves.join(" ")}`;
+};
+
 type AnalysisTabProps = {
   usi: string;
   setUsi: (next: string) => void;
@@ -135,12 +154,11 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [currentPly, setCurrentPly] = useState(0);
   const [realtimeAnalysis, setRealtimeAnalysis] = useState<AnalysisCache>({});
   
-  // バッチ解析フックの使用
   const { 
     batchData, 
     isBatchAnalyzing, 
     progress: batchProgress,
-    runBatchAnalysis,
+    runBatchAnalysis, 
     cancelBatchAnalysis,
     resetBatchData 
   } = useBatchAnalysis();
@@ -163,7 +181,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [isExplaining, setIsExplaining] = useState(false);
   const [isDigesting, setIsDigesting] = useState(false);
 
-  // 読み筋プレビュー用のState
   const [previewSequence, setPreviewSequence] = useState<string[] | null>(null);
   const [previewStep, setPreviewStep] = useState<number>(0);
 
@@ -189,20 +206,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const baseBoard = timeline.boards[safeCurrentPly] ?? getStartBoard();
   
-  // プレビュー用の盤面計算
   const previewState = useMemo(() => {
     if (!previewSequence) return null;
-    const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
+    const currentUsi = getSubsetUSI(usi, safeCurrentPly);
     if (!currentUsi) return null;
     
-    // プレビュー手順の結合
     const activeMoves = previewSequence.slice(0, previewStep);
-    const fullPreviewUsi = activeMoves.length > 0 
-        ? `${currentUsi} ${activeMoves.join(" ")}`
-        : currentUsi;
+    
+    const baseStr = currentUsi;
+    const connector = baseStr.includes("moves") ? " " : " moves ";
+    const finalUsi = activeMoves.length > 0 ? baseStr + connector + activeMoves.join(" ") : baseStr;
 
     try {
-        const previewTimeline = buildBoardTimeline(fullPreviewUsi);
+        const previewTimeline = buildBoardTimeline(finalUsi);
         const lastIndex = previewTimeline.boards.length - 1;
         return {
             board: previewTimeline.boards[lastIndex],
@@ -232,7 +248,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     return side;
   }, [safeCurrentPly, initialTurn]);
 
-  // 停止処理
+  // ★重要: これは「停止ボタン」用。UIの状態もFalseにする。
   const stopEngineAnalysis = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -242,8 +258,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setIsAnalyzing(false);
   }, []);
 
-  // Data Selection Logic
-  // ★グラフとリストで使うデータソース。リアルタイム解析を優先してマージする。
   const evalSource = useMemo(() => {
     return { ...batchData, ...realtimeAnalysis };
   }, [batchData, realtimeAnalysis]);
@@ -251,7 +265,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const currentAnalysis = evalSource[safeCurrentPly];
   const hasCurrentAnalysis = Boolean(currentAnalysis);
   
-  // UI表示条件: 編集モードでなく、かつ（解析中 または データが存在する）
   const showArrow = !isEditMode && (isAnalyzing || !!currentAnalysis);
 
   const bestmoveCoords = (showArrow && currentAnalysis?.bestmove && !previewSequence) 
@@ -289,27 +302,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     es.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        
-        // 候補手更新 (multipv_update)
         if (payload.multipv_update) {
             setRealtimeAnalysis((prev) => {
                 const previousEntry = prev[ply] || { ok: true, multipv: [] };
                 const currentList = previousEntry.multipv ? [...previousEntry.multipv] : [];
-                
                 const newItem = payload.multipv_update;
                 if (!newItem.multipv) return prev;
-
-                // マージロジック: multipv順位で更新
                 const index = currentList.findIndex(item => item.multipv === newItem.multipv);
                 if (index !== -1) {
                     currentList[index] = newItem;
                 } else {
                     currentList.push(newItem);
                 }
-                
-                // 順位(multipv)の昇順にソート (1 -> 2 -> 3)
                 currentList.sort((a, b) => (a.multipv || 0) - (b.multipv || 0));
-                
                 return {
                     ...prev,
                     [ply]: {
@@ -319,7 +324,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 };
             });
         }
-        
         if (payload.bestmove) {
             setRealtimeAnalysis(prev => {
                 const previousEntry = prev[ply] || { ok: true };
@@ -332,7 +336,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     }
                 };
             });
-            
             es.close();
             if (eventSourceRef.current === es) {
                 eventSourceRef.current = null;
@@ -343,7 +346,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         console.error("[Analysis] Parse error:", e);
       }
     };
-    
     es.onerror = () => { 
         console.debug("[Analysis] Stream closed/ended (onerror)"); 
         es.close();
@@ -356,23 +358,23 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const requestAnalysisForPly = useCallback((ply: number, options?: { force?: boolean }) => {
     if (options?.force) {
-      setRealtimeAnalysis({});
+      setRealtimeAnalysis(prev => {
+         const next = { ...prev };
+         delete next[ply];
+         return next;
+      });
     }
-    const command = buildUsiPositionForPly(usi, ply);
+    const command = getSubsetUSI(usi, ply);
     if (command) startEngineAnalysis(command, ply);
   }, [startEngineAnalysis, usi]);
 
-  // ★自動解析ロジック（isAnalyzing が true の間、盤面移動に合わせて解析をリクエストする）
+  // ★連続検討のキモ: 局面が変わっても isAnalyzing が true なら新しい局面を解析しに行く
   useEffect(() => {
     if (isAnalyzing && !isEditMode) {
-        // 現在の局面に既に結果（bestmove）があるか確認（RealtimeまたはBatch）
-        // ※ただし、より深い探索をしたい場合はBatchがあっても回す等の制御も可能ですが、
-        // ここでは「検討モード」なので、常に最新のRealtimeデータを取りに行く挙動が自然です。
-        // （Engine側でキャッシュ制御したり、既にRealtimeAnalysisがあればスキップするなどの調整は可能）
-        
         const hasRealtimeResult = !!realtimeAnalysis[safeCurrentPly]?.bestmove;
         const isCurrentlyStreamingThis = activeStreamPlyRef.current === safeCurrentPly;
         
+        // 解析済み(キャッシュあり)でなく、現在ストリーミング中でもない場合のみリクエスト
         if (!isCurrentlyStreamingThis && !hasRealtimeResult) {
              requestAnalysisForPly(safeCurrentPly);
         }
@@ -409,15 +411,23 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     if (isAnalyzing) { stopEngineAnalysis(); }
   }, [isEditMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
 
+  // ★修正: 手数を変更したときの処理
   const handlePlyChange = useCallback((nextPly: number) => {
     if (isEditMode) return;
-    // プレビュー解除
+    
+    // ここで stopEngineAnalysis() を呼んでしまうと「検討モード」自体がOFFになってしまうため削除。
+    // 代わりに「通信だけ」を切断して、リソースを解放する。
+    if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+    }
+    activeStreamPlyRef.current = null;
+
     setPreviewSequence(null);
     setPreviewStep(0);
     setCurrentPly(clampIndex(nextPly, timeline.boards));
   }, [isEditMode, timeline.boards]);
 
-  // ナビゲーション操作の乗っ取り
   const goToStart = useCallback(() => {
       if (previewSequence) {
           setPreviewStep(0);
@@ -487,7 +497,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const handleGenerateExplanation = useCallback(async () => {
     const currentSfen = isEditMode 
       ? `position ${boardToSfen(displayedBoard, activeHands, currentSideToMove)}`
-      : buildUsiPositionForPly(usi, safeCurrentPly);
+      : getSubsetUSI(usi, safeCurrentPly);
+
     const analysis = evalSource[safeCurrentPly];
     if (!analysis || !analysis.bestmove) {
       showToast({ title: "先に解析を行ってください", variant: "default" });
@@ -551,8 +562,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const handleBatchAnalysisClick = useCallback(() => {
     if (isEditMode || isBatchAnalyzing) return;
     if (!timeline.boards.length) return;
-    
-    // フック経由でバッチ解析開始
     runBatchAnalysis(usi, totalMoves, moveSequence);
   }, [isEditMode, isBatchAnalyzing, timeline.boards.length, runBatchAnalysis, usi, totalMoves, moveSequence]);
 
@@ -574,8 +583,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const handleCandidateClick = useCallback((pvStr: string) => {
       const moves = pvStr.trim().split(/\s+/);
       if (moves.length === 0) return;
-      
-      // プレビューモードに設定
       setPreviewSequence(moves);
       setPreviewStep(1);
   }, []);
@@ -588,7 +595,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       };
   }, []);
   
-  // 局面(usi)が変わったら全てリセット
   useEffect(() => {
     setCurrentPly(0);
     setRealtimeAnalysis({});
@@ -610,10 +616,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       setPreviewSequence(null);
       setPreviewStep(0);
     } else {
-      setIsAnalyzing(false);
-      stopEngineAnalysis();
+      // 編集モードでない場合はここでは何もしない（継続解析のため）
+      // ただし、「停止ボタン」を押したときは stopEngineAnalysis が呼ばれるのでOK
     }
-  }, [isEditMode, stopEngineAnalysis]);
+  }, [isEditMode]);
 
   const moveImpacts = useMemo(() => buildMoveImpacts(evalSource, totalMoves, initialTurn), [evalSource, initialTurn, totalMoves]);
   
@@ -658,7 +664,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 disabled={isBatchAnalyzing} 
                 className="border-slate-300 text-slate-700 h-8 text-xs relative overflow-hidden"
               >
-                {/* プログレスバー風の背景 */}
                 {isBatchAnalyzing && (
                   <span 
                     className="absolute left-0 top-0 bottom-0 bg-green-100 opacity-50 transition-all duration-300" 
@@ -756,9 +761,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 {isAnalyzing && !hasCurrentAnalysis && <span className="text-[10px] text-green-600 animate-pulse ml-auto">思考中...</span>}
             </div>
             <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                {/* ★型定義を修正済み */}
                 {(showArrow && currentAnalysis?.multipv?.length) ? currentAnalysis.multipv.map((pv: EngineMultipvItem, idx: number) => {
-                    const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
+                    const currentUsi = getSubsetUSI(usi, safeCurrentPly);
                     const firstMoveUSI = pv.pv?.split(" ")[0] || "";
                     const firstMoveLabel = formatUsiMoveJapanese(firstMoveUSI, currentPlacedPieces, currentSideToMove);
                     const fullPvLabel = convertFullPvToJapanese(currentUsi, pv.pv || "");
