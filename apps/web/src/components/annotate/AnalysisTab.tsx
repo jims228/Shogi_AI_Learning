@@ -193,33 +193,41 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   // プレビュー用の盤面計算
   const previewState = useMemo(() => {
     if (!previewPv) return null;
-    const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
-    if (!currentUsi) return null;
     
-    // プレビュー手順を適用
+    // 1. 現在の局面を取得（timelineから）
+    const baseBoard = timeline.boards[safeCurrentPly];
+    const baseHands = timeline.hands[safeCurrentPly];
+    
+    if (!baseBoard || !baseHands) return null;
+
+    // クローンを作成して操作
+    let currentBoard = cloneBoard(baseBoard);
+    let currentHands = cloneHands(baseHands);
+    
+    // 手番の計算（現在のPly時点での手番）
+    let currentTurn = (safeCurrentPly % 2 === 0) ? initialTurn : flipTurn(initialTurn);
+
+    // 2. previewMovesを順次適用
     const movesToApply = previewMoves.slice(0, previewStep);
-    
-    // USI文字列の結合処理（movesがない場合の考慮）
-    let fullPreviewUsi = currentUsi;
-    if (movesToApply.length > 0) {
-        if (!fullPreviewUsi.includes("moves")) {
-            fullPreviewUsi += " moves";
+    let lastMove = null;
+
+    for (const moveStr of movesToApply) {
+        try {
+            // applyMoveはboardとhandsを直接変更し、次の手番を返す
+            currentTurn = applyMove(currentBoard, currentHands, moveStr, currentTurn);
+            lastMove = moveStr;
+        } catch (e) {
+            console.error("Preview move application failed:", moveStr, e);
+            break;
         }
-        fullPreviewUsi += " " + movesToApply.join(" ");
     }
 
-    try {
-        const previewTimeline = buildBoardTimeline(fullPreviewUsi);
-        const lastIndex = previewTimeline.boards.length - 1;
-        return {
-            board: previewTimeline.boards[lastIndex],
-            hands: previewTimeline.hands[lastIndex],
-            lastMove: previewTimeline.moves[previewTimeline.moves.length - 1]
-        };
-    } catch {
-        return null;
-    }
-  }, [previewPv, previewMoves, previewStep, usi, safeCurrentPly]);
+    return {
+        board: currentBoard,
+        hands: currentHands,
+        lastMove: lastMove
+    };
+  }, [previewPv, previewMoves, previewStep, timeline.boards, timeline.hands, safeCurrentPly, initialTurn]);
 
   const displayedBoard = previewState ? previewState.board : (snapshotOverrides[safeCurrentPly] ?? baseBoard);
   const fallbackHands = useMemo<HandsState>(() => ({ b: {}, w: {} }), []);
