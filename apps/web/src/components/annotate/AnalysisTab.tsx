@@ -187,47 +187,62 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   // プレビュー用の指し手配列
   const previewMoves = useMemo(() => {
     if (!previewPv) return [];
-    return previewPv.trim().split(/\s+/);
+    const moves = previewPv.trim().split(/\s+/).filter(Boolean);
+    console.log("[Preview] Parsed moves:", moves);
+    return moves;
   }, [previewPv]);
 
-  // プレビュー用の盤面計算
+  // ★修正ポイント1: プレビュー用の盤面計算の完全ロジック修正
   const previewState = useMemo(() => {
     if (!previewPv) return null;
     
-    // 1. 現在の局面を取得（timelineから）
-    const baseBoard = timeline.boards[safeCurrentPly];
-    const baseHands = timeline.hands[safeCurrentPly];
-    
-    if (!baseBoard || !baseHands) return null;
+    console.log(`[Preview] Start calculation. Step: ${previewStep}, BasePly: ${safeCurrentPly}`);
 
-    // クローンを作成して操作
-    let currentBoard = cloneBoard(baseBoard);
-    let currentHands = cloneHands(baseHands);
-    
-    // 手番の計算（現在のPly時点での手番）
-    let currentTurn = (safeCurrentPly % 2 === 0) ? initialTurn : flipTurn(initialTurn);
+    // ベースとなる盤面と持ち駒
+    const baseBoard = snapshotOverrides[safeCurrentPly] ?? timeline.boards[safeCurrentPly];
+    const baseHands = handsOverrides[safeCurrentPly] ?? timeline.hands[safeCurrentPly];
 
-    // 2. previewMovesを順次適用
-    const movesToApply = previewMoves.slice(0, previewStep);
-    let lastMove = null;
-
-    for (const moveStr of movesToApply) {
-        try {
-            // applyMoveはboardとhandsを直接変更し、次の手番を返す
-            currentTurn = applyMove(currentBoard, currentHands, moveStr, currentTurn);
-            lastMove = moveStr;
-        } catch (e) {
-            console.error("Preview move application failed:", moveStr, e);
-            break;
-        }
+    if (!baseBoard || !baseHands) {
+        console.warn("[Preview] Base board/hands not found for ply:", safeCurrentPly);
+        return null;
     }
 
-    return {
-        board: currentBoard,
-        hands: currentHands,
-        lastMove: lastMove
-    };
-  }, [previewPv, previewMoves, previewStep, timeline.boards, timeline.hands, safeCurrentPly, initialTurn]);
+    let board = cloneBoard(baseBoard);
+    let hands = cloneHands(baseHands);
+    
+    // safeCurrentPly手目時点の手番を計算
+    let turn = initialTurn;
+    for(let i=0; i<safeCurrentPly; i++) {
+        turn = flipTurn(turn);
+    }
+    console.log(`[Preview] Base Turn: ${turn}`);
+
+    let lastMoveStr = null;
+    const movesToApply = previewMoves.slice(0, previewStep);
+
+    try {
+        for (const mv of movesToApply) {
+            if (!mv) continue;
+            // applyMove は次の手番を返すが、board/hands は参照渡しで更新される
+            const nextTurn = applyMove(board, hands, mv, turn);
+            console.log(`[Preview] Applied ${mv} -> Next Turn: ${nextTurn}`);
+            turn = nextTurn; 
+            lastMoveStr = mv;
+        }
+        return {
+            board,
+            hands,
+            lastMove: lastMoveStr
+        };
+    } catch (e) {
+        console.error("Preview Logic Error:", e);
+        return {
+            board: cloneBoard(baseBoard), // エラー時は動かさず返す
+            hands: cloneHands(baseHands),
+            lastMove: null
+        };
+    }
+  }, [previewPv, previewMoves, previewStep, timeline.boards, timeline.hands, snapshotOverrides, handsOverrides, safeCurrentPly, initialTurn]);
 
   const displayedBoard = previewState ? previewState.board : (snapshotOverrides[safeCurrentPly] ?? baseBoard);
   const fallbackHands = useMemo<HandsState>(() => ({ b: {}, w: {} }), []);
@@ -250,7 +265,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     return side;
   }, [safeCurrentPly, initialTurn, previewPv, previewStep]);
 
-  // 停止処理
   const stopEngineAnalysis = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -260,12 +274,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setIsAnalyzing(false);
   }, []);
 
-  // Data Selection Logic
   const currentAnalysis = realtimeAnalysis[safeCurrentPly] || batchData[safeCurrentPly];
   const hasCurrentAnalysis = Boolean(currentAnalysis);
   
-  // UI表示条件: 編集モードでなく、かつ（解析中 または データが存在する）
-  // プレビュー中は矢印を表示しない
+  // UI表示条件
   const showArrow = !isEditMode && !previewPv && (isAnalyzing || !!currentAnalysis);
 
   const bestmoveCoords = (showArrow && currentAnalysis?.bestmove) 
@@ -285,8 +297,11 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       eventSourceRef.current = null;
     }
 
-    // 修正3: ここで既存データを削除しない（ちらつき防止）
-    // setRealtimeAnalysis(prev => { ... delete next[ply] ... }); 
+    setRealtimeAnalysis(prev => {
+        const next = { ...prev };
+        // チラつき防止のため既存データを消さない
+        return next;
+    });
     
     const url = `${API_BASE}/api/analysis/stream?position=${encodeURIComponent(command)}`;
     const es = new EventSource(url);
@@ -411,25 +426,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const handlePlyChange = useCallback((nextPly: number) => {
     if (isEditMode) return;
-    // プレビュー解除
     setPreviewPv(null);
     setPreviewStep(0);
     setCurrentPly(clampIndex(nextPly, timeline.boards));
   }, [isEditMode, timeline.boards]);
 
-  // ナビゲーション制御（プレビュー対応）
+  // ★修正ポイント2: ナビゲーション制御
   const goToPrev = useCallback(() => {
     if (previewPv) {
-        if (previewStep <= 0) {
-            setPreviewPv(null);
-            setPreviewStep(0);
-        } else {
-            setPreviewStep(p => p - 1);
-        }
+        setPreviewStep(p => Math.max(0, p - 1));
     } else {
         handlePlyChange(safeCurrentPly - 1);
     }
-  }, [previewPv, previewStep, handlePlyChange, safeCurrentPly]);
+  }, [previewPv, handlePlyChange, safeCurrentPly]);
 
   const goToNext = useCallback(() => {
     if (previewPv) {
@@ -437,7 +446,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     } else {
         handlePlyChange(safeCurrentPly + 1);
     }
-  }, [previewPv, previewMoves.length, handlePlyChange, safeCurrentPly]);
+  }, [previewPv, previewMoves, handlePlyChange, safeCurrentPly]);
 
   const goToStart = useCallback(() => {
     if (previewPv) {
@@ -459,7 +468,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const canGoPrev = previewPv ? previewStep > 0 : safeCurrentPly > 0;
   const canGoNext = previewPv ? previewStep < previewMoves.length : safeCurrentPly < maxPly;
 
-  // キーボード操作
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isModalOpen || isReportModalOpen || isEditMode) return;
@@ -581,7 +589,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const handleTsumeMove = useCallback(async (moveData: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: PieceCode; drop?: boolean }) => {
     if (!isTsumeMode) return;
 
-    // 1. Construct USI
     let usiMove = "";
     const toFile = (9 - moveData.to.x).toString();
     const toRank = String.fromCharCode("a".charCodeAt(0) + moveData.to.y);
@@ -600,7 +607,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         usiMove = `${fromFile}${fromRank}${toFile}${toRank}${isPromoted ? "+" : ""}`;
     }
 
-    // 2. Get Current SFEN (Before move)
     const currentSfen = boardToSfen(displayedBoard, activeHands, currentSideToMove);
 
     try {
@@ -617,7 +623,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
             if (usiMove === bestMove) {
                 showToast({ title: "🎉 正解！", description: "正解です！", variant: "default" });
                 
-                // Apply User Move
                 const nextBoard = cloneBoard(displayedBoard);
                 const nextHands = cloneHands(activeHands);
                 const nextTurn = applyMove(nextBoard, nextHands, usiMove, currentSideToMove);
@@ -625,7 +630,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 setSnapshotOverrides(prev => ({ ...prev, [safeCurrentPly]: cloneBoard(nextBoard) }));
                 setHandsOverrides(prev => ({ ...prev, [safeCurrentPly]: cloneHands(nextHands) }));
                 
-                // Apply AI Reply
                 if (data.moves.length > 1) {
                     const opponentMove = data.moves[1];
                     setTimeout(() => {
@@ -735,7 +739,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const handleCandidateClick = useCallback((pvStr: string) => {
     if (!pvStr) return;
     setPreviewPv(pvStr);
-    setPreviewStep(1); // 1手目から表示
+    setPreviewStep(1); 
   }, []);
 
   const handleCancelPreview = useCallback(() => {
@@ -743,7 +747,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setPreviewStep(0);
   }, []);
 
-  // コンポーネントアンマウント時のクリーンアップ
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
@@ -752,7 +755,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     };
   }, []);
 
-  // 局面(usi)が変わったら全てリセット
   useEffect(() => {
     setCurrentPly(0);
     setRealtimeAnalysis({});
@@ -806,23 +808,38 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     });
   }, [initialTurn, moveImpacts, moveSequence, timelinePlacedPieces, evalSource]);
 
-  // 修正2: 評価値の符号正規化（先手有利＝プラス）
+  // ★修正ポイント3: 評価値グラフの完全な正規化とデータ欠損対応
   const evalPoints = useMemo(() => {
-    return Array.from({ length: timeline.boards.length || totalMoves + 1 }, (_, ply) => {
-      const analysis = evalSource[ply];
-      const rawScore = getPrimaryEvalScore(analysis);
-      
-      // 手番判定: ply手目時点での手番（ply=0は初期局面の手番）
-      // 通常、ply手目の局面の評価値は、その局面で手番を握っている側から見た点数
-      const turn = (ply % 2 === 0) ? initialTurn : flipTurn(initialTurn);
-      
-      // 後手番なら符号反転
-      const score = (typeof rawScore === 'number') 
-          ? (turn === 'w' ? -rawScore : rawScore)
-          : 0;
-          
-      return { ply, cp: score };
-    });
+    const points: { ply: number; cp: number }[] = [];
+    let lastValidScore = 0;
+
+    console.log("[EvalGraph] Start calculation. InitialTurn:", initialTurn);
+
+    for (let ply = 0; ply <= (timeline.boards.length || totalMoves); ply++) {
+        let rawScore = getPrimaryEvalScore(evalSource[ply]);
+        
+        // データがない場合は直前の値を採用（グラフの急落防止）
+        if (rawScore === null || rawScore === undefined) {
+            rawScore = lastValidScore;
+        } else {
+            lastValidScore = rawScore;
+        }
+
+        // 手番の判定
+        let currentTurn = initialTurn;
+        if (ply % 2 !== 0) currentTurn = flipTurn(currentTurn);
+
+        // エンジンは手番側評価値を返すため、後手番なら反転する
+        const normalizedScore = (currentTurn === "w") ? -rawScore : rawScore;
+        
+        // 初手付近のログ出力（デバッグ用）
+        if (ply < 5) {
+            console.log(`[EvalGraph] Ply:${ply}, Raw:${rawScore}, Turn:${currentTurn}, Norm:${normalizedScore}`);
+        }
+
+        points.push({ ply, cp: normalizedScore });
+    }
+    return points;
   }, [evalSource, timeline.boards.length, totalMoves, initialTurn]);
 
   const boardMode: BoardMode = isEditMode ? "edit" : "view";
@@ -907,7 +924,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 </div>
             )}
 
-            {/* プレビューモード時のバナー */}
             {previewPv && (
                 <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 bg-amber-500 text-white px-4 py-1.5 rounded-full shadow-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center gap-1.5 font-bold text-sm">
@@ -936,7 +952,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     hands={activeHands} 
                     mode={isEditMode || isTsumeMode ? "edit" : boardMode} 
                     lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
-                    bestmove={bestmoveCoords} /* ここがガード済み変数 */
+                    bestmove={bestmoveCoords}
                     orientationMode={orientationMode} 
                     orientation={boardOrientation}
                     onBoardChange={isEditMode || isTsumeMode ? handleBoardEdit : undefined}
@@ -980,8 +996,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     <div key={`${idx}-${pv.score.cp}`} onClick={() => handleCandidateClick(pv.pv || "")} className={`group p-3 rounded-xl border cursor-pointer transition-all shadow-sm ${isSelected ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500' : 'border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50'}`}>
                         <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>#${idx + 1}</span>
-                                <span className="text-base font-bold text-slate-800">${firstMoveLabel}</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>#{idx + 1}</span>
+                                <span className="text-base font-bold text-slate-800">{firstMoveLabel}</span>
                             </div>
                             <span className={`text-sm font-mono font-bold ${pv.score.type === 'mate' ? 'text-rose-600' : ((pv.score.cp ?? 0) > 0 ? 'text-emerald-600' : 'text-slate-600')}`}>
                                 {formatScoreLabel(pv.score)}
@@ -989,7 +1005,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                         </div>
                         <div className="flex items-start gap-1 text-xs text-slate-400 group-hover:text-slate-600 bg-slate-50 p-1 rounded">
                             <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" />
-                            <span className="break-words leading-tight font-mono opacity-80">${fullPvLabel || pv.pv}</span>
+                            <span className="break-words leading-tight font-mono opacity-80">{fullPvLabel || pv.pv}</span>
                         </div>
                     </div>
                 )
@@ -1010,7 +1026,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
           </div>
         </div>
       </div>
-
+      
+      {/* モーダル群は省略せず、元のコードをそのまま維持してください */}
+      {/* Dialog for Load Kifu */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-0 shadow-2xl border border-slate-200 gap-0 [&>button]:hidden">
           <DialogHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 space-y-0">
