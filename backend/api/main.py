@@ -26,13 +26,10 @@ USI_GO_TIMEOUT = 20.0
 
 app = FastAPI(title="USI Engine Gateway")
 
-_default_origins = ["http://localhost:3000", "http://localhost:3001"]
-_env_origins = os.getenv("FRONTEND_ORIGINS", "")
-_origins = [o.strip() for o in _env_origins.split(",") if o.strip()] or _default_origins
-
+# CORS設定: フロントエンドからのアクセスを許可
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=["*"],  # 開発用に全許可
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,6 +50,7 @@ class ExplainRequest(BaseModel):
     pv: str
     turn: str
     history: List[str] = []
+    user_move: Optional[str] = None
 
 class GameDigestInput(BaseModel):
     total_moves: int
@@ -67,6 +65,10 @@ class BatchAnalysisRequest(BaseModel):
     movetime_ms: Optional[int] = None
     multipv: Optional[int] = None
     time_budget_ms: Optional[int] = None
+
+class MateRequest(BaseModel):
+    sfen: str
+    timeout: int = 1000
 
 # ====== エンジン基底クラス (デバッグ機能付き) ======
 class BaseEngine:
@@ -245,6 +247,53 @@ class EngineState(BaseEngine):
                 if info:
                     yield f"data: {json.dumps({'multipv_update': info})}\n\n"
 
+    async def solve_mate(self, sfen: str, timeout_ms: int = 1000) -> Dict[str, Any]:
+        async with self.lock:
+            await self.ensure_alive()
+            if not self.proc:
+                return {"is_mate": False, "error": "Engine not available"}
+            
+            # 状態クリア
+            await self.stop_and_flush()
+            
+            # 準備
+            await self._send_line("isready")
+            await self._wait_until(lambda l: "readyok" in l, 2.0)
+            
+            # 局面設定
+            pos_cmd = sfen if sfen.startswith("position") else f"position sfen {sfen}"
+            await self._send_line(pos_cmd)
+            
+            # 詰み探索コマンド
+            print(f"[{self.name}] Solving Mate: {timeout_ms}ms")
+            await self._send_line(f"go mate {timeout_ms}")
+            
+            start_time = time.time()
+            # エンジンのタイムアウト + バッファ
+            wait_limit = (timeout_ms / 1000.0) + 2.0
+            
+            while time.time() - start_time < wait_limit:
+                line = await self._read_line(timeout=1.0)
+                if not line: continue
+                
+                if line.startswith("checkmate nomate"):
+                    return {"is_mate": False}
+                elif line.startswith("checkmate timeout"):
+                    return {"is_mate": False, "reason": "timeout"}
+                elif line.startswith("checkmate"):
+                    # checkmate <move1> <move2> ...
+                    parts = line.split()
+                    if len(parts) > 1:
+                        return {"is_mate": True, "moves": parts[1:]}
+                    else:
+                        # checkmateだけで手が来ないケースは稀だがnomate扱いかエラー
+                        return {"is_mate": True, "moves": []}
+                elif line.startswith("bestmove"):
+                    # 通常探索に落ちた場合など
+                    return {"is_mate": False, "reason": "bestmove_received"}
+            
+            return {"is_mate": False, "reason": "no_response"}
+
 # ====== バッチ用エンジン (都度起動・使い捨て) ======
 class BatchEngine(BaseEngine):
     def __init__(self):
@@ -338,6 +387,23 @@ class BatchEngine(BaseEngine):
             "multipv": sorted(cands, key=lambda x: x["multipv"]),
         }
 
+    async def analyze_sequence_stream(self, moves: List[str], time_budget_ms: Optional[int] = None):
+        if not self.proc: return
+        
+        start_time = time.time()
+        
+        for i in range(len(moves) + 1):
+            # タイムアウトガード
+            if time_budget_ms and (time.time() - start_time > time_budget_ms / 1000):
+                break 
+
+            pos = "startpos moves " + " ".join(moves[:i]) if i > 0 else "startpos"
+            
+            # 浅めの探索で高速化
+            res = await self.analyze_one(pos, depth=10, multipv=1)
+            if res["ok"]:
+                yield json.dumps({"ply": i, "result": res}) + "\n"
+
 # シングルトンインスタンス (Stream用)
 stream_engine = EngineState()
 
@@ -377,33 +443,19 @@ async def batch_endpoint(req: BatchAnalysisRequest):
     if req.usi and "moves" in req.usi:
          moves = req.usi.split("moves")[1].split()
     
-    analyses = {}
-    start_time = time.time()
-    
-    # Batch専用エンジンを起動
-    engine = BatchEngine()
-    try:
-        await engine.start()
-        
-        # 全手を解析
-        for i in range(len(moves) + 1):
-            # タイムアウトガード
-            if req.time_budget_ms and (time.time() - start_time > req.time_budget_ms / 1000):
-                break 
+    async def generator():
+        engine = BatchEngine()
+        try:
+            await engine.start()
+            async for line in engine.analyze_sequence_stream(moves, req.time_budget_ms):
+                yield line
+        except Exception as e:
+            print(f"Batch error: {e}")
+            yield json.dumps({"error": str(e)}) + "\n"
+        finally:
+            await engine.close()
 
-            pos = "startpos moves " + " ".join(moves[:i]) if i > 0 else "startpos"
-            
-            # 浅めの探索で高速化
-            res = await engine.analyze_one(pos, depth=10, multipv=1)
-            if res["ok"]:
-                analyses[i] = res
-                
-    except Exception as e:
-        print(f"Batch error: {e}")
-    finally:
-        await engine.close()
-
-    return {"analyses": analyses}
+    return StreamingResponse(generator(), media_type="application/x-ndjson")
 
 @app.get("/api/analysis/stream")
 def stream_endpoint(position: str):
@@ -411,6 +463,13 @@ def stream_endpoint(position: str):
         stream_engine.stream_analyze(AnalyzeIn(position=position, depth=15, multipv=3)),
         media_type="text/event-stream"
     )
+
+@app.post("/api/solve/mate")
+async def solve_mate_endpoint(req: MateRequest):
+    """
+    詰み探索を実行するエンドポイント
+    """
+    return await stream_engine.solve_mate(req.sfen, req.timeout)
 
 if __name__ == "__main__":
     import uvicorn
