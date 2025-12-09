@@ -1,6 +1,6 @@
 from __future__ import annotations
 import asyncio, os, re, shlex, time, json, shutil
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -206,7 +206,7 @@ class EngineState(BaseEngine):
             await self._send_line("usi")
             await self._wait_until(lambda l: "usiok" in l, USI_BOOT_TIMEOUT)
             
-            # ★修正: MultiPVを3に固定
+            # MultiPVを3に固定
             await self._send_line("setoption name MultiPV value 3")
             
             await self._send_line("setoption name Threads value 1")
@@ -263,7 +263,6 @@ class EngineState(BaseEngine):
             # コマンド送信
             print(f"[{self.name}] Analyzing: {req.position}")
             
-            # ★修正: positionコマンドの二重付与を防止
             pos_cmd = req.position if req.position.startswith("position") else f"position {req.position}"
             await self._send_line(pos_cmd)
             
@@ -333,7 +332,6 @@ class BatchEngine(BaseEngine):
             print(f"[{self.name}] Closing...")
             await self._send_line("quit")
             try:
-                # 少し待ってからkill
                 try:
                     await asyncio.wait_for(self.proc.wait(), timeout=1.0)
                 except asyncio.TimeoutError:
@@ -345,12 +343,9 @@ class BatchEngine(BaseEngine):
     async def analyze_one(self, position: str, depth: int, multipv: int) -> Dict[str, Any]:
         if not self.proc: return {"ok": False}
 
-        # バッチ処理では前の手が終わっている前提なのでstop_and_flushは不要だが
-        # 念のためisreadyで同期をとる
         await self._send_line("isready")
         await self._wait_until(lambda l: "readyok" in l, 2.0)
 
-        # ★修正: positionコマンドの二重付与を防止
         pos_cmd = position if position.startswith("position") else f"position {position}"
         await self._send_line(pos_cmd)
         
@@ -385,6 +380,29 @@ class BatchEngine(BaseEngine):
             "multipv": sorted(cands, key=lambda x: x["multipv"]),
         }
 
+    async def stream_batch_analyze(self, moves: List[str], time_budget_ms: int = None) -> AsyncGenerator[str, None]:
+        """
+        1手ずつ解析し、結果をNDJSON形式(1行ごとのJSON)でyieldするジェネレーター
+        """
+        start_time = time.time()
+        
+        # 0手目〜最後の手まで順に解析
+        for i in range(len(moves) + 1):
+            if time_budget_ms and (time.time() - start_time > time_budget_ms / 1000):
+                break 
+
+            pos_str = "startpos moves " + " ".join(moves[:i]) if i > 0 else "startpos"
+            
+            # バッチ解析は速度優先で深さを浅めに設定 (depth=10, multipv=1)
+            # 必要に応じて調整してください
+            res = await self.analyze_one(pos_str, depth=10, multipv=1)
+            
+            if res["ok"]:
+                # NDJSON形式で返す (plyと解析結果)
+                payload = json.dumps({"ply": i, "result": res})
+                yield payload + "\n"
+
+
 # シングルトンインスタンス (Stream用)
 stream_engine = EngineState()
 
@@ -397,10 +415,6 @@ def health(): return {"status": "ok"}
 
 @app.post("/analyze")
 async def analyze_endpoint(body: AnalyzeIn):
-    # 単発解析はStream用エンジンを借用する（ロック制御あり）
-    # ただしanalyzeメソッドはEngineStateに実装していないため、
-    # ここでは簡易的にBatchEngineを都度起動するか、EngineStateにanalyzeを追加する必要がある。
-    # 今回の要件ではStreamとBatchの分離が主眼なので、単発解析もBatchEngineを使うのが安全。
     engine = BatchEngine()
     try:
         await engine.start()
@@ -416,6 +430,7 @@ async def explain_endpoint(req: ExplainRequest):
 async def digest_endpoint(req: GameDigestInput):
     return {"explanation": await generate_game_digest(req)}
 
+# 既存の一括解析（互換性のため残しても良いが、今回は使用しない）
 @app.post("/api/analysis/batch")
 async def batch_endpoint(req: BatchAnalysisRequest):
     moves = req.moves or []
@@ -423,32 +438,43 @@ async def batch_endpoint(req: BatchAnalysisRequest):
          moves = req.usi.split("moves")[1].split()
     
     analyses = {}
-    start_time = time.time()
-    
-    # Batch専用エンジンを起動
     engine = BatchEngine()
     try:
         await engine.start()
-        
-        # 全手を解析
         for i in range(len(moves) + 1):
-            # タイムアウトガード
             if req.time_budget_ms and (time.time() - start_time > req.time_budget_ms / 1000):
                 break 
-
             pos = "startpos moves " + " ".join(moves[:i]) if i > 0 else "startpos"
-            
-            # 浅めの探索で高速化
             res = await engine.analyze_one(pos, depth=10, multipv=1)
             if res["ok"]:
                 analyses[i] = res
-                
     except Exception as e:
         print(f"Batch error: {e}")
     finally:
         await engine.close()
-
     return {"analyses": analyses}
+
+# ★新規: ストリーミングバッチ解析用
+@app.post("/api/analysis/batch-stream")
+async def batch_stream_endpoint(req: BatchAnalysisRequest):
+    moves = req.moves or []
+    if req.usi and "moves" in req.usi:
+         moves = req.usi.split("moves")[1].split()
+    
+    engine = BatchEngine()
+    
+    async def iter_analysis():
+        try:
+            await engine.start()
+            async for chunk in engine.stream_batch_analyze(moves, req.time_budget_ms):
+                yield chunk
+        except Exception as e:
+            print(f"Stream Error: {e}")
+            yield json.dumps({"error": str(e)}) + "\n"
+        finally:
+            await engine.close()
+
+    return StreamingResponse(iter_analysis(), media_type="application/x-ndjson")
 
 @app.get("/api/analysis/stream")
 def stream_endpoint(position: str):

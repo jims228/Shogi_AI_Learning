@@ -25,6 +25,7 @@ import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/anal
 import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
+import { useBatchAnalysis } from "@/hooks/useBatchAnalysis"; // ★Hookのインポート
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
@@ -130,21 +131,23 @@ type AnalysisTabProps = {
   orientationMode?: OrientationMode;
 };
 
-type BatchAnalysisResponsePayload = {
-  analyses?: Record<string, EngineAnalyzeResponse>;
-  results?: Record<string, EngineAnalyzeResponse>;
-  elapsed_ms?: number;
-  analyzed_plies?: number;
-};
-
 export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }: AnalysisTabProps) {
   const [currentPly, setCurrentPly] = useState(0);
   const [realtimeAnalysis, setRealtimeAnalysis] = useState<AnalysisCache>({});
-  const [batchData, setBatchData] = useState<AnalysisCache>({});
+  
+  // ★フックの使用: batchData, isBatchAnalyzingなどの管理を委譲
+  const { 
+    batchData, 
+    isBatchAnalyzing, 
+    progress: batchProgress,
+    runBatchAnalysis,
+    cancelBatchAnalysis,
+    resetBatchData 
+  } = useBatchAnalysis();
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeStreamPlyRef = useRef<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
   const [kifuText, setKifuText] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
@@ -437,16 +440,12 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   }, [handlePlyChange, maxPly, previewSequence]);
   
   const navDisabled = isEditMode;
-  // ★修正: プレビュー中はプレビューの手数で判定
   const canGoPrev = previewSequence ? previewStep > 0 : safeCurrentPly > 0;
   const canGoNext = previewSequence ? previewStep < previewSequence.length : safeCurrentPly < maxPly;
 
-  // ★追加: キーボード操作
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditMode) return;
-      // 入力フォーム等での操作を除外したい場合は e.target をチェックするが、
-      // ここでは簡易的に矢印キーのみ対応
       if (e.key === "ArrowLeft") {
         goToPrev();
       } else if (e.key === "ArrowRight") {
@@ -538,43 +537,14 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     }
   }, [batchData, totalMoves]);
 
-  const handleBatchAnalysis = useCallback(async () => {
+  // ★変更: Hookを使用したバッチ解析処理
+  const handleBatchAnalysisClick = useCallback(() => {
     if (isEditMode || isBatchAnalyzing) return;
     if (!timeline.boards.length) return;
-    const basePosition = buildUsiPositionForPly(usi, totalMoves);
-    if (!basePosition?.trim()) return;
-
-    setIsBatchAnalyzing(true);
-    stopEngineAnalysis();
     
-    try {
-      const response = await fetch(`${API_BASE}/api/analysis/batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          position: basePosition, usi: basePosition, moves: moveSequence,
-          max_ply: totalMoves, movetime_ms: 250, multipv: 3, time_budget_ms: 30000
-        }),
-      });
-      if (!response.ok) throw new Error();
-      const payload = (await response.json()) as BatchAnalysisResponsePayload;
-      const analysisMap = payload.analyses ?? payload.results;
-      if (!analysisMap) throw new Error();
-      setBatchData((prev) => {
-        const next = { ...prev } as AnalysisCache;
-        Object.entries(analysisMap).forEach(([key, value]) => {
-          const ply = Number(key);
-          if (!Number.isNaN(ply)) next[ply] = value;
-        });
-        return next;
-      });
-      showToast({ title: "全体解析完了", variant: "default" });
-    } catch {
-      showToast({ title: "解析失敗", variant: "default" });
-    } finally {
-      setIsBatchAnalyzing(false);
-    }
-  }, [isBatchAnalyzing, isEditMode, moveSequence, stopEngineAnalysis, timeline.boards.length, totalMoves, usi]);
+    // 単純な呼び出し（ロジックはHook内）
+    runBatchAnalysis(usi, totalMoves, moveSequence);
+  }, [isEditMode, isBatchAnalyzing, timeline.boards.length, runBatchAnalysis, usi, totalMoves, moveSequence]);
 
   const handleLoadKifu = useCallback(() => {
     setErrorMessage("");
@@ -600,7 +570,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       setPreviewStep(1);
   }, []);
 
-  // コンポーネントアンマウント時のクリーンアップ
   useEffect(() => {
       return () => {
           if (eventSourceRef.current) {
@@ -621,7 +590,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setPreviewSequence(null);
     setPreviewStep(0);
     stopEngineAnalysis();
-  }, [stopEngineAnalysis, usi]);
+    resetBatchData(); // ★Batchデータのリセット
+  }, [stopEngineAnalysis, usi, resetBatchData]);
 
   useEffect(() => {
     if (isEditMode) {
@@ -630,7 +600,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       setPreviewSequence(null);
       setPreviewStep(0);
     } else {
-      // 編集モード終了時も解析を停止
       setIsAnalyzing(false);
       stopEngineAnalysis();
     }
@@ -675,7 +644,24 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
           </Button>
           {!isEditMode ? (
             <>
-              <Button variant="outline" size="sm" onClick={handleBatchAnalysis} disabled={isBatchAnalyzing} className="border-slate-300 text-slate-700 h-8 text-xs">全体解析</Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleBatchAnalysisClick} 
+                disabled={isBatchAnalyzing} 
+                className="border-slate-300 text-slate-700 h-8 text-xs relative overflow-hidden"
+              >
+                {/* プログレスバー風の背景 */}
+                {isBatchAnalyzing && (
+                  <span 
+                    className="absolute left-0 top-0 bottom-0 bg-green-100 opacity-50 transition-all duration-300" 
+                    style={{ width: `${batchProgress}%` }} 
+                  />
+                )}
+                <span className="relative z-10">
+                    {isBatchAnalyzing ? `解析中 ${batchProgress}%` : "全体解析"}
+                </span>
+              </Button>
               {Object.keys(batchData).length > 5 && (
                   <Button variant="outline" size="sm" onClick={handleGenerateGameDigest} className="border-amber-400 text-amber-700 bg-amber-50 h-8 text-xs">
                       <ScrollText className="w-3 h-3 mr-1" /> レポート
@@ -703,7 +689,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-[400px]">
           <div className="flex-none rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4 relative" style={{ minHeight: "550px" }}>
             
-            {/* ナビゲーションエリアにバナーを移動 */}
             <div className="flex flex-col items-center justify-center w-full gap-2 mb-2">
                 {previewSequence && (
                     <div className="bg-amber-100 text-amber-800 px-4 py-1.5 rounded-full flex items-center gap-3 animate-in fade-in slide-in-from-top-2 mb-1 shadow-sm border border-amber-200">
@@ -734,7 +719,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                         hands={activeHands}
                         mode={boardMode}
                         lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
-                        bestmove={bestmoveCoords} /* ここがガード済み変数 */
+                        bestmove={bestmoveCoords}
                         orientationMode={orientationMode}
                         orientation={boardOrientation}
                         onBoardChange={isEditMode ? handleBoardEdit : undefined}
@@ -764,7 +749,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 {isAnalyzing && !hasCurrentAnalysis && <span className="text-[10px] text-green-600 animate-pulse ml-auto">思考中...</span>}
             </div>
             <div className="flex-1 overflow-y-auto pr-1 space-y-2">
-                {/* 矢印表示条件と同じガードを使用してリストを表示 */}
                 {(showArrow && currentAnalysis?.multipv?.length) ? currentAnalysis.multipv.map((pv, idx) => {
                     const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
                     const firstMoveUSI = pv.pv?.split(" ")[0] || "";
