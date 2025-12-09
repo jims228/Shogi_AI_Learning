@@ -1,60 +1,155 @@
 import re
 
-class ShogiUtils:
-    KANJI_NUM = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
-    PIECE_NAMES = {
-        "P": "歩", "L": "香", "N": "桂", "S": "銀", "G": "金", "B": "角", "R": "飛", "K": "玉",
-        "+P": "と", "+L": "成香", "+N": "成桂", "+S": "成銀", "+B": "馬", "+R": "龍"
-    }
+KANJI_NUM = {1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六", 7: "七", 8: "八", 9: "九"}
+PIECE_MAP = {
+    "P": "歩", "L": "香", "N": "桂", "S": "銀", "G": "金", "B": "角", "R": "飛",
+    "+P": "と", "+L": "成香", "+N": "成桂", "+S": "成銀", "+B": "馬", "+R": "龍",
+    "K": "玉", "G": "金" # Gote King is usually k, but handled by case
+}
 
-    @staticmethod
-    def format_move_label(move: str, turn: str) -> str:
-        """
-        USI符号（例: 7g7f）を日本語表記（例: ▲7六歩）に変換する
-        """
-        if not move: return ""
+def format_move_label(move: str, turn: str) -> str:
+    """
+    USI符号を簡易的な日本語表記に変換する。
+    盤面情報がないため、駒の種類は特定できない場合は座標のみ、
+    打ち手(P*2cなど)の場合は駒名を含める。
+    
+    Args:
+        move: USI符号 (例: "7g7f", "P*2c", "7g7f+")
+        turn: 手番 ("b" or "w")
+    
+    Returns:
+        日本語表記 (例: "▲7六(7g)", "△2三歩打")
+    """
+    if not move:
+        return ""
         
-        prefix = "▲" if turn == "b" else "△"
+    prefix = "▲" if turn == "b" else "△"
+    
+    # 打ち手の場合 (例: P*2c)
+    if "*" in move:
+        piece_char, dest = move.split("*")
+        file_char = dest[0]
+        rank_char = dest[1]
         
-        # 持ち駒打ち (例: P*7f)
-        if "*" in move:
-            piece_char, dest = move.split("*")
-            piece_name = ShogiUtils.PIECE_NAMES.get(piece_char, piece_char)
-            file_idx = int(dest[0])
-            rank_idx = int(dest[1])
-            return f"{prefix}{file_idx}{ShogiUtils.KANJI_NUM[rank_idx]}{piece_name}打"
+        file_num = file_char
+        rank_num = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7, "h": 8, "i": 9}.get(rank_char, 0)
+        rank_kanji = KANJI_NUM.get(rank_num, "")
         
-        # 通常の指し手 (例: 7g7f, 7g7f+)
-        src = move[:2]
-        dest = move[2:4]
-        promote = "+" in move
+        piece_name = PIECE_MAP.get(piece_char, "")
         
-        file_idx = int(dest[0])
-        rank_idx = int(dest[1])
+        return f"{prefix}{file_num}{rank_kanji}{piece_name}打"
+
+    # 通常の指し手 (例: 7g7f, 8h2b+)
+    match = re.match(r"([1-9])([a-i])([1-9])([a-i])(\+?)", move)
+    if match:
+        src_file, src_rank, dst_file, dst_rank, promote = match.groups()
         
-        # ここでは簡易的に「歩」などを決め打ちせず、文脈がないため「指し手」として返す
-        # 本来は移動元の駒種が必要だが、簡易版として座標のみ変換する
-        # プロンプトで補完させるため、最低限の座標情報を含める
+        dst_rank_num = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7, "h": 8, "i": 9}.get(dst_rank, 0)
+        dst_rank_kanji = KANJI_NUM.get(dst_rank_num, "")
         
-        return f"{prefix}{file_idx}{ShogiUtils.KANJI_NUM[rank_idx]}"
+        promote_str = "成" if promote else ""
+        
+        # 盤面情報がないので駒名は不明。座標のみ表示し、元のUSIを付記する
+        return f"{prefix}{dst_file}{dst_rank_kanji}{promote_str}({src_file}{src_rank})"
+        
+    return move
 
 class StrategyAnalyzer:
-    @staticmethod
-    def analyze_sfen(sfen: str) -> str:
-        """
-        SFEN文字列から戦型を簡易判定する
-        """
-        if not sfen: return "不明"
+    def __init__(self, sfen: str):
+        self.sfen = sfen
+        self.board = self._parse_sfen(sfen)
         
-        # 盤面部分を取得
-        board_sfen = sfen.split()[0]
-        rows = board_sfen.split("/")
-        
-        # 簡易判定ロジック (先手番の飛車の位置などで判定)
-        # 実際にはより複雑な解析が必要だが、ここではプレースホルダーとして実装
-        if "R" in rows[7] or "R" in rows[8]: # 下段に飛車がいる
-            return "居飛車"
-        elif "R" in rows[4] or "R" in rows[5]: # 中段
-            return "中飛車"
+    def _parse_sfen(self, sfen: str):
+        try:
+            # sfen ... w ...
+            if not sfen or "startpos" in sfen:
+                # 空またはstartposの場合は初期配置を返す
+                sfen = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+                
+            parts = sfen.split(" ")
+            if len(parts) < 1:
+                 # フォーマット不正の場合も初期配置
+                 sfen = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+                 parts = sfen.split(" ")
+    
+            board_str = parts[0]
+            rows = board_str.split("/")
+            if len(rows) != 9:
+                raise ValueError("Invalid board rows")
+
+            board = []
+            for row in rows:
+                current_row = []
+                for char in row:
+                    if char.isdigit():
+                        current_row.extend([""] * int(char))
+                    else:
+                        current_row.append(char)
+                if len(current_row) != 9:
+                     # 行の長さが不正な場合、補正するかエラーにする
+                     # ここでは簡易的に空文字で埋める
+                     while len(current_row) < 9: current_row.append("")
+                     current_row = current_row[:9]
+                board.append(current_row)
+            return board
+        except Exception:
+            # パース失敗時は空の盤面(9x9)を返して落ちないようにする
+            return [["" for _ in range(9)] for _ in range(9)]
+
+    def analyze(self) -> str:
+        """
+        戦型を簡易判定する
+        """
+        try:
+            if not self.board or len(self.board) != 9:
+                return "不明"
+
+            # 飛車の位置を探す (先手: R, 後手: r)
+            sente_rook_col = -1
+            gote_rook_col = -1
             
-        return "力戦"
+            for r in range(9):
+                for c in range(9):
+                    piece = self.board[r][c]
+                    if piece == "R" or piece == "+R":
+                        sente_rook_col = 9 - c # 筋は右から1, 2...
+                    elif piece == "r" or piece == "+r":
+                        gote_rook_col = 9 - c
+    
+            # 玉の位置を探す (先手: K, 後手: k)
+            sente_king_col = -1
+            gote_king_col = -1
+            
+            for r in range(9):
+                for c in range(9):
+                    piece = self.board[r][c]
+                    if piece == "K":
+                        sente_king_col = 9 - c
+                    elif piece == "k":
+                        gote_king_col = 9 - c
+    
+            sente_strategy = self._judge_rook_strategy(sente_rook_col)
+            gote_strategy = self._judge_rook_strategy(gote_rook_col)
+            
+            sente_castle = self._judge_castle(sente_king_col)
+            gote_castle = self._judge_castle(gote_king_col)
+            
+            return f"先手: {sente_strategy}（{sente_castle}） vs 後手: {gote_strategy}（{gote_castle}）"
+        except Exception:
+            return "不明"
+
+    def _judge_rook_strategy(self, col: int) -> str:
+        if col == -1: return "不明"
+        if col in [2, 8]: return "居飛車"
+        if col == 5: return "中飛車"
+        if col in [3, 4, 6, 7]: return "振り飛車"
+        return "その他"
+
+    def _judge_castle(self, col: int) -> str:
+        if col == -1: return "不明"
+        if col in [1, 9]: return "穴熊模様"
+        if col in [2, 8]: return "美濃模様"
+        if col in [3, 7]: return "矢倉模様"
+        if col in [4, 6]: return "右玉模様"
+        if col == 5: return "中住まい"
+        return "その他"
