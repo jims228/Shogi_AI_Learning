@@ -77,108 +77,95 @@ export default function LocalPlay() {
     setMoves([]); setFromSel(null); setHandSel(null); setPromote(false); setTurn("black");
   }
 
-  function rebuildFromMoves(seq: string[]) {
-    // 極簡易実装: 自前状態を初期化して、順に適用（合法性チェックしない）
-    return (
-      <div className="space-y-8">
-        <div className="rounded-2xl bg-white/85 border border-black/5 p-4 md:p-5 shadow-sm flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-xl font-bold text-[#3a2b17] flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            ローカル対局（β）
-          </h2>
-          <div className="flex flex-wrap items-center gap-3 text-slate-700">
-            <Button
-              variant="outline"
-              onClick={undo}
-              disabled={!moves.length}
-              className="border-black/20 text-slate-700 hover:bg-amber-50"
-            >
-              一手戻す
-            </Button>
-            <Button
-              variant="outline"
-              onClick={resetAll}
-              className="border-black/20 text-slate-700 hover:bg-amber-50"
-            >
-              リセット
-            </Button>
-            <label className="ml-2 text-sm inline-flex items-center gap-2 text-slate-700 cursor-pointer bg-white border border-black/10 px-3 py-2 rounded-lg hover:bg-amber-50 transition-colors">
-              <input
-                type="checkbox"
-                checked={promote}
-                onChange={(e) => setPromote(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-400 text-amber-600 focus:ring-amber-500"
-              />
-              <span>成り</span>
-            </label>
-          </div>
-        </div>
+  function undo() {
+    if (!moves.length) return;
+    // 簡易実装: 末尾を削除してリロード...はできないので、とりあえずアラート
+    alert("Undo機能は現在実装中です (状態の再構築が必要です)");
+  }
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-8">
-          <div className="rounded-2xl bg-[#fef8e6] text-[#2b2b2b] p-4 md:p-5 shadow-[0_15px_30px_rgba(0,0,0,0.08)]">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-1 text-sm border border-black/10">
-              手番: <span className="font-semibold text-[#2b2b2b]">{sideLabel}</span>
-            </div>
+  function onBoardClick(x: number, y: number) {
+    // 簡易実装: 移動ロジック
+    if (handSel) {
+      // 持ち駒を打つ
+      const move = `${handSel.piece}*${coordsToUsi(x, y)}`;
+      setMoves([...moves, move]);
+      setHands(prev => ({
+        ...prev,
+        [turn]: { ...prev[turn], [handSel.piece]: prev[turn][handSel.piece] - 1 }
+      }));
+      // 盤面に配置
+      const code = (turn === "black" ? handSel.piece : handSel.piece.toLowerCase()) as PieceCode;
+      setPieces([...pieces, { piece: code, x, y }]);
+      
+      setHandSel(null);
+      setTurn(turn === "black" ? "white" : "black");
+      return;
+    }
 
-            <div
-              className="relative p-1 rounded-xl bg-gradient-to-br from-amber-800 to-amber-900 shadow-2xl"
-              onContextMenu={(e) => e.preventDefault()}
-              onClick={(e) => {
-                const svg = (e.target as HTMLElement).closest("svg");
-                if (!svg) return;
-                const rect = (svg as SVGSVGElement).getBoundingClientRect();
-                const x = Math.floor(((e.clientX - rect.left) - 10) / 50);
-                const y = Math.floor(((e.clientY - rect.top) - 10) / 50);
-                if (x >= 0 && x < 9 && y >= 0 && y < 9) onBoardClick(x, y);
-              }}
-            >
-              <Board pieces={pieces} bestmove={boardOverlay} />
-            </div>
-          </div>
+    if (fromSel) {
+      // 盤上の駒を動かす
+      const from = fromSel;
+      const to = {x, y};
+      // 自分の駒をクリックしたら選択変更
+      const targetSelf = pieces.find(p => p.x === x && p.y === y && isBlackPiece(p.piece) === (turn === "black"));
+      if (targetSelf) {
+        setFromSel({x, y});
+        return;
+      }
 
-          <div className="space-y-6 w-full">
-            <div className="rounded-2xl bg-white/85 border border-black/5 p-4 shadow-sm">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">先手 (Black)</div>
-              <HandView side="black" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
-            </div>
+      const move = `${coordsToUsi(from.x, from.y)}${coordsToUsi(to.x, to.y)}${promote ? "+" : ""}`;
+      setMoves([...moves, move]);
+      
+      // 盤面更新
+      setPieces(prev => {
+        const next = prev.filter(p => !(p.x === from.x && p.y === from.y)); // 元の駒を削除
+        const captured = prev.find(p => p.x === x && p.y === y); // 取られる駒
+        if (captured) {
+          // 持ち駒に追加
+          const base = demotePieceBase(captured.piece);
+          if (base) {
+            setHands(h => ({
+              ...h,
+              [turn]: { ...h[turn], [base]: h[turn][base] + 1 }
+            }));
+          }
+        }
+        // 移動先の駒を追加 (簡易的に元の駒を置く。成りの処理は省略)
+        const source = prev.find(p => p.x === from.x && p.y === from.y);
+        if (source) {
+            // 成り判定
+            const isPromoted = promote; 
+            let newPiece = source.piece;
+            if (isPromoted) {
+                newPiece = (turn === "black" ? "+" + source.piece : "+" + source.piece.toLowerCase()) as PieceCode; // 簡易
+            }
+            next.push({ piece: newPiece, x, y }); // 既存の駒があれば上書き(filterで消えてるはずだがcapturedの処理が必要)
+            // capturedはnextから除外する必要がある
+            const final = next.filter(p => !(p.x === x && p.y === y));
+            final.push({ piece: newPiece, x, y });
+            return final;
+        }
+        return next;
+      });
 
-            <div className="rounded-2xl bg-white/85 border border-black/5 p-4 shadow-sm">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">後手 (White)</div>
-              <HandView side="white" hands={hands} turn={turn} handSel={handSel} onSelectHand={selectHand} />
-            </div>
+      setFromSel(null);
+      setPromote(false);
+      setTurn(turn === "black" ? "white" : "black");
+    } else {
+      // 選択
+      const p = pieces.find(p => p.x === x && p.y === y);
+      if (p && isBlackPiece(p.piece) === (turn === "black")) {
+        setFromSel({x, y});
+      }
+    }
+  }
 
-            <div className="rounded-2xl bg-white/90 border border-black/5 p-4 shadow-sm">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Game Log (USI)</div>
-              <div className="font-mono text-xs text-slate-800 bg-white border border-black/5 rounded-xl p-4 min-h-[100px] max-h-[200px] overflow-y-auto leading-relaxed break-all">
-                {moves.join(" ") || <span className="text-slate-400 italic">No moves yet...</span>}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <Button
-                  variant="secondary"
-                  onClick={callDigest}
-                  disabled={!moves.length}
-                  className="bg-[#fef1d6] hover:bg-[#fde0a2] text-[#2b2b2b] border border-black/10"
-                >
-                  10秒ダイジェスト
-                </Button>
-                <Button
-                  onClick={callAnnotate}
-                  disabled={!moves.length}
-                  className="bg-[#fde7ef] hover:bg-[#fbd1e3] text-[#2b2b2b] border border-black/10"
-                >
-                  注釈を生成
-                </Button>
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-500 text-center">
-              注意: 現状は合法手判定を厳密には行いません（β版）。
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  function selectHand(side: Side, piece: keyof Hand) {
+    if (side !== turn) return;
+    if (hands[side][piece] > 0) {
+      setHandSel({ side, piece });
+      setFromSel(null);
+    }
   }
   const boardOverlay = useMemo<BestmoveOverlay>(() => {
     if (!fromSel) return null;

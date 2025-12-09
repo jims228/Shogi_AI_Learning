@@ -195,10 +195,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     const currentUsi = buildUsiPositionForPly(usi, safeCurrentPly);
     if (!currentUsi) return null;
     
-    // プレビュー手順の結合
-    const activeMoves = previewSequence.slice(0, previewStep);
-    const fullPreviewUsi = activeMoves.length > 0 
-        ? `${currentUsi} ${activeMoves.join(" ")}`
+    // プレビュー手順を適用
+    const movesToApply = previewSequence.slice(0, previewStep);
+    const fullPreviewUsi = movesToApply.length > 0 
+        ? `${currentUsi} ${movesToApply.join(" ")}`
         : currentUsi;
 
     try {
@@ -228,9 +228,12 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const currentPlacedPieces = useMemo(() => boardToPlaced(displayedBoard), [displayedBoard]);
   const currentSideToMove = useMemo(() => {
     let side = initialTurn;
+    // 本譜の手数分反転
     if (safeCurrentPly % 2 === 1) side = flipTurn(side);
+    // プレビューの手数分反転
+    if (previewSequence && previewStep % 2 === 1) side = flipTurn(side);
     return side;
-  }, [safeCurrentPly, initialTurn]);
+  }, [safeCurrentPly, initialTurn, previewSequence, previewStep]);
 
   // 停止処理
   const stopEngineAnalysis = useCallback(() => {
@@ -285,7 +288,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       try {
         const payload = JSON.parse(event.data);
         
-        // 候補手更新 (multipv_update)
         if (payload.multipv_update) {
             setRealtimeAnalysis((prev) => {
                 const previousEntry = prev[ply] || { ok: true, multipv: [] };
@@ -294,15 +296,12 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 const newItem = payload.multipv_update;
                 if (!newItem.multipv) return prev;
 
-                // マージロジック: multipv順位で更新
                 const index = currentList.findIndex(item => item.multipv === newItem.multipv);
                 if (index !== -1) {
                     currentList[index] = newItem;
                 } else {
                     currentList.push(newItem);
                 }
-                
-                // 順位(multipv)の昇順にソート (1 -> 2 -> 3)
                 currentList.sort((a, b) => (a.multipv || 0) - (b.multipv || 0));
                 
                 return {
@@ -314,7 +313,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 };
             });
         }
-        
+
         if (payload.bestmove) {
             setRealtimeAnalysis(prev => {
                 const previousEntry = prev[ply] || { ok: true };
@@ -327,7 +326,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     }
                 };
             });
-            
             es.close();
             if (eventSourceRef.current === es) {
                 eventSourceRef.current = null;
@@ -338,7 +336,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         console.error("[Analysis] Parse error:", e);
       }
     };
-    
+
     es.onerror = () => { 
         console.debug("[Analysis] Stream closed/ended (onerror)"); 
         es.close();
@@ -351,7 +349,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const requestAnalysisForPly = useCallback((ply: number, options?: { force?: boolean }) => {
     if (options?.force) {
-      setRealtimeAnalysis({});
+        setRealtimeAnalysis({});
     }
     const command = buildUsiPositionForPly(usi, ply);
     if (command) startEngineAnalysis(command, ply);
@@ -359,12 +357,12 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   useEffect(() => {
     if (isAnalyzing && !isEditMode) {
-        const hasResult = !!realtimeAnalysis[safeCurrentPly]?.bestmove;
-        const isCurrentlyStreamingThis = activeStreamPlyRef.current === safeCurrentPly;
-        
-        if (!isCurrentlyStreamingThis && !hasResult) {
-             requestAnalysisForPly(safeCurrentPly);
-        }
+      const hasResult = !!realtimeAnalysis[safeCurrentPly]?.bestmove;
+      const isCurrentlyStreamingThis = activeStreamPlyRef.current === safeCurrentPly;
+      
+      if (!isCurrentlyStreamingThis && !hasResult) {
+        requestAnalysisForPly(safeCurrentPly);
+      }
     }
   }, [safeCurrentPly, isAnalyzing, isEditMode, requestAnalysisForPly, usi, realtimeAnalysis]);
 
@@ -406,55 +404,63 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setCurrentPly(clampIndex(nextPly, timeline.boards));
   }, [isEditMode, timeline.boards]);
 
-  // ナビゲーション操作の乗っ取り
-  const goToStart = useCallback(() => {
-      if (previewSequence) {
-          setPreviewStep(0);
-      } else {
-          handlePlyChange(0);
-      }
-  }, [handlePlyChange, previewSequence]);
-
+  // ナビゲーション制御（プレビュー対応）
   const goToPrev = useCallback(() => {
-      if (previewSequence) {
-          setPreviewStep(p => Math.max(0, p - 1));
-      } else {
-          handlePlyChange(safeCurrentPly - 1);
-      }
-  }, [handlePlyChange, safeCurrentPly, previewSequence]);
+    if (previewSequence) {
+        setPreviewStep(p => Math.max(0, p - 1));
+    } else {
+        handlePlyChange(safeCurrentPly - 1);
+    }
+  }, [previewSequence, handlePlyChange, safeCurrentPly]);
 
   const goToNext = useCallback(() => {
-      if (previewSequence) {
-          setPreviewStep(p => Math.min(previewSequence.length, p + 1));
-      } else {
-          handlePlyChange(safeCurrentPly + 1);
-      }
-  }, [handlePlyChange, safeCurrentPly, previewSequence]);
+    if (previewSequence) {
+        setPreviewStep(p => Math.min(p + 1, previewSequence.length));
+    } else {
+        handlePlyChange(safeCurrentPly + 1);
+    }
+  }, [previewSequence, handlePlyChange, safeCurrentPly]);
+
+  const goToStart = useCallback(() => {
+    if (previewSequence) {
+        setPreviewStep(0);
+    } else {
+        handlePlyChange(0);
+    }
+  }, [previewSequence, handlePlyChange]);
 
   const goToEnd = useCallback(() => {
-      if (previewSequence) {
-          setPreviewStep(previewSequence.length);
-      } else {
-          handlePlyChange(maxPly);
-      }
-  }, [handlePlyChange, maxPly, previewSequence]);
-  
+    if (previewSequence) {
+        setPreviewStep(previewSequence.length);
+    } else {
+        handlePlyChange(maxPly);
+    }
+  }, [previewSequence, handlePlyChange, maxPly]);
+
   const navDisabled = isEditMode;
   const canGoPrev = previewSequence ? previewStep > 0 : safeCurrentPly > 0;
   const canGoNext = previewSequence ? previewStep < previewSequence.length : safeCurrentPly < maxPly;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isEditMode) return;
+      if (isModalOpen || isReportModalOpen || isEditMode) return;
       if (e.key === "ArrowLeft") {
+        e.preventDefault();
         goToPrev();
       } else if (e.key === "ArrowRight") {
+        e.preventDefault();
         goToNext();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        goToStart();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        goToEnd();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isEditMode, goToPrev, goToNext]);
+  }, [goToPrev, goToNext, goToStart, goToEnd, isModalOpen, isReportModalOpen, isEditMode]);
 
   const handleStartStreamingAnalysis = useCallback(() => {
     if (isEditMode || !timeline.boards.length) return;
@@ -475,35 +481,42 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const handleGenerateExplanation = useCallback(async () => {
     const currentSfen = isEditMode 
-      ? `position ${boardToSfen(displayedBoard, activeHands, currentSideToMove)}`
-      : buildUsiPositionForPly(usi, safeCurrentPly);
+        ? `position ${boardToSfen(displayedBoard, activeHands, currentSideToMove)}`
+        : buildUsiPositionForPly(usi, safeCurrentPly);
+    
     const analysis = realtimeAnalysis[safeCurrentPly] || batchData[safeCurrentPly];
     if (!analysis || !analysis.bestmove) {
-      showToast({ title: "先に解析を行ってください", variant: "default" });
-      return;
+        showToast({ title: "先に解析を行ってください", variant: "default" });
+        return;
     }
-    const recentMoves = moveSequence.slice(Math.max(0, safeCurrentPly - 5), safeCurrentPly);
 
+    const recentMoves = moveSequence.slice(Math.max(0, safeCurrentPly - 5), safeCurrentPly);
+    
     setIsExplaining(true);
     setExplanation("");
+    
     try {
-      const res = await fetch(`${API_BASE}/api/explain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sfen: currentSfen, ply: safeCurrentPly, bestmove: analysis.bestmove,
-          score_cp: analysis.multipv?.[0]?.score.type === 'cp' ? analysis.multipv[0].score.cp : null,
-          score_mate: analysis.multipv?.[0]?.score.type === 'mate' ? analysis.multipv[0].score.mate : null,
-          pv: analysis.multipv?.[0]?.pv || "", turn: currentSideToMove, history: recentMoves 
-        }),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setExplanation(data.explanation);
+        const res = await fetch(`${API_BASE}/api/explain`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                sfen: currentSfen,
+                ply: safeCurrentPly,
+                bestmove: analysis.bestmove,
+                score_cp: analysis.multipv?.[0]?.score.type === 'cp' ? analysis.multipv[0].score.cp : null,
+                score_mate: analysis.multipv?.[0]?.score.type === 'mate' ? analysis.multipv[0].score.mate : null,
+                pv: analysis.multipv?.[0]?.pv || "",
+                turn: currentSideToMove,
+                history: recentMoves
+            }),
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setExplanation(data.explanation);
     } catch {
-      showToast({ title: "解説生成エラー", variant: "error" });
+        showToast({ title: "解説生成エラー", variant: "error" });
     } finally {
-      setIsExplaining(false);
+        setIsExplaining(false);
     }
   }, [realtimeAnalysis, batchData, safeCurrentPly, usi, isEditMode, displayedBoard, activeHands, currentSideToMove, moveSequence]);
 
@@ -513,19 +526,26 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         showToast({ title: "先に全体解析を行ってください", variant: "default" });
         return;
     }
+    
     setIsDigesting(true);
     setIsReportModalOpen(true);
     setGameDigest("");
+    
     const evalList = [];
     for (let i = 0; i <= totalMoves; i++) {
         const score = getPrimaryEvalScore(batchData[i]);
         evalList.push(score || 0);
     }
+
     try {
         const res = await fetch(`${API_BASE}/api/explain/digest`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ total_moves: totalMoves, eval_history: evalList, winner: null }),
+            body: JSON.stringify({
+                total_moves: totalMoves,
+                eval_history: evalList,
+                winner: null
+            }),
         });
         if (!res.ok) throw new Error();
         const data = await res.json();
@@ -555,29 +575,33 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       setUsi(newUsi);
       showToast({ title: "読み込みました", variant: "default" });
       setIsModalOpen(false);
-    } catch (e) { 
-        setErrorMessage(String(e)); 
-        showToast({ title: "エラー", description: String(e), variant: "error" });
+    } catch (e) {
+      setErrorMessage(String(e));
+      showToast({ title: "エラー", description: String(e), variant: "error" });
     }
   }, [kifuText, setUsi]);
 
   const handleCandidateClick = useCallback((pvStr: string) => {
-      const moves = pvStr.trim().split(/\s+/);
-      if (moves.length === 0) return;
-      
-      // プレビューモードに設定
-      setPreviewSequence(moves);
-      setPreviewStep(1);
+    const moves = pvStr.trim().split(/\s+/);
+    if (moves.length === 0) return;
+    // プレビューモードに設定
+    setPreviewSequence(moves);
+    setPreviewStep(1); // 1手目から表示
+  }, []);
+
+  const handleCancelPreview = useCallback(() => {
+    setPreviewSequence(null);
+    setPreviewStep(0);
   }, []);
 
   useEffect(() => {
-      return () => {
-          if (eventSourceRef.current) {
-              eventSourceRef.current.close();
-          }
-      };
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
   }, []);
-  
+
   // 局面(usi)が変わったら全てリセット
   useEffect(() => {
     setCurrentPly(0);
@@ -608,8 +632,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const evalSource = useMemo(() => {
     return Object.keys(batchData).length > 0 ? batchData : (isAnalyzing ? realtimeAnalysis : {});
   }, [batchData, isAnalyzing, realtimeAnalysis]);
+
   const moveImpacts = useMemo(() => buildMoveImpacts(evalSource, totalMoves, initialTurn), [evalSource, initialTurn, totalMoves]);
-  
+
   const moveListEntries = useMemo(() => {
     if (!moveSequence.length) return [];
     return moveSequence.map((move, index) => {
@@ -624,8 +649,13 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       };
     });
   }, [initialTurn, moveImpacts, moveSequence, timelinePlacedPieces, evalSource]);
-  
-  const evalPoints = useMemo(() => Array.from({ length: timeline.boards.length || totalMoves + 1 }, (_, ply) => ({ ply, cp: getPrimaryEvalScore(evalSource[ply]) })), [evalSource, timeline.boards.length, totalMoves]);
+
+  const evalPoints = useMemo(() => {
+    return Array.from({ length: timeline.boards.length || totalMoves + 1 }, (_, ply) => {
+      const score = getPrimaryEvalScore(evalSource[ply]);
+      return { ply, cp: score ?? 0 }; // nullの場合は0を入れてグラフを描画させる
+    });
+  }, [evalSource, timeline.boards.length, totalMoves]);
 
   const boardMode: BoardMode = isEditMode ? "edit" : "view";
   const topHandSide: Side = boardOrientation === "sente" ? "w" : "b";
@@ -635,13 +665,15 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     <div className="relative h-screen flex flex-col gap-4 p-4 text-[#1c1209] overflow-hidden bg-[#fbf7ef]">
       <div className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm relative z-10">
         <div className="flex items-center gap-4">
-            <div className="text-sm font-bold text-slate-700">検討モード</div>
-            <div className="text-xs text-slate-500">局面: {safeCurrentPly} / {maxPly}</div>
+          <div className="text-sm font-bold text-slate-700">検討モード</div>
+          <div className="text-xs text-slate-500">局面: {safeCurrentPly} / {maxPly}</div>
         </div>
+        
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)} className="border-slate-300 text-slate-700 h-8 text-xs cursor-pointer active:scale-95 transition-transform">
             <Upload className="w-3 h-3 mr-1" /> 棋譜読み込み
           </Button>
+          
           {!isEditMode ? (
             <>
               <Button 
@@ -663,25 +695,43 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 </span>
               </Button>
               {Object.keys(batchData).length > 5 && (
-                  <Button variant="outline" size="sm" onClick={handleGenerateGameDigest} className="border-amber-400 text-amber-700 bg-amber-50 h-8 text-xs">
-                      <ScrollText className="w-3 h-3 mr-1" /> レポート
-                  </Button>
+                <Button variant="outline" size="sm" onClick={handleGenerateGameDigest} className="border-amber-400 text-amber-700 bg-amber-50 h-8 text-xs">
+                  <ScrollText className="w-3 h-3 mr-1" /> レポート
+                </Button>
               )}
-              <Button variant="outline" size="sm" onClick={handleStartStreamingAnalysis} disabled={isAnalyzing} className="border-slate-300 text-slate-700 h-8 text-xs"><Play className="w-3 h-3 mr-1" /> 検討開始</Button>
-              <Button variant="default" size="sm" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-8 text-xs">{isExplaining ? "思考中..." : <><Sparkles className="w-3 h-3 mr-1" /> AI解説</>}</Button>
+              <Button variant="outline" size="sm" onClick={handleStartStreamingAnalysis} disabled={isAnalyzing} className="border-slate-300 text-slate-700 h-8 text-xs">
+                <Play className="w-3 h-3 mr-1" /> 検討開始
+              </Button>
+              <Button variant="default" size="sm" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-8 text-xs">
+                {isExplaining ? "思考中..." : <><Sparkles className="w-3 h-3 mr-1" /> AI解説</>}
+              </Button>
             </>
           ) : (
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleUndo} disabled={editHistory.length === 0} className="border-slate-300 text-slate-700 h-8 text-xs"><RotateCcw className="w-3 h-3 mr-1" /> 1手戻す</Button>
-                <Button variant="outline" size="sm" onClick={handleAnalyzeEditedPosition} disabled={isAnalyzing} className="border-amber-600 text-amber-700 h-8 text-xs"><Search className="w-3 h-3 mr-1" /> 現局面を解析</Button>
-                <Button variant="default" size="sm" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-8 text-xs">{isExplaining ? "思考中..." : <><Sparkles className="w-3 h-3 mr-1" /> AI解説</>}</Button>
+              <Button variant="outline" size="sm" onClick={handleUndo} disabled={editHistory.length === 0} className="border-slate-300 text-slate-700 h-8 text-xs">
+                <RotateCcw className="w-3 h-3 mr-1" /> 1手戻す
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleAnalyzeEditedPosition} disabled={isAnalyzing} className="border-amber-600 text-amber-700 h-8 text-xs">
+                <Search className="w-3 h-3 mr-1" /> 現局面を解析
+              </Button>
+              <Button variant="default" size="sm" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-8 text-xs">
+                {isExplaining ? "思考中..." : <><Sparkles className="w-3 h-3 mr-1" /> AI解説</>}
+              </Button>
             </div>
           )}
-          <Button variant="outline" size="sm" onClick={handleStopAnalysis} disabled={!isAnalyzing} className="border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-600 h-8 text-xs">停止</Button>
+          
+          <Button variant="outline" size="sm" onClick={handleStopAnalysis} disabled={!isAnalyzing} className="border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-600 h-8 text-xs">
+            停止
+          </Button>
         </div>
+
         <div className="flex flex-wrap gap-2">
-           <Button variant="outline" size="sm" onClick={() => setBoardOrientation((prev) => (prev === "sente" ? "gote" : "sente"))} className="border-slate-300 text-slate-700 h-8 text-xs">{boardOrientation === "gote" ? "後手視点" : "先手視点"}</Button>
-           <Button variant="outline" size="sm" onClick={() => setIsEditMode((prev) => !prev)} className={`${isEditMode ? "bg-amber-100 text-amber-800 border-amber-300" : "border-slate-300 text-slate-700"} h-8 text-xs`}>{isEditMode ? "編集終了" : "編集"}</Button>
+          <Button variant="outline" size="sm" onClick={() => setBoardOrientation((prev) => (prev === "sente" ? "gote" : "sente"))} className="border-slate-300 text-slate-700 h-8 text-xs">
+            {boardOrientation === "gote" ? "後手視点" : "先手視点"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setIsEditMode((prev) => !prev)} className={`${isEditMode ? "bg-amber-100 text-amber-800 border-amber-300" : "border-slate-300 text-slate-700"} h-8 text-xs`}>
+            {isEditMode ? "編集終了" : "編集"}
+          </Button>
         </div>
       </div>
 
@@ -701,13 +751,13 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                         </Button>
                     </div>
                 )}
+            </div>
 
-                <div className="flex items-center justify-center gap-4">
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToStart} disabled={navDisabled || !canGoPrev}><ChevronFirst className="w-4 h-4"/></Button>
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToPrev} disabled={navDisabled || !canGoPrev}><ChevronLeft className="w-4 h-4"/></Button>
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToNext} disabled={navDisabled || !canGoNext}><ChevronRight className="w-4 h-4"/></Button>
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToEnd} disabled={navDisabled || !canGoNext}><ChevronLast className="w-4 h-4"/></Button>
-                </div>
+            <div className="flex items-center justify-center w-full gap-4 mb-2">
+              <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToStart} disabled={navDisabled || !canGoPrev}><ChevronFirst className="w-4 h-4"/></Button>
+              <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToPrev} disabled={navDisabled || !canGoPrev}><ChevronLeft className="w-4 h-4"/></Button>
+              <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToNext} disabled={navDisabled || !canGoNext}><ChevronRight className="w-4 h-4"/></Button>
+              <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToEnd} disabled={navDisabled || !canGoNext}><ChevronLast className="w-4 h-4"/></Button>
             </div>
 
             <div className="flex items-center justify-center w-full h-full">
@@ -728,16 +778,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     </div>
                     <HandsColumn side={bottomHandSide} hands={activeHands[bottomHandSide] ?? {}} orientationMode={orientationMode} align="end" />
                 </div>
+                <HandsColumn side={bottomHandSide} hands={activeHands[bottomHandSide] ?? {}} orientationMode={orientationMode} align="end" />
+              </div>
             </div>
           </div>
+
           {explanation && (
             <div className="flex-none p-4 bg-white rounded-xl border border-purple-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
-                <div className="font-bold text-purple-700 mb-2 flex items-center gap-2 border-b border-purple-100 pb-2">
-                    <Sparkles className="w-5 h-5 fill-purple-100"/> 将棋仙人の解説
-                </div>
-                <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">
-                    {explanation}
-                </div>
+              <div className="font-bold text-purple-700 mb-2 flex items-center gap-2 border-b border-purple-100 pb-2">
+                <Sparkles className="w-5 h-5 fill-purple-100"/> 将棋仙人の解説
+              </div>
+              <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">
+                {explanation}
+              </div>
             </div>
           )}
         </div>
@@ -764,46 +817,50 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     >
                         <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>#{idx + 1}</span>
-                                <span className="text-base font-bold text-slate-800">{firstMoveLabel}</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>#${idx + 1}</span>
+                                <span className="text-base font-bold text-slate-800">${firstMoveLabel}</span>
                             </div>
-                            <span className={`text-sm font-mono font-bold ${pv.score.type === 'mate' ? 'text-rose-600' : ((pv.score.cp ?? 0) > 0 ? 'text-emerald-600' : 'text-slate-600')}`}>{formatScoreLabel(pv.score)}</span>
+                            <span className={`text-sm font-mono font-bold ${pv.score.type === 'mate' ? 'text-rose-600' : ((pv.score.cp ?? 0) > 0 ? 'text-emerald-600' : 'text-slate-600')}`}>
+                                {formatScoreLabel(pv.score)}
+                            </span>
                         </div>
                         <div className="flex items-start gap-1 text-xs text-slate-400 group-hover:text-slate-600 bg-slate-50 p-1 rounded">
                             <ArrowRight className="w-3 h-3 mt-0.5 shrink-0" />
-                            <span className="break-words leading-tight font-mono opacity-80">{fullPvLabel || pv.pv}</span>
+                            <span className="break-words leading-tight font-mono opacity-80">${fullPvLabel || pv.pv}</span>
                         </div>
                     </div>
-                )}) : (
-                    <div className="h-40 flex items-center justify-center text-slate-400 text-xs border-2 border-dashed border-slate-100 rounded-xl">
-                        {isAnalyzing ? "解析中..." : "解析データなし"}
-                    </div>
-                )}
-            </div>
+                )
+            }) : (
+                <div className="h-40 flex items-center justify-center text-slate-400 text-xs border-2 border-dashed border-slate-100 rounded-xl">
+                    {isAnalyzing ? "解析中..." : "解析データなし"}
+                </div>
+            )}
+          </div>
         </div>
 
         <div className="w-[320px] flex-none flex flex-col gap-4 h-full overflow-hidden pl-1">
-            <div className="flex-1 min-h-0 shadow-md border border-slate-300 rounded-xl overflow-hidden bg-white">
-                <MoveListPanel entries={moveListEntries} activePly={safeCurrentPly} onSelectPly={handlePlyChange} className="h-full border-0 rounded-none" />
-            </div>
-            <div className="h-[180px] shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-                <EvalGraph data={evalPoints} currentPly={safeCurrentPly} onPlyClick={handlePlyChange} />
-            </div>
+          <div className="flex-1 min-h-0 shadow-md border border-slate-300 rounded-xl overflow-hidden bg-white">
+            <MoveListPanel entries={moveListEntries} activePly={safeCurrentPly} onSelectPly={handlePlyChange} className="h-full border-0 rounded-none" />
+          </div>
+          <div className="h-[180px] shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+            <EvalGraph data={evalPoints} currentPly={safeCurrentPly} onPlyClick={handlePlyChange} />
+          </div>
         </div>
       </div>
+
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-0 shadow-2xl border border-slate-200 gap-0 [&>button]:hidden">
           <DialogHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 space-y-0">
             <div className="flex flex-col gap-0.5 text-left">
-                <DialogTitle className="flex items-center gap-2 text-slate-700 text-base font-bold">
+              <DialogTitle className="flex items-center gap-2 text-slate-700 text-base font-bold">
                 <FileText className="w-4 h-4 text-slate-500" /> 棋譜読み込み
-                </DialogTitle>
-                <DialogDescription className="text-slate-500 text-xs">
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 text-xs">
                 KIF, CSA, USI形式、またはSFEN
-                </DialogDescription>
+              </DialogDescription>
             </div>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full" onClick={() => setIsModalOpen(false)}>
-                <X className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </Button>
           </DialogHeader>
           <div className="p-4 flex flex-col gap-4 bg-white">
@@ -820,20 +877,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
             )}
           </div>
           <DialogFooter className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-4 py-3 sm:justify-end">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)} className="text-slate-600 border-slate-300 bg-white hover:bg-slate-50">
-              キャンセル
-            </Button>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} className="text-slate-600 border-slate-300 bg-white hover:bg-slate-50">キャンセル</Button>
             <Button onClick={handleLoadKifu} className="bg-slate-800 hover:bg-slate-700 text-white shadow-sm">
               <Upload className="w-4 h-4 mr-2" /> 読み込む
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={isReportModalOpen} onOpenChange={setIsReportModalOpen}>
         <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-0 shadow-2xl border border-slate-200 gap-0">
           <DialogHeader className="border-b border-purple-100 bg-purple-50 px-6 py-4">
             <DialogTitle className="flex items-center gap-2 text-purple-800 text-lg font-bold">
-                <ScrollText className="w-5 h-5" /> 対局総評レポート
+              <ScrollText className="w-5 h-5" /> 対局総評レポート
             </DialogTitle>
           </DialogHeader>
           <div className="p-6 max-h-[60vh] overflow-y-auto">

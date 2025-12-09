@@ -5,8 +5,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-import google.generativeai as genai
 from dotenv import load_dotenv
+
+# AIサービスをインポート
+from backend.api.services.ai_service import AIService
 
 load_dotenv()
 
@@ -21,10 +23,6 @@ print(f"[Config] Work Dir:   {ENGINE_WORK_DIR}")
 
 USI_BOOT_TIMEOUT = 10.0
 USI_GO_TIMEOUT = 20.0
-
-GENAI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if GENAI_API_KEY:
-    genai.configure(api_key=GENAI_API_KEY)
 
 app = FastAPI(title="USI Engine Gateway")
 
@@ -69,51 +67,6 @@ class BatchAnalysisRequest(BaseModel):
     movetime_ms: Optional[int] = None
     multipv: Optional[int] = None
     time_budget_ms: Optional[int] = None
-
-class ExplanationInput(BaseModel):
-    sfen: str
-    ply: int
-    bestmove: str
-    score_cp: Optional[int] = None
-    score_mate: Optional[int] = None
-    pv: str
-    turn: str
-    history: List[str] = []
-
-# ====== AI生成ロジック ======
-async def generate_shogi_explanation(data: ExplanationInput) -> str:
-    if not GENAI_API_KEY: return "APIキー未設定"
-    phase = "序盤" if data.ply < 24 else "終盤" if data.ply > 100 else "中盤"
-    perspective = "先手" if data.turn == "b" else "後手"
-    score_desc = "互角"
-    if data.score_mate: score_desc = "詰みあり"
-    elif data.score_cp is not None:
-        sc = data.score_cp
-        if abs(sc) > 800: score_desc = "優勢" if sc > 0 else "劣勢"
-    history_str = " -> ".join(data.history[-5:]) if data.history else "初手"
-    prompt = f"""
-    あなたは将棋のプロ解説者です。以下の局面を**{perspective}視点**で解説してください。
-    USI符号は使わず「▲7六歩」等の日本語表記にしてください。
-    局面: {data.ply}手目, 形勢:{score_desc}({data.score_cp}), 推奨:{data.bestmove}
-    出力: 【局面ダイジェスト】【この一手】【Q&A】
-    """
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"生成エラー: {e}"
-
-async def generate_game_digest(data: GameDigestInput) -> str:
-    if not GENAI_API_KEY: return "APIキー未設定"
-    eval_summary = [f"{i}手:{v}" for i, v in enumerate(data.eval_history) if i % 20 == 0]
-    prompt = f"将棋の観戦記として、この対局の総評を400文字で書いてください。\n評価値推移: {', '.join(eval_summary)}"
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"生成エラー: {e}"
 
 # ====== エンジン基底クラス (デバッグ機能付き) ======
 class BaseEngine:
@@ -424,11 +377,13 @@ async def analyze_endpoint(body: AnalyzeIn):
 
 @app.post("/api/explain")
 async def explain_endpoint(req: ExplainRequest):
-    return {"explanation": await generate_shogi_explanation(ExplanationInput(**req.dict()))}
+    # サービス層に委譲
+    return {"explanation": await AIService.generate_shogi_explanation(req.dict())}
 
 @app.post("/api/explain/digest")
 async def digest_endpoint(req: GameDigestInput):
-    return {"explanation": await generate_game_digest(req)}
+    # サービス層に委譲
+    return {"explanation": await AIService.generate_game_digest(req.dict())}
 
 # 既存の一括解析（互換性のため残しても良いが、今回は使用しない）
 @app.post("/api/analysis/batch")
