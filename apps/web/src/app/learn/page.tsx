@@ -2,7 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { Bell, UserCircle, Map, Trophy, ArrowRight } from "lucide-react";
+import { Bell, UserCircle, Map, Trophy, ArrowRight, Calendar, History } from "lucide-react";
+import { showToast } from "@/components/ui/toast";
 
 export default function LearnMenuPage() {
   return (
@@ -54,9 +55,9 @@ export default function LearnMenuPage() {
             </Link>
 
             {/* Tsume Shogi Card */}
-            <Link href="/learn/tsume" className="group relative">
+            <div className="group relative cursor-default">
               <div className="absolute inset-0 bg-indigo-200/20 rounded-3xl transform transition-transform group-hover:scale-105 group-hover:-rotate-1"></div>
-              <div className="relative h-full bg-white rounded-3xl border border-black/5 shadow-xl p-8 flex flex-col items-center text-center transition-transform group-hover:-translate-y-1">
+              <div className="relative h-full bg-white rounded-3xl border border-black/5 shadow-xl p-8 flex flex-col items-center text-center transition-transform group-hover:-translate-y-1 overflow-hidden">
                 <div className="w-20 h-20 rounded-2xl bg-indigo-100 flex items-center justify-center mb-6 group-hover:bg-indigo-200 transition-colors">
                   <Trophy className="w-10 h-10 text-indigo-700" />
                 </div>
@@ -64,11 +65,25 @@ export default function LearnMenuPage() {
                 <p className="text-slate-600 mb-8 flex-grow">
                   詰将棋を解いて終盤力を鍛えましょう。日替わり問題やランク別問題に挑戦できます。
                 </p>
-                <div className="flex items-center text-indigo-700 font-bold group-hover:gap-2 transition-all">
+                <div className="flex items-center text-indigo-700 font-bold group-hover:opacity-0 transition-opacity duration-300">
                   トレーニング開始 <ArrowRight className="w-5 h-5 ml-1" />
                 </div>
+
+                {/* Overlay Options - 修正箇所: 背景色を濃くし、文字を白くして視認性を向上 */}
+                <div className="absolute inset-0 z-10 bg-indigo-900/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none group-hover:pointer-events-auto p-6 rounded-3xl">
+                    <h3 className="font-bold text-lg text-white mb-2 tracking-wide">モード選択</h3>
+                    
+                    <Link href="/learn/tsume" className="w-full py-3 px-4 bg-white text-indigo-700 rounded-xl font-bold shadow-lg hover:bg-indigo-50 hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
+                        <Calendar className="w-5 h-5" /> 毎日詰め将棋
+                    </Link>
+                    
+                    <button onClick={() => showToast({ title: "準備中", description: "過去の戦歴からの出題機能は現在開発中です。", variant: "default" })} className="w-full py-3 px-4 bg-transparent border-2 border-white/40 text-white rounded-xl font-bold hover:bg-white/10 hover:border-white transition-all flex items-center justify-center gap-2">
+                        <History className="w-5 h-5" /> 過去の戦歴から
+                    </button>
+                </div>
+                
               </div>
-            </Link>
+            </div>
           </div>
         </div>
       </main>
