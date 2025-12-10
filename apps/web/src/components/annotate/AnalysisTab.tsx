@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ShogiBoard, type BoardMode } from "@/components/ShogiBoard";
+import { ShogiBoard, type BoardMode, type SelectedHand } from "@/components/ShogiBoard";
 import { PieceSprite, type OrientationMode } from "@/components/PieceSprite";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,10 +22,11 @@ import { formatUsiMoveJapanese, usiMoveToCoords, type PieceBase, type PieceCode 
 import { buildUsiPositionForPly } from "@/lib/usi";
 import type { EngineAnalyzeResponse, EngineMultipvItem } from "@/lib/annotateHook";
 import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/analysisUtils";
-import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye } from "lucide-react";
+import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye, ArrowLeft } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
 import { useBatchAnalysis } from "@/hooks/useBatchAnalysis";
+import { useRouter } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
@@ -35,15 +36,30 @@ const formatHandLabel = (base: PieceBase): string => {
     switch (base) { case "P": return "歩"; case "L": return "香"; case "N": return "桂"; case "S": return "銀"; case "G": return "金"; case "B": return "角"; case "R": return "飛"; case "K": return "玉"; default: return base; } 
 };
 
-type HandsColumnProps = { side: Side; hands: Partial<Record<PieceBase, number>>; orientationMode: OrientationMode; align?: "start" | "end"; };
-const HandsColumn: React.FC<HandsColumnProps> = ({ side, hands, orientationMode, align = "start" }) => {
+type HandsColumnProps = { 
+    side: Side; 
+    hands: Partial<Record<PieceBase, number>>; 
+    orientationMode: OrientationMode; 
+    align?: "start" | "end";
+    isEditMode?: boolean;
+    selectedHand?: SelectedHand;
+    onHandClick?: (base: PieceBase, side: Side) => void;
+};
+
+const HandsColumn: React.FC<HandsColumnProps> = ({ side, hands, orientationMode, align = "start", isEditMode, selectedHand, onHandClick }) => {
   const owner = side === "b" ? "sente" : "gote";
   const entries = HAND_DISPLAY_ORDER.map((base) => {
     const count = hands?.[base];
     if (!count) return null;
     const piece = (side === "b" ? base : base.toLowerCase()) as PieceCode;
+    const isSelected = selectedHand && selectedHand.base === base && selectedHand.side === side;
+    
     return (
-      <div key={`${side}-${base}`} className="flex items-center gap-2 text-sm text-[#2b1c10]">
+      <div 
+        key={`${side}-${base}`} 
+        className={`flex items-center gap-2 text-sm text-[#2b1c10] transition-all rounded-md p-1 ${isEditMode ? "cursor-pointer hover:bg-amber-100" : ""} ${isSelected ? "bg-amber-200 ring-2 ring-amber-400" : ""}`}
+        onClick={() => isEditMode && onHandClick?.(base, side)}
+      >
         <div className="relative h-10 w-10">
           <PieceSprite piece={piece} x={0} y={0} size={34} cellSize={40} orientationMode={orientationMode} owner={owner} />
           {count > 1 && <span className="absolute -top-1 -right-1 rounded-full bg-white/90 px-1 text-xs font-semibold text-[#2b1c10]">x{count}</span>}
@@ -151,6 +167,7 @@ type AnalysisTabProps = {
 };
 
 export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }: AnalysisTabProps) {
+  const router = useRouter();
   const [currentPly, setCurrentPly] = useState(0);
   const [realtimeAnalysis, setRealtimeAnalysis] = useState<AnalysisCache>({});
   
@@ -172,6 +189,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [errorMessage, setErrorMessage] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
   const [boardOrientation, setBoardOrientation] = useState<"sente" | "gote">("sente");
+  const [selectedHand, setSelectedHand] = useState<SelectedHand>(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -412,6 +430,15 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setHandsOverrides((prev) => ({ ...prev, [safeCurrentPly]: next }));
     if (isAnalyzing) { stopEngineAnalysis(); }
   }, [isEditMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
+
+  const handleHandClick = useCallback((base: PieceBase, side: Side) => {
+    if (!isEditMode) return;
+    if (selectedHand && selectedHand.base === base && selectedHand.side === side) {
+        setSelectedHand(null);
+    } else {
+        setSelectedHand({ base, side });
+    }
+  }, [isEditMode, selectedHand]);
 
   // ★修正: 手数を変更したときの処理
   const handlePlyChange = useCallback((nextPly: number) => {
@@ -709,11 +736,61 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const topHandSide: Side = boardOrientation === "sente" ? "w" : "b";
   const bottomHandSide: Side = boardOrientation === "sente" ? "b" : "w";
 
+  // 盤面スケーリング用のRefとState
+  const boardContainerRef = useRef<HTMLDivElement>(null);
+  const [boardScale, setBoardScale] = useState(1);
+  const [layoutMode, setLayoutMode] = useState<"horizontal" | "vertical">("horizontal");
+
+  useEffect(() => {
+    const updateScale = () => {
+        if (!boardContainerRef.current) return;
+        const { clientWidth, clientHeight } = boardContainerRef.current;
+        
+        const availableWidth = clientWidth - 32;
+        const availableHeight = clientHeight - 32;
+
+        // Horizontal Layout Specs
+        const H_WIDTH = 740;
+        const H_HEIGHT = 530;
+        const scaleH = Math.min(availableWidth / H_WIDTH, availableHeight / H_HEIGHT);
+
+        // Vertical Layout Specs
+        // Board width ~476 + margins ~24 = 500
+        // Height: Board 476 + Hands (60*2) + Gaps ~ 650
+        const V_WIDTH = 500;
+        const V_HEIGHT = 650;
+        const scaleV = Math.min(availableWidth / V_WIDTH, availableHeight / V_HEIGHT);
+
+        // Decide layout
+        // If vertical scale is significantly better (e.g. > 10% larger) or horizontal is too small
+        if (scaleV > scaleH * 1.1) {
+             setLayoutMode("vertical");
+             setBoardScale(scaleV);
+        } else {
+             setLayoutMode("horizontal");
+             setBoardScale(scaleH);
+        }
+    };
+
+    // 初回実行
+    updateScale();
+
+    // ResizeObserverで監視
+    const observer = new ResizeObserver(updateScale);
+    if (boardContainerRef.current) {
+        observer.observe(boardContainerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="relative h-screen flex flex-col gap-4 p-4 text-[#1c1209] overflow-hidden bg-[#fbf7ef]">
       <div className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm relative z-10">
         <div className="flex items-center gap-4">
-            <div className="text-sm font-bold text-slate-700">検討モード</div>
+            <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full">
+                <ArrowLeft className="w-5 h-5" />
+            </Button>
             <div className="text-xs text-slate-500">局面: {safeCurrentPly} / {maxPly}</div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -763,10 +840,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       </div>
 
       <div className="flex-1 flex flex-row gap-4 min-h-0 overflow-hidden relative z-0">
-        <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-[400px]">
-          <div className="flex-none rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4 relative" style={{ minHeight: "550px" }}>
+        <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0">
+          <div ref={boardContainerRef} className="flex-1 rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4 relative min-h-0 overflow-hidden">
             
-            <div className="flex flex-col items-center justify-center w-full gap-2 mb-2">
+            <div className="flex flex-col items-center justify-center w-full gap-2 mb-2 absolute top-4 left-0 right-0 z-20 pointer-events-none [&>*]:pointer-events-auto">
                 {previewSequence && (
                     <div className="bg-amber-100 text-amber-800 px-4 py-1.5 rounded-full flex items-center gap-3 animate-in fade-in slide-in-from-top-2 mb-1 shadow-sm border border-amber-200">
                         <div className="flex items-center gap-1.5 font-bold text-sm">
@@ -780,40 +857,86 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 )}
 
                 <div className="flex items-center justify-center gap-4">
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToStart} disabled={navDisabled || !canGoPrev}><ChevronFirst className="w-4 h-4"/></Button>
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToPrev} disabled={navDisabled || !canGoPrev}><ChevronLeft className="w-4 h-4"/></Button>
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToNext} disabled={navDisabled || !canGoNext}><ChevronRight className="w-4 h-4"/></Button>
-                    <Button variant="outline" size="icon" className="w-8 h-8" onClick={goToEnd} disabled={navDisabled || !canGoNext}><ChevronLast className="w-4 h-4"/></Button>
+                    <Button variant="outline" size="icon" className="w-8 h-8 bg-white/80 backdrop-blur-sm" onClick={goToStart} disabled={navDisabled || !canGoPrev}><ChevronFirst className="w-4 h-4"/></Button>
+                    <Button variant="outline" size="icon" className="w-8 h-8 bg-white/80 backdrop-blur-sm" onClick={goToPrev} disabled={navDisabled || !canGoPrev}><ChevronLeft className="w-4 h-4"/></Button>
+                    <Button variant="outline" size="icon" className="w-8 h-8 bg-white/80 backdrop-blur-sm" onClick={goToNext} disabled={navDisabled || !canGoNext}><ChevronRight className="w-4 h-4"/></Button>
+                    <Button variant="outline" size="icon" className="w-8 h-8 bg-white/80 backdrop-blur-sm" onClick={goToEnd} disabled={navDisabled || !canGoNext}><ChevronLast className="w-4 h-4"/></Button>
                 </div>
             </div>
 
-            <div className="flex items-center justify-center w-full h-full">
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4">
-                    <HandsColumn side={topHandSide} hands={activeHands[topHandSide] ?? {}} orientationMode={orientationMode} align="start" />
-                    <div className={`flex justify-center shadow-lg rounded-lg overflow-hidden border-4 transition-colors duration-300 ${previewSequence ? 'border-amber-500' : 'border-[#5d4037]'}`}>
-                        <ShogiBoard
-                        board={displayedBoard}
-                        hands={activeHands}
-                        mode={boardMode}
-                        lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
-                        bestmove={bestmoveCoords}
-                        orientationMode={orientationMode}
-                        orientation={boardOrientation}
-                        onBoardChange={isEditMode ? handleBoardEdit : undefined}
-                        onHandsChange={isEditMode ? handleHandsEdit : undefined}
-                        />
-                    </div>
-                    <HandsColumn side={bottomHandSide} hands={activeHands[bottomHandSide] ?? {}} orientationMode={orientationMode} align="end" />
+            <div className="flex-1 w-full h-full flex items-center justify-center">
+                <div style={{ transform: `scale(${boardScale})`, transformOrigin: "center center", transition: "transform 0.1s ease-out" }}>
+                    {layoutMode === "horizontal" ? (
+                        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4 pt-12">
+                            <HandsColumn 
+                                side={topHandSide} 
+                                hands={activeHands[topHandSide] ?? {}} 
+                                orientationMode={orientationMode} 
+                                align="start" 
+                                isEditMode={isEditMode}
+                                selectedHand={selectedHand}
+                                onHandClick={handleHandClick}
+                            />
+                            <div className={`flex justify-center shadow-lg rounded-lg overflow-hidden border-4 transition-colors duration-300 ${previewSequence ? 'border-amber-500' : 'border-[#5d4037]'}`}>
+                                <ShogiBoard
+                                board={displayedBoard}
+                                hands={activeHands}
+                                mode={boardMode}
+                                lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
+                                bestmove={bestmoveCoords}
+                                orientationMode={orientationMode}
+                                orientation={boardOrientation}
+                                onBoardChange={isEditMode ? handleBoardEdit : undefined}
+                                onHandsChange={isEditMode ? handleHandsEdit : undefined}
+                                showHands={false}
+                                selectedHand={selectedHand}
+                                onHandClick={handleHandClick}
+                                onSelectedHandChange={setSelectedHand}
+                                />
+                            </div>
+                            <HandsColumn 
+                                side={bottomHandSide} 
+                                hands={activeHands[bottomHandSide] ?? {}} 
+                                orientationMode={orientationMode} 
+                                align="end" 
+                                isEditMode={isEditMode}
+                                selectedHand={selectedHand}
+                                onHandClick={handleHandClick}
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center pt-4">
+                            <div className={`flex justify-center shadow-lg rounded-lg overflow-hidden border-4 transition-colors duration-300 ${previewSequence ? 'border-amber-500' : 'border-[#5d4037]'}`}>
+                                <ShogiBoard
+                                board={displayedBoard}
+                                hands={activeHands}
+                                mode={boardMode}
+                                lastMove={isEditMode ? undefined : lastMoveCoords ?? undefined}
+                                bestmove={bestmoveCoords}
+                                orientationMode={orientationMode}
+                                orientation={boardOrientation}
+                                onBoardChange={isEditMode ? handleBoardEdit : undefined}
+                                onHandsChange={isEditMode ? handleHandsEdit : undefined}
+                                showHands={true}
+                                selectedHand={selectedHand}
+                                onHandClick={handleHandClick}
+                                onSelectedHandChange={setSelectedHand}
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
           </div>
-          {explanation && (
-            <div className="flex-none p-4 bg-white rounded-xl border border-purple-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
-                <div className="font-bold text-purple-700 mb-2 flex items-center gap-2 border-b border-purple-100 pb-2">
-                    <Sparkles className="w-5 h-5 fill-purple-100"/> 将棋仙人の解説
+          
+          {/* レポート表示エリア (盤面の下) */}
+          {gameDigest && (
+            <div className="flex-none p-4 bg-white rounded-xl border border-amber-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 max-h-[300px] overflow-y-auto">
+                <div className="font-bold text-amber-700 mb-2 flex items-center gap-2 border-b border-amber-100 pb-2 sticky top-0 bg-white z-10">
+                    <ScrollText className="w-5 h-5 text-amber-600"/> 対局総評レポート
                 </div>
                 <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-sm">
-                    {explanation}
+                    {gameDigest}
                 </div>
             </div>
           )}
@@ -825,7 +948,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 AI解析 (候補手)
                 {isAnalyzing && !hasCurrentAnalysis && <span className="text-[10px] text-green-600 animate-pulse ml-auto">思考中...</span>}
             </div>
-            <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 min-h-[200px]">
                 {(showArrow && currentAnalysis?.multipv?.length) ? currentAnalysis.multipv.map((pv: EngineMultipvItem, idx: number) => {
                     const currentUsi = getSubsetUSI(usi, safeCurrentPly);
                     const firstMoveUSI = pv.pv?.split(" ")[0] || "";
@@ -857,6 +980,18 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     </div>
                 )}
             </div>
+            
+            {/* AI解説エリア (候補手の下) */}
+            {explanation && (
+                <div className="flex-none p-3 bg-white rounded-xl border border-purple-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 max-h-[40%] overflow-y-auto">
+                    <div className="font-bold text-purple-700 mb-2 flex items-center gap-2 border-b border-purple-100 pb-2 sticky top-0 bg-white z-10">
+                        <Sparkles className="w-4 h-4 fill-purple-100"/> 将棋仙人の解説
+                    </div>
+                    <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-xs">
+                        {explanation}
+                    </div>
+                </div>
+            )}
         </div>
 
         <div className="w-[320px] flex-none flex flex-col gap-4 h-full overflow-hidden pl-1">

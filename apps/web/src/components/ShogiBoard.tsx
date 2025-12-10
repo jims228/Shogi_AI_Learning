@@ -30,21 +30,25 @@ export interface ShogiBoardProps {
   hands?: HandsState;
   autoPromote?: boolean;
   showPromotionZone?: boolean;
+  showHands?: boolean;
+  selectedHand?: SelectedHand;
+  onHandClick?: (base: PieceBase, side: "b" | "w") => void;
+  onSelectedHandChange?: (hand: SelectedHand) => void;
 }
 
 const CELL_SIZE = 50;
-const PIECE_SIZE = 44;
+const PIECE_SIZE = 49;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
 const HAND_CELL_SIZE = 40;
-const HAND_PIECE_SIZE = 34;
+const HAND_PIECE_SIZE = 39;
 const HOSHI_POINTS = [
   { file: 2, rank: 2 }, { file: 5, rank: 2 }, { file: 8, rank: 2 },
   { file: 2, rank: 5 }, { file: 5, rank: 5 }, { file: 8, rank: 5 },
   { file: 2, rank: 8 }, { file: 5, rank: 8 }, { file: 8, rank: 8 },
 ];
 
-type Square = { x: number; y: number };
-type SelectedHand = { base: PieceBase; side: "b" | "w" } | null;
+export type Square = { x: number; y: number };
+export type SelectedHand = { base: PieceBase; side: "b" | "w" } | null;
 type PendingMove = {
     sourceSquare: Square;
     targetSquare: Square;
@@ -74,6 +78,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   hands,
   autoPromote = false, 
   showPromotionZone = false, 
+  showHands = true,
+  selectedHand: propSelectedHand,
+  onSelectedHandChange,
 }) => {
   const boardSize = CELL_SIZE * 9;
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
@@ -81,7 +88,17 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   const touchTapRef = useRef<{ square: Square; timestamp: number } | null>(null);
   
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
-  const [selectedHand, setSelectedHand] = useState<SelectedHand>(null);
+  const [internalSelectedHand, setInternalSelectedHand] = useState<SelectedHand>(null);
+  
+  const selectedHand = propSelectedHand !== undefined ? propSelectedHand : internalSelectedHand;
+
+  const updateSelectedHand = useCallback((newHand: SelectedHand) => {
+      if (propSelectedHand !== undefined) {
+          onSelectedHandChange?.(newHand);
+      } else {
+          setInternalSelectedHand(newHand);
+      }
+  }, [propSelectedHand, onSelectedHandChange]);
   
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
@@ -92,10 +109,10 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   useEffect(() => {
     if (!canEdit) {
       setSelectedSquare(null);
-      setSelectedHand(null);
+      updateSelectedHand(null);
       setPendingMove(null);
     }
-  }, [canEdit]);
+  }, [canEdit, updateSelectedHand]);
 
   const getDisplayPos = useCallback((x: number, y: number) => {
     return isGoteView ? { x: 8 - x, y: 8 - y } : { x, y };
@@ -140,12 +157,12 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   const handleHandClick = useCallback((base: PieceBase, side: "b" | "w") => {
     if (!canEdit) return;
     if (selectedHand && selectedHand.base === base && selectedHand.side === side) {
-      setSelectedHand(null);
+      updateSelectedHand(null);
     } else {
-      setSelectedHand({ base, side });
+      updateSelectedHand({ base, side });
       setSelectedSquare(null);
     }
-  }, [canEdit, selectedHand]);
+  }, [canEdit, selectedHand, updateSelectedHand]);
 
   const executeMove = useCallback((source: Square, target: Square, pieceCode: PieceCode, isDrop: boolean) => {
       if (!onBoardChange) return;
@@ -186,9 +203,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       onMove?.({ from: isDrop ? undefined : source, to: target, piece: pieceCode, drop: isDrop });
       
       setSelectedSquare(null);
-      setSelectedHand(null);
+      updateSelectedHand(null);
       setPendingMove(null);
-  }, [board, hands, onBoardChange, onHandsChange, onMove, selectedHand, playPieceSound]);
+  }, [board, hands, onBoardChange, onHandsChange, onMove, selectedHand, playPieceSound, updateSelectedHand]);
 
 
   const attemptAction = useCallback(
@@ -260,9 +277,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       playPieceSound();
 
       setSelectedSquare(null);
-      setSelectedHand(null);
+      updateSelectedHand(null);
     },
-    [board, canEdit, onBoardChange, playPieceSound],
+    [board, canEdit, onBoardChange, playPieceSound, updateSelectedHand],
   );
 
   const handleEditSquareClick = useCallback(
@@ -273,12 +290,12 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       const pieceAtTarget = board[square.y]?.[square.x];
       if (pieceAtTarget) {
         setSelectedSquare({ ...square });
-        setSelectedHand(null);
+        updateSelectedHand(null);
       } else {
         setSelectedSquare(null);
       }
     },
-    [attemptAction, board, onBoardChange],
+    [attemptAction, board, onBoardChange, updateSelectedHand],
   );
 
   const handleBoardClick = useCallback(
@@ -463,7 +480,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     </div>
   );
 
-  if (!hands) return boardWithLabels;
+  if (!hands || !showHands) return boardWithLabels;
 
   const topHandSide = viewerOrientation === "sente" ? "w" : "b";
   const bottomHandSide = viewerOrientation === "sente" ? "b" : "w";
