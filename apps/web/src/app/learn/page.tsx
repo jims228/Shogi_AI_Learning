@@ -28,10 +28,10 @@ export default function LearnMenuPage() {
         <div className="mx-auto max-w-4xl px-4 md:px-8">
           <div className="text-center mb-12">
             <h1 className="text-3xl md:text-4xl font-bold text-[#3a2b17] mb-4">
-              Choose Your Path
+              学習コースを選択
             </h1>
             <p className="text-slate-600 text-lg">
-              Select a training mode to improve your Shogi skills.
+              将棋のスキルを向上させるためのトレーニングモードを選んでください。
             </p>
           </div>
 
@@ -43,12 +43,12 @@ export default function LearnMenuPage() {
                 <div className="w-20 h-20 rounded-2xl bg-amber-100 flex items-center justify-center mb-6 group-hover:bg-amber-200 transition-colors">
                   <Map className="w-10 h-10 text-amber-700" />
                 </div>
-                <h2 className="text-2xl font-bold text-[#3a2b17] mb-3">Roadmap</h2>
+                <h2 className="text-2xl font-bold text-[#3a2b17] mb-3">ロードマップ</h2>
                 <p className="text-slate-600 mb-8 flex-grow">
-                  Follow the structured path from beginner to advanced. Learn piece moves, basic strategies, and game flow.
+                  初心者から上級者まで、体系的に学びます。駒の動かし方、基本的な戦法、対局の流れを習得しましょう。
                 </p>
                 <div className="flex items-center text-amber-700 font-bold group-hover:gap-2 transition-all">
-                  Start Journey <ArrowRight className="w-5 h-5 ml-1" />
+                  学習を始める <ArrowRight className="w-5 h-5 ml-1" />
                 </div>
               </div>
             </Link>
@@ -60,12 +60,12 @@ export default function LearnMenuPage() {
                 <div className="w-20 h-20 rounded-2xl bg-indigo-100 flex items-center justify-center mb-6 group-hover:bg-indigo-200 transition-colors">
                   <Trophy className="w-10 h-10 text-indigo-700" />
                 </div>
-                <h2 className="text-2xl font-bold text-[#3a2b17] mb-3">Tsume Shogi</h2>
+                <h2 className="text-2xl font-bold text-[#3a2b17] mb-3">詰将棋</h2>
                 <p className="text-slate-600 mb-8 flex-grow">
-                  Solve checkmate puzzles to sharpen your endgame skills. Daily challenges and ranked puzzles.
+                  詰将棋を解いて終盤力を鍛えましょう。日替わり問題やランク別問題に挑戦できます。
                 </p>
                 <div className="flex items-center text-indigo-700 font-bold group-hover:gap-2 transition-all">
-                  Start Training <ArrowRight className="w-5 h-5 ml-1" />
+                  トレーニング開始 <ArrowRight className="w-5 h-5 ml-1" />
                 </div>
               </div>
             </Link>
