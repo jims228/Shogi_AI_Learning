@@ -156,7 +156,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   
   const { 
     batchData, 
+    setBatchData,
     isBatchAnalyzing, 
+    setIsBatchAnalyzing,
     progress: batchProgress,
     runBatchAnalysis, 
     cancelBatchAnalysis,
@@ -559,11 +561,74 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     }
   }, [batchData, totalMoves]);
 
-  const handleBatchAnalysisClick = useCallback(() => {
+  const handleBatchAnalysisClick = useCallback(async () => {
     if (isEditMode || isBatchAnalyzing) return;
     if (!timeline.boards.length) return;
-    runBatchAnalysis(usi, totalMoves, moveSequence);
-  }, [isEditMode, isBatchAnalyzing, timeline.boards.length, runBatchAnalysis, usi, totalMoves, moveSequence]);
+    
+    const basePosition = buildUsiPositionForPly(usi, totalMoves);
+    if (!basePosition?.trim()) return;
+
+    setIsBatchAnalyzing(true); 
+    // setBatchData({}); // 最初にグラフをクリア
+    resetBatchData(); // フックの関数を使用
+    stopEngineAnalysis(); // ストリーム解析などを止める
+
+    try {
+      const response = await fetch(`${API_BASE}/api/analysis/batch`, { // batch-streamではなくbatchでOK
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          position: basePosition,
+          usi: basePosition,
+          moves: moveSequence,
+          max_ply: totalMoves,
+          movetime_ms: 250,
+          multipv: 1, // グラフ用は1で高速化
+          time_budget_ms: 180000
+        }),
+      });
+
+      if (!response.ok) throw new Error();
+      if (!response.body) throw new Error("No body");
+
+      // ★ここからストリーミング読み込み
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        // 最後の行は不完全かもしれないのでバッファに残す
+        buffer = lines.pop() || ""; 
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+                const data = JSON.parse(line);
+                if (data.error) {
+                    console.error("Batch error:", data.error);
+                    continue;
+                }
+                // ★ニョキニョキポイント：データが来るたびにStateを更新
+                if (typeof data.ply === 'number' && data.result) {
+                    setBatchData(prev => ({ ...prev, [data.ply]: data.result }));
+                }
+            } catch (e) {
+                console.error("JSON parse error", e);
+            }
+        }
+      }
+      showToast({ title: "全体解析完了", variant: "default" });
+    } catch {
+      showToast({ title: "解析失敗", variant: "default" });
+    } finally {
+      setIsBatchAnalyzing(false);
+    }
+  }, [isEditMode, isBatchAnalyzing, timeline.boards.length, usi, totalMoves, moveSequence, stopEngineAnalysis, resetBatchData, setBatchData, setIsBatchAnalyzing]);
 
   const handleLoadKifu = useCallback(() => {
     setErrorMessage("");
@@ -632,7 +697,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       return {
         ply: ply,
         label: formatUsiMoveJapanese(move, timelinePlacedPieces[index] ?? [], index % 2 === 0 ? initialTurn : flipTurn(initialTurn)),
-        diff: moveImpacts[index]?.diff ?? null,
+        diff: moveImpacts[ply]?.diff ?? null,
         score: score
       };
     });

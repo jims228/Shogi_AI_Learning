@@ -6,7 +6,9 @@ const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
 type UseBatchAnalysisReturn = {
   batchData: AnalysisCache;
+  setBatchData: React.Dispatch<React.SetStateAction<AnalysisCache>>;
   isBatchAnalyzing: boolean;
+  setIsBatchAnalyzing: React.Dispatch<React.SetStateAction<boolean>>;
   progress: number; // 0 to 100
   runBatchAnalysis: (usi: string, totalMoves: number, moveSequence: string[]) => Promise<void>;
   cancelBatchAnalysis: () => void;
@@ -112,7 +114,9 @@ export const useBatchAnalysis = (): UseBatchAnalysisReturn => {
 
   return {
     batchData,
+    setBatchData,
     isBatchAnalyzing,
+    setIsBatchAnalyzing,
     progress,
     runBatchAnalysis,
     cancelBatchAnalysis,

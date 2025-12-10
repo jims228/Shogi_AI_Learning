@@ -7,19 +7,21 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# AIサービスをインポート
 from backend.api.services.ai_service import AIService
 
 load_dotenv()
 
 # ====== 設定 ======
-# エンジンのパス (固定)
 USI_CMD = "/usr/local/bin/yaneuraou"
-# 作業ディレクトリ (固定: 評価関数がある場所)
 ENGINE_WORK_DIR = "/usr/local/bin"
+EVAL_DIR = "/usr/local/bin/eval"
+
+# 評価値のマイルド係数
+SCORE_SCALE = 0.7 
 
 print(f"[Config] Engine Path: {USI_CMD}")
 print(f"[Config] Work Dir:   {ENGINE_WORK_DIR}")
+print(f"[Config] Eval Dir:   {EVAL_DIR}")
 
 USI_BOOT_TIMEOUT = 10.0
 USI_GO_TIMEOUT = 20.0
@@ -38,11 +40,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ====== データモデル ======
 class AnalyzeIn(BaseModel):
     position: str
     depth: int = 15
-    multipv: int = 3
+    multipv: int = 3 # デフォルト3
 
 class ExplainRequest(BaseModel):
     sfen: str
@@ -53,6 +54,7 @@ class ExplainRequest(BaseModel):
     pv: str
     turn: str
     history: List[str] = []
+    user_move: Optional[str] = None
 
 class GameDigestInput(BaseModel):
     total_moves: int
@@ -68,7 +70,10 @@ class BatchAnalysisRequest(BaseModel):
     multipv: Optional[int] = None
     time_budget_ms: Optional[int] = None
 
-# ====== エンジン基底クラス (デバッグ機能付き) ======
+class TsumePlayRequest(BaseModel):
+    sfen: str
+
+# ====== エンジン基底クラス ======
 class BaseEngine:
     def __init__(self, name="Engine"):
         self.proc: Optional[asyncio.subprocess.Process] = None
@@ -77,7 +82,7 @@ class BaseEngine:
     async def _send_line(self, s: str):
         if self.proc and self.proc.stdin:
             try:
-                print(f"[{self.name}] >>> {s}") # Debug Log
+                # print(f"[{self.name}] >>> {s}") # ログ抑制
                 self.proc.stdin.write((s + "\n").encode())
                 await self.proc.stdin.drain()
             except Exception as e:
@@ -89,8 +94,9 @@ class BaseEngine:
             line_bytes = await asyncio.wait_for(self.proc.stdout.readline(), timeout=timeout)
             if not line_bytes: return None
             line = line_bytes.decode(errors="ignore").strip()
-            if line:
-                print(f"[{self.name}] <<< {line}") # Debug Log
+            # ログは必要な時だけ
+            if line and (line.startswith("bestmove") or line.startswith("checkmate")):
+                 print(f"[{self.name}] <<< {line}")
             return line
         except asyncio.TimeoutError:
             return None
@@ -107,7 +113,7 @@ class BaseEngine:
                 data = await self.proc.stderr.read()
                 if data:
                     msg = data.decode(errors='ignore').strip()
-                    print(f"[{self.name}] [CRASH LOG] {msg}")
+                    print(f"[{self.name}] [STDERR] {msg}")
             except Exception:
                 pass
 
@@ -115,125 +121,135 @@ class BaseEngine:
         if "score" not in line or "pv" not in line: return None
         try:
             data = {"multipv": 1}
-            # multipv
             mp = re.search(r'multipv\s+(\d+)', line)
             if mp: data["multipv"] = int(mp.group(1))
 
-            # score (cp or mate)
             sc = re.search(r'score\s+(cp|mate)\s+(?:lowerbound\s+|upperbound\s+)?([\+\-]?\d+)', line)
             if sc:
                 kind = sc.group(1)
                 val = int(sc.group(2))
+                
+                # 評価値のマイルド化 (ここで行う)
+                if kind == "cp":
+                    val = int(val * SCORE_SCALE)
+                
                 data["score"] = {"type": kind, "cp" if kind == "cp" else "mate": val}
             else:
                 return None
 
-            # pv
             pv = re.search(r' pv\s+(.*)', line)
             if pv: data["pv"] = pv.group(1).strip()
-            
             return data
         except:
             return None
 
-# ====== ストリーミング用エンジン (常駐・シングルトン) ======
+# ====== ヘルパー関数: 手番判定 ======
+def is_gote_turn(position_cmd: str) -> bool:
+    """
+    positionコマンドから、現在の手番が後手(w)かどうかを判定する
+    """
+    # パターン1: "position startpos moves ..."
+    if "startpos" in position_cmd:
+        if "moves" not in position_cmd:
+            return False # movesがない＝初期局面＝先手
+        moves_part = position_cmd.split("moves")[1].strip()
+        if not moves_part: return False
+        moves = moves_part.split()
+        return len(moves) % 2 != 0 # 奇数手目なら後手番
+
+    # パターン2: "position sfen ..."
+    if "sfen" in position_cmd:
+        parts = position_cmd.split()
+        try:
+            # sfen <board> <color> ...
+            sfen_index = parts.index("sfen")
+            turn = parts[sfen_index + 2] # +1は盤面、+2が手番
+            return turn == 'w'
+        except:
+            return False
+            
+    return False
+
+# ====== ストリーミング用エンジン (検討モード用・常駐) ======
 class EngineState(BaseEngine):
-    def __init__(self):
-        super().__init__(name="StreamEngine")
+    def __init__(self, name="StreamEngine"):
+        super().__init__(name=name)
         self.lock = asyncio.Lock()
 
     async def ensure_alive(self):
-        if self.proc and self.proc.returncode is None:
-            return
-        
+        if self.proc and self.proc.returncode is None: return
         print(f"[{self.name}] Starting: {USI_CMD}")
         try:
             self.proc = await asyncio.create_subprocess_exec(
-                *shlex.split(USI_CMD),
+                USI_CMD, 
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE, # Captured for debug
-                cwd=ENGINE_WORK_DIR
+                stderr=asyncio.subprocess.PIPE,
+                cwd=ENGINE_WORK_DIR 
             )
-            
             await self._send_line("usi")
             await self._wait_until(lambda l: "usiok" in l, USI_BOOT_TIMEOUT)
             
-            # MultiPVを3に固定
-            await self._send_line("setoption name MultiPV value 3")
-            
             await self._send_line("setoption name Threads value 1")
-            await self._send_line("setoption name USI_Hash value 128")
+            await self._send_line("setoption name USI_Hash value 64")
+            if os.path.exists(EVAL_DIR):
+                await self._send_line(f"setoption name EvalDir value {EVAL_DIR}")
             await self._send_line("setoption name OwnBook value false")
+            
+            # ★修正: 検討モード用に MultiPV 3 をデフォルト設定
+            await self._send_line("setoption name MultiPV value 3")
             
             await self._send_line("isready")
             await self._wait_until(lambda l: "readyok" in l, USI_BOOT_TIMEOUT)
+            
             await self._send_line("usinewgame")
+            await self._send_line("isready")
+            await self._wait_until(lambda l: "readyok" in l, 5.0)
             
             print(f"[{self.name}] Ready")
         except Exception as e:
             print(f"[{self.name}] Start Failed: {e}")
             await self._log_stderr()
-            if self.proc:
-                try: self.proc.kill()
-                except: pass
             self.proc = None
 
     async def stop_and_flush(self):
-        """
-        stopコマンドを送り、bestmoveが来るかタイムアウト(1.0s)するまで出力を読み捨てる。
-        """
         if not self.proc: return
-        
-        print(f"[{self.name}] Stop & Flush Start")
         await self._send_line("stop")
-        
-        end_time = time.time() + 1.0
+        end_time = time.time() + 0.5
         while time.time() < end_time:
-            line = await self._read_line(timeout=0.2)
-            if not line:
-                continue
+            line = await self._read_line(timeout=0.1)
+            if not line: continue
             if line.startswith("bestmove"):
-                print(f"[{self.name}] Stop & Flush: Found bestmove")
                 return
-        print(f"[{self.name}] Stop & Flush: Timeout (No bestmove found)")
 
     async def stream_analyze(self, req: AnalyzeIn):
         async with self.lock:
             await self.ensure_alive()
             if not self.proc:
-                print(f"[{self.name}] Engine not available")
                 yield f"data: {json.dumps({'error': 'Engine not available'})}\n\n"
                 return
             
-            # 解析前に必ず停止＆フラッシュ
             await self.stop_and_flush()
             
-            # 準備確認
             await self._send_line("isready")
             await self._wait_until(lambda l: "readyok" in l, 2.0)
-            
-            # コマンド送信
-            print(f"[{self.name}] Analyzing: {req.position}")
             
             pos_cmd = req.position if req.position.startswith("position") else f"position {req.position}"
             await self._send_line(pos_cmd)
             
+            # ★手番判定: ギザギザ防止のため、後手番かどうかを判定
+            is_gote = is_gote_turn(pos_cmd)
+            
+            # multipv 3 (リクエストに従う)
             await self._send_line(f"go depth {req.depth} multipv {req.multipv}")
             
             while True:
                 line = await self._read_line(timeout=2.0)
-                
                 if line is None:
                     yield ": keepalive\n\n"
-                    if self.proc and self.proc.returncode is not None:
-                        print(f"[{self.name}] Process Died! ReturnCode: {self.proc.returncode}")
-                        await self._log_stderr()
-                        break
+                    if self.proc and self.proc.returncode is not None: break
                     continue
-
                 if not line: break
-
                 if line.startswith("bestmove"):
                     parts = line.split()
                     if len(parts) > 1:
@@ -242,194 +258,208 @@ class EngineState(BaseEngine):
                 
                 info = self.parse_usi_info(line)
                 if info:
+                    # ★修正: 検討モードでも評価値を反転させる（ギザギザ防止）
+                    if is_gote and "score" in info:
+                        s = info["score"]
+                        if s["type"] == "cp":
+                            s["cp"] = -s["cp"]
+                        elif s["type"] == "mate":
+                            s["mate"] = -s["mate"]
+
                     yield f"data: {json.dumps({'multipv_update': info})}\n\n"
 
-# ====== バッチ用エンジン (都度起動・使い捨て) ======
-class BatchEngine(BaseEngine):
+    async def solve_tsume_hand(self, sfen: str) -> Dict[str, Any]:
+        async with self.lock:
+            await self.ensure_alive()
+            if not self.proc: return {"status": "error", "message": "Engine not started"}
+            
+            is_idle = False
+            try:
+                await self._send_line("isready")
+                await self._wait_until(lambda l: "readyok" in l, 0.1)
+                is_idle = True
+            except asyncio.TimeoutError:
+                is_idle = False
+            
+            if not is_idle:
+                await self.stop_and_flush()
+                await self._send_line("isready")
+                await self._wait_until(lambda l: "readyok" in l, 2.0)
+            
+            sfen_cmd = sfen if sfen.startswith("sfen") else f"sfen {sfen}"
+            cmd = f"position {sfen_cmd}"
+            await self._send_line(cmd)
+            
+            await self._send_line("go nodes 2000")
+            
+            bestmove = None
+            mate_found = False
+            start_time = time.time()
+            
+            while time.time() - start_time < 5.0:
+                line = await self._read_line(timeout=1.0)
+                if not line:
+                    if self.proc.returncode is not None:
+                        self.proc = None
+                        return {"status": "error", "message": "Engine crashed"}
+                    continue
+                
+                line_str = line 
+                
+                if "score mate -" in line_str:
+                    mate_found = True
+                elif "score mate +" in line_str:
+                    mate_found = False
+
+                if line_str.startswith("bestmove"):
+                    parts = line_str.split()
+                    if len(parts) > 1:
+                        bestmove = parts[1]
+                    break
+            
+            if not bestmove:
+                await self.stop_and_flush()
+                return {"status": "error", "message": "Timeout"}
+            
+            print(f"[{self.name}] Escape: {bestmove}, Mate: {mate_found}")
+            
+            if bestmove == "resign":
+                return {"status": "win", "bestmove": "resign", "message": "正解！詰みました！"}
+            elif bestmove == "win":
+                return {"status": "lose", "bestmove": "win", "message": "不正解：入玉されてしまいました"}
+            else:
+                if mate_found:
+                    return {"status": "continue", "bestmove": bestmove, "message": "正解！"}
+                else:
+                    return {"status": "incorrect", "bestmove": bestmove, "message": "その手では詰みません"}
+
+# ====== バッチ用エンジン (常駐化対応) ======
+class BatchEngineState(EngineState):
     def __init__(self):
         super().__init__(name="BatchEngine")
 
-    async def start(self):
-        print(f"[{self.name}] Starting: {USI_CMD}")
-        try:
-            self.proc = await asyncio.create_subprocess_exec(
-                *shlex.split(USI_CMD),
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=ENGINE_WORK_DIR
-            )
-            
-            await self._send_line("usi")
-            await self._wait_until(lambda l: "usiok" in l, USI_BOOT_TIMEOUT)
-            
-            await self._send_line("setoption name Threads value 1")
-            await self._send_line("setoption name USI_Hash value 128")
-            await self._send_line("setoption name OwnBook value false")
-            
-            await self._send_line("isready")
-            await self._wait_until(lambda l: "readyok" in l, USI_BOOT_TIMEOUT)
-            await self._send_line("usinewgame")
-            
-            print(f"[{self.name}] Ready")
-        except Exception as e:
-            print(f"[{self.name}] Start Failed: {e}")
-            if self.proc:
-                try: self.proc.kill()
-                except: pass
-            self.proc = None
-            raise e
-
-    async def close(self):
-        if self.proc:
-            print(f"[{self.name}] Closing...")
-            await self._send_line("quit")
-            try:
-                try:
-                    await asyncio.wait_for(self.proc.wait(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    self.proc.kill()
-            except:
-                pass
-            self.proc = None
-
-    async def analyze_one(self, position: str, depth: int, multipv: int) -> Dict[str, Any]:
+    # 高速解析コマンド (全体解析専用)
+    async def fast_analyze_one(self, position_cmd: str) -> Dict[str, Any]:
         if not self.proc: return {"ok": False}
-
-        await self._send_line("isready")
-        await self._wait_until(lambda l: "readyok" in l, 2.0)
-
-        pos_cmd = position if position.startswith("position") else f"position {position}"
-        await self._send_line(pos_cmd)
         
-        await self._send_line(f"go depth {depth} multipv {multipv}")
+        await self._send_line(position_cmd)
+        
+        # 全体解析は multipv 1 で高速化
+        await self._send_line(f"go nodes 150000 multipv 1")
         
         bestmove = None
-        cands = []
-        end_time = time.time() + USI_GO_TIMEOUT
+        cands_map = {}
+        end_time = time.time() + 10.0 
 
         while time.time() < end_time:
             line = await self._read_line(timeout=0.5)
             if not line: continue
             
+            if "score" in line and "pv" in line:
+                info = self.parse_usi_info(line)
+                if info and "multipv" in info:
+                    cands_map[info["multipv"]] = info
+
             if line.startswith("bestmove"):
                 parts = line.split()
                 if len(parts) > 1: bestmove = parts[1]
                 break
-            
-            info = self.parse_usi_info(line)
-            if info:
-                exists = False
-                for i, c in enumerate(cands):
-                    if c["multipv"] == info["multipv"]:
-                        cands[i] = info
-                        exists = True
-                        break
-                if not exists: cands.append(info)
+        
+        sorted_cands = sorted(cands_map.values(), key=lambda x: x["multipv"])
 
         return {
             "ok": bestmove is not None,
             "bestmove": bestmove,
-            "multipv": sorted(cands, key=lambda x: x["multipv"]),
+            "multipv": sorted_cands,
         }
-
+    
     async def stream_batch_analyze(self, moves: List[str], time_budget_ms: int = None) -> AsyncGenerator[str, None]:
-        """
-        1手ずつ解析し、結果をNDJSON形式(1行ごとのJSON)でyieldするジェネレーター
-        """
-        start_time = time.time()
-        
-        # 0手目〜最後の手まで順に解析
-        for i in range(len(moves) + 1):
-            if time_budget_ms and (time.time() - start_time > time_budget_ms / 1000):
-                break 
+        async with self.lock:
+            await self.ensure_alive()
+            await self.stop_and_flush()
 
-            pos_str = "startpos moves " + " ".join(moves[:i]) if i > 0 else "startpos"
+            yield json.dumps({"status": "start"}) + (" " * 4096) + "\n"
             
-            # バッチ解析は速度優先で深さを浅めに設定 (depth=10, multipv=1)
-            # 必要に応じて調整してください
-            res = await self.analyze_one(pos_str, depth=10, multipv=1)
+            start_time = time.time()
             
-            if res["ok"]:
-                # NDJSON形式で返す (plyと解析結果)
-                payload = json.dumps({"ply": i, "result": res})
-                yield payload + "\n"
+            for i in range(len(moves) + 1):
+                if time_budget_ms and (time.time() - start_time > time_budget_ms / 1000):
+                    print(f"[{self.name}] Time budget exceeded at ply {i}")
+                    break 
+                
+                pos_str = "startpos moves " + " ".join(moves[:i]) if i > 0 else "startpos"
+                pos_cmd = f"position {pos_str}"
+                
+                res = await self.fast_analyze_one(pos_cmd)
+                
+                if res["ok"]:
+                    # 反転ロジック (全体解析用)
+                    if i % 2 != 0:
+                        for item in res["multipv"]:
+                            if "score" in item:
+                                s = item["score"]
+                                if s["type"] == "cp":
+                                    s["cp"] = -s["cp"]
+                                elif s["type"] == "mate":
+                                    s["mate"] = -s["mate"]
 
+                    json_str = json.dumps({"ply": i, "result": res})
+                    yield json_str + (" " * 4096) + "\n"
+                    
+                    await asyncio.sleep(0)
+                else:
+                    print(f"[{self.name}] Analysis failed at ply {i}")
 
-# シングルトンインスタンス (Stream用)
-stream_engine = EngineState()
+# ★インスタンス作成
+stream_engine = EngineState(name="StreamEngine")
+batch_engine = BatchEngineState() 
 
-# ====== エンドポイント ======
+@app.on_event("startup")
+async def startup_event():
+    print("[App] Startup: Launching engines...")
+    await asyncio.gather(
+        stream_engine.ensure_alive(),
+        batch_engine.ensure_alive()
+    )
+    print("[App] Startup: Engines ready!")
+
 @app.get("/")
 def root(): return {"message": "engine ok"}
 
 @app.get("/health")
 def health(): return {"status": "ok"}
 
-@app.post("/analyze")
-async def analyze_endpoint(body: AnalyzeIn):
-    engine = BatchEngine()
-    try:
-        await engine.start()
-        return await engine.analyze_one(body.position, body.depth, body.multipv)
-    finally:
-        await engine.close()
-
 @app.post("/api/explain")
 async def explain_endpoint(req: ExplainRequest):
-    # サービス層に委譲
     return {"explanation": await AIService.generate_shogi_explanation(req.dict())}
 
 @app.post("/api/explain/digest")
 async def digest_endpoint(req: GameDigestInput):
-    # サービス層に委譲
     return {"explanation": await AIService.generate_game_digest(req.dict())}
 
-# 既存の一括解析（互換性のため残しても良いが、今回は使用しない）
+@app.post("/api/tsume/play")
+async def tsume_play_endpoint(req: TsumePlayRequest):
+    return await stream_engine.solve_tsume_hand(req.sfen)
+
 @app.post("/api/analysis/batch")
 async def batch_endpoint(req: BatchAnalysisRequest):
     moves = req.moves or []
     if req.usi and "moves" in req.usi:
          moves = req.usi.split("moves")[1].split()
     
-    analyses = {}
-    engine = BatchEngine()
-    try:
-        await engine.start()
-        for i in range(len(moves) + 1):
-            if req.time_budget_ms and (time.time() - start_time > req.time_budget_ms / 1000):
-                break 
-            pos = "startpos moves " + " ".join(moves[:i]) if i > 0 else "startpos"
-            res = await engine.analyze_one(pos, depth=10, multipv=1)
-            if res["ok"]:
-                analyses[i] = res
-    except Exception as e:
-        print(f"Batch error: {e}")
-    finally:
-        await engine.close()
-    return {"analyses": analyses}
+    async def generator():
+        try:
+            async for line in batch_engine.stream_batch_analyze(moves, req.time_budget_ms):
+                yield line
+        except Exception as e:
+            print(f"Batch error: {e}")
+            yield json.dumps({"error": str(e)}) + "\n"
 
-# ★新規: ストリーミングバッチ解析用
+    return StreamingResponse(generator(), media_type="application/x-ndjson")
+
 @app.post("/api/analysis/batch-stream")
 async def batch_stream_endpoint(req: BatchAnalysisRequest):
-    moves = req.moves or []
-    if req.usi and "moves" in req.usi:
-         moves = req.usi.split("moves")[1].split()
-    
-    engine = BatchEngine()
-    
-    async def iter_analysis():
-        try:
-            await engine.start()
-            async for chunk in engine.stream_batch_analyze(moves, req.time_budget_ms):
-                yield chunk
-        except Exception as e:
-            print(f"Stream Error: {e}")
-            yield json.dumps({"error": str(e)}) + "\n"
-        finally:
-            await engine.close()
-
-    return StreamingResponse(iter_analysis(), media_type="application/x-ndjson")
+    return await batch_endpoint(req)
 
 @app.get("/api/analysis/stream")
 def stream_endpoint(position: str):

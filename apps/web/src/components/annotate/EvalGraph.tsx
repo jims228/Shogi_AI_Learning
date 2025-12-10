@@ -28,8 +28,8 @@ export default function EvalGraph({ data, currentPly, onPlyClick }: EvalGraphPro
     return data.map((d) => {
       if (d.cp === null) return { ply: d.ply, score: 50, rawCp: 0 };
 
-      // 視点補正
-      const senteCp = d.cp * (d.ply % 2 !== 0 ? -1 : 1);
+      // 視点補正 (バックエンドで補正済みなのでそのまま使う)
+      const senteCp = d.cp;
       
       // 勝率変換 & 極端な値の丸め
       let winRate = toWinRate(senteCp) * 100;
