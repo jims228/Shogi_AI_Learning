@@ -22,7 +22,7 @@ import { formatUsiMoveJapanese, usiMoveToCoords, type PieceBase, type PieceCode 
 import { buildUsiPositionForPly } from "@/lib/usi";
 import type { EngineAnalyzeResponse, EngineMultipvItem } from "@/lib/annotateHook";
 import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/analysisUtils";
-import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye, ArrowLeft } from "lucide-react";
+import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye, ArrowLeft, Pencil, ArrowLeftRight } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
 import { useBatchAnalysis } from "@/hooks/useBatchAnalysis";
@@ -786,25 +786,24 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   return (
     <div className="relative h-screen flex flex-col gap-4 p-4 text-[#1c1209] overflow-hidden bg-[#fbf7ef]">
-      <div className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm relative z-10">
+      <div className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm relative z-10">
         <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="h-8 w-8 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full">
+            <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="h-9 w-9 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full">
                 <ArrowLeft className="w-5 h-5" />
             </Button>
-            <div className="text-xs text-slate-500">局面: {safeCurrentPly} / {maxPly}</div>
+            <div className="text-sm text-slate-500 font-medium">局面: {safeCurrentPly} / {maxPly}</div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)} className="border-slate-300 text-slate-700 h-8 text-xs cursor-pointer active:scale-95 transition-transform">
-            <Upload className="w-3 h-3 mr-1" /> 棋譜読み込み
+          <Button variant="outline" onClick={() => setIsModalOpen(true)} className="border-slate-300 text-slate-700 h-9 text-sm cursor-pointer active:scale-95 transition-transform px-3">
+            <Upload className="w-4 h-4 mr-2" /> 棋譜読み込み
           </Button>
           {!isEditMode ? (
             <>
               <Button 
                 variant="outline" 
-                size="sm" 
                 onClick={handleBatchAnalysisClick} 
                 disabled={isBatchAnalyzing} 
-                className="border-slate-300 text-slate-700 h-8 text-xs relative overflow-hidden"
+                className="border-slate-300 text-slate-700 h-9 text-sm relative overflow-hidden px-3"
               >
                 {isBatchAnalyzing && (
                   <span 
@@ -817,25 +816,25 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 </span>
               </Button>
               {Object.keys(batchData).length > 5 && (
-                  <Button variant="outline" size="sm" onClick={handleGenerateGameDigest} className="border-amber-400 text-amber-700 bg-amber-50 h-8 text-xs">
-                      <ScrollText className="w-3 h-3 mr-1" /> レポート
+                  <Button variant="outline" onClick={handleGenerateGameDigest} className="border-amber-400 text-amber-700 bg-amber-50 h-9 text-sm px-3">
+                      <ScrollText className="w-4 h-4 mr-2" /> レポート
                   </Button>
               )}
-              <Button variant="outline" size="sm" onClick={handleStartStreamingAnalysis} disabled={isAnalyzing} className="border-slate-300 text-slate-700 h-8 text-xs"><Play className="w-3 h-3 mr-1" /> 検討開始</Button>
-              <Button variant="default" size="sm" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-8 text-xs">{isExplaining ? "思考中..." : <><Sparkles className="w-3 h-3 mr-1" /> AI解説</>}</Button>
+              <Button variant="outline" onClick={handleStartStreamingAnalysis} disabled={isAnalyzing} className="border-slate-300 text-slate-700 h-9 text-sm px-3"><Play className="w-4 h-4 mr-2" /> 検討開始</Button>
+              <Button variant="default" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-9 text-sm px-3 shadow-sm hover:shadow-md transition-all">{isExplaining ? "思考中..." : <><Sparkles className="w-4 h-4 mr-2" /> AI解説</>}</Button>
             </>
           ) : (
             <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleUndo} disabled={editHistory.length === 0} className="border-slate-300 text-slate-700 h-8 text-xs"><RotateCcw className="w-3 h-3 mr-1" /> 1手戻す</Button>
-                <Button variant="outline" size="sm" onClick={handleAnalyzeEditedPosition} disabled={isAnalyzing} className="border-amber-600 text-amber-700 h-8 text-xs"><Search className="w-3 h-3 mr-1" /> 現局面を解析</Button>
-                <Button variant="default" size="sm" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-8 text-xs">{isExplaining ? "思考中..." : <><Sparkles className="w-3 h-3 mr-1" /> AI解説</>}</Button>
+                <Button variant="outline" onClick={handleUndo} disabled={editHistory.length === 0} className="border-slate-300 text-slate-700 h-9 text-sm px-3"><RotateCcw className="w-4 h-4 mr-2" /> 1手戻す</Button>
+                <Button variant="outline" onClick={handleAnalyzeEditedPosition} disabled={isAnalyzing} className="border-amber-600 text-amber-700 h-9 text-sm px-3"><Search className="w-4 h-4 mr-2" /> 現局面を解析</Button>
+                <Button variant="default" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-9 text-sm px-3 shadow-sm hover:shadow-md transition-all">{isExplaining ? "思考中..." : <><Sparkles className="w-4 h-4 mr-2" /> AI解説</>}</Button>
             </div>
           )}
-          <Button variant="outline" size="sm" onClick={handleStopAnalysis} disabled={!isAnalyzing} className="border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-600 h-8 text-xs">停止</Button>
+          <Button variant="outline" onClick={handleStopAnalysis} disabled={!isAnalyzing} className="border-slate-300 text-slate-700 hover:bg-red-50 hover:text-red-600 h-9 text-sm px-3">停止</Button>
         </div>
         <div className="flex flex-wrap gap-2">
-           <Button variant="outline" size="sm" onClick={() => setBoardOrientation((prev) => (prev === "sente" ? "gote" : "sente"))} className="border-slate-300 text-slate-700 h-8 text-xs">{boardOrientation === "gote" ? "後手視点" : "先手視点"}</Button>
-           <Button variant="outline" size="sm" onClick={() => setIsEditMode((prev) => !prev)} className={`${isEditMode ? "bg-amber-100 text-amber-800 border-amber-300" : "border-slate-300 text-slate-700"} h-8 text-xs`}>{isEditMode ? "編集終了" : "編集"}</Button>
+           <Button variant="outline" onClick={() => setBoardOrientation((prev) => (prev === "sente" ? "gote" : "sente"))} className="border-slate-300 text-slate-700 h-9 text-sm px-3"><ArrowLeftRight className="w-4 h-4 mr-2" />{boardOrientation === "gote" ? "後手視点" : "先手視点"}</Button>
+           <Button variant="outline" onClick={() => setIsEditMode((prev) => !prev)} className={`${isEditMode ? "bg-amber-100 text-amber-800 border-amber-300" : "border-slate-300 text-slate-700"} h-9 text-sm px-3`}>{isEditMode ? <><X className="w-4 h-4 mr-2" />編集終了</> : <><Pencil className="w-4 h-4 mr-2" />編集</>}</Button>
         </div>
       </div>
 
