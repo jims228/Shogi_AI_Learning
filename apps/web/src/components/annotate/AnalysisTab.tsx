@@ -746,19 +746,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         if (!boardContainerRef.current) return;
         const { clientWidth, clientHeight } = boardContainerRef.current;
         
-        const availableWidth = clientWidth - 32;
-        const availableHeight = clientHeight - 32;
+        const availableWidth = clientWidth - 16;
+        const availableHeight = clientHeight - 16;
 
         // Horizontal Layout Specs
-        const H_WIDTH = 740;
-        const H_HEIGHT = 530;
+        const H_WIDTH = 700;
+        const H_HEIGHT = 520;
         const scaleH = Math.min(availableWidth / H_WIDTH, availableHeight / H_HEIGHT);
 
         // Vertical Layout Specs
         // Board width ~476 + margins ~24 = 500
         // Height: Board 476 + Hands (60*2) + Gaps ~ 650
-        const V_WIDTH = 500;
-        const V_HEIGHT = 650;
+        const V_WIDTH = 480;
+        const V_HEIGHT = 630;
         const scaleV = Math.min(availableWidth / V_WIDTH, availableHeight / V_HEIGHT);
 
         // Decide layout
@@ -785,7 +785,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   }, []);
 
   return (
-    <div className="relative h-screen flex flex-col gap-4 p-4 text-[#1c1209] overflow-hidden bg-[#fbf7ef]">
+    <div className="relative h-screen flex flex-col gap-2 p-2 text-[#1c1209] overflow-hidden bg-[#fbf7ef]">
       <div className="flex-none flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm relative z-10">
         <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="h-9 w-9 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full">
@@ -840,7 +840,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
       <div className="flex-1 flex flex-row gap-4 min-h-0 overflow-hidden relative z-0">
         <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-w-0">
-          <div ref={boardContainerRef} className="flex-1 rounded-xl border border-slate-200 bg-[#f9f8f3] p-4 shadow-md flex flex-col items-center gap-4 relative min-h-0 overflow-hidden">
+          <div ref={boardContainerRef} className="flex-1 rounded-xl border border-slate-200 bg-[#f9f8f3] p-2 shadow-md flex flex-col items-center gap-4 relative min-h-0 overflow-hidden">
             
             <div className="flex flex-col items-center justify-center w-full gap-2 mb-2 absolute top-4 left-0 right-0 z-20 pointer-events-none [&>*]:pointer-events-auto">
                 {previewSequence && (
