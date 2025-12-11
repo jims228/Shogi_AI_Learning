@@ -3,7 +3,7 @@ TSUME_PROBLEMS = [
     {
         "id": 1,
         "title": "頭金の基本",
-        "sfen": "sfen 9/9/9/9/9/4P4/9/4K4/4G4 b G 1",
+        "sfen": "sfen 4k4/9/4P4/9/9/9/9/9/K8 b G 1",
         "steps": 1,
         "description": "基本中の基本、頭金です。"
     },
