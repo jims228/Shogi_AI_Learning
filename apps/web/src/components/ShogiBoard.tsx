@@ -318,8 +318,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
       const xRel = clientX - rect.left;
       const yRel = clientY - rect.top;
-      const rawX = Math.floor(xRel / CELL_SIZE);
-      const rawY = Math.floor(yRel / CELL_SIZE);
+      // Scale correction: use rect dimensions instead of fixed CELL_SIZE
+      const rawX = Math.floor((xRel / rect.width) * 9);
+      const rawY = Math.floor((yRel / rect.height) * 9);
 
       if (rawX < 0 || rawX > 8 || rawY < 0 || rawY > 8) return;
 
@@ -342,8 +343,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       const rect = event.currentTarget.getBoundingClientRect();
       const xRel = event.clientX - rect.left;
       const yRel = event.clientY - rect.top;
-      const rawX = Math.floor(xRel / CELL_SIZE);
-      const rawY = Math.floor(yRel / CELL_SIZE);
+      // Scale correction
+      const rawX = Math.floor((xRel / rect.width) * 9);
+      const rawY = Math.floor((yRel / rect.height) * 9);
       if (rawX < 0 || rawX > 8 || rawY < 0 || rawY > 8) return;
       
       const x = isGoteView ? 8 - rawX : rawX;
