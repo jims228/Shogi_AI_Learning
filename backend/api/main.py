@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from backend.api.services.ai_service import AIService
+from backend.api.tsume_data import TSUME_PROBLEMS
 
 load_dotenv()
 
@@ -437,6 +438,19 @@ async def explain_endpoint(req: ExplainRequest):
 async def digest_endpoint(req: GameDigestInput):
     return {"explanation": await AIService.generate_game_digest(req.dict())}
 
+@app.get("/api/tsume/list")
+def get_tsume_list():
+    """全問題のリストを返す"""
+    return [{"id": p["id"], "title": p["title"], "steps": p["steps"]} for p in TSUME_PROBLEMS]
+
+@app.get("/api/tsume/{problem_id}")
+def get_tsume_detail(problem_id: int):
+    """指定IDの問題詳細を返す"""
+    problem = next((p for p in TSUME_PROBLEMS if p["id"] == problem_id), None)
+    if not problem:
+        return {"error": "Problem not found"}
+    return problem
+
 @app.post("/api/tsume/play")
 async def tsume_play_endpoint(req: TsumePlayRequest):
     return await stream_engine.solve_tsume_hand(req.sfen)
@@ -470,4 +484,4 @@ def stream_endpoint(position: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8787)
