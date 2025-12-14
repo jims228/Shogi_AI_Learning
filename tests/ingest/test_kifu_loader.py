@@ -190,7 +190,7 @@ class TestUtilityFunctions:
             # Should find 3 kifu files, excluding other.txt
             assert len(result) == 3
             assert all("game" in path for path in result)
-            assert all(path.endswith(ext) for path in result for ext in [".kif", ".csa", ".usi"])
+            assert all(any(path.endswith(ext) for ext in [".kif", ".csa", ".usi"]) for path in result)
 
     def test_scan_kifu_directory_recursive(self):
         """Test recursive directory scanning"""

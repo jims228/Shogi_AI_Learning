@@ -170,6 +170,17 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const router = useRouter();
   const [currentPly, setCurrentPly] = useState(0);
   const [realtimeAnalysis, setRealtimeAnalysis] = useState<AnalysisCache>({});
+
+  const [explainLevel, setExplainLevel] = useState<"beginner" | "intermediate" | "advanced">(
+    () => {
+      const v = localStorage.getItem("explainLevel");
+      return v === "beginner" || v === "intermediate" || v === "advanced" ? v : "beginner";
+    }
+  );
+
+  useEffect(() => {
+    localStorage.setItem("explainLevel", explainLevel);
+  }, [explainLevel]);
   
   const { 
     batchData, 
@@ -281,6 +292,11 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const evalSource = useMemo(() => {
     return { ...batchData, ...realtimeAnalysis };
   }, [batchData, realtimeAnalysis]);
+
+  const moveImpacts = useMemo(
+    () => buildMoveImpacts(evalSource, totalMoves, initialTurn),
+    [evalSource, initialTurn, totalMoves]
+  );
 
   const currentAnalysis = evalSource[safeCurrentPly];
   const hasCurrentAnalysis = Boolean(currentAnalysis);
@@ -524,16 +540,37 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   }, [isEditMode, displayedBoard, activeHands, currentSideToMove, safeCurrentPly, startEngineAnalysis]);
 
   const handleGenerateExplanation = useCallback(async () => {
-    const currentSfen = isEditMode 
-      ? `position ${boardToSfen(displayedBoard, activeHands, currentSideToMove)}`
-      : getSubsetUSI(usi, safeCurrentPly);
+    // ★対象を決める：棋譜閲覧なら“直前の指し手”
+    const analyzePly = (!isEditMode && safeCurrentPly > 0) ? safeCurrentPly - 1 : safeCurrentPly;
 
-    const analysis = evalSource[safeCurrentPly];
+    const analysis = evalSource[analyzePly];
     if (!analysis || !analysis.bestmove) {
       showToast({ title: "先に解析を行ってください", variant: "default" });
       return;
     }
-    const recentMoves = moveSequence.slice(Math.max(0, safeCurrentPly - 5), safeCurrentPly);
+
+    // ★局面はSFENで送る（嘘を減らすため）
+    const board = timeline.boards[analyzePly] ?? displayedBoard;
+    const hands = timelineHands[analyzePly] ?? activeHands;
+    const sideToMove: Side = (analyzePly % 2 === 0) ? initialTurn : flipTurn(initialTurn);
+    const positionSfen = `position ${boardToSfen(board, hands, sideToMove)}`;
+
+    const userMove = (!isEditMode && safeCurrentPly > 0) ? moveSequence[analyzePly] : null;
+
+    const candidates =
+      analysis.multipv?.slice(0, 3).map((item) => ({
+        move: (item.pv?.split(" ")[0] || ""),
+        pv: item.pv || "",
+        score_cp: item.score.type === "cp" ? item.score.cp : null,
+        score_mate: item.score.type === "mate" ? item.score.mate : null,
+      })) ?? [];
+
+    const recentMoves = moveSequence.slice(Math.max(0, analyzePly - 5), analyzePly);
+
+    // インパクト（その手で評価がどれだけ動いたか）
+    const deltaCp = (!isEditMode && safeCurrentPly > 0)
+      ? (moveImpacts[safeCurrentPly]?.diff ?? null)
+      : null;
 
     setIsExplaining(true);
     setExplanation("");
@@ -542,10 +579,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sfen: currentSfen, ply: safeCurrentPly, bestmove: analysis.bestmove,
-          score_cp: analysis.multipv?.[0]?.score.type === 'cp' ? analysis.multipv[0].score.cp : null,
-          score_mate: analysis.multipv?.[0]?.score.type === 'mate' ? analysis.multipv[0].score.mate : null,
-          pv: analysis.multipv?.[0]?.pv || "", turn: currentSideToMove, history: recentMoves 
+          sfen: positionSfen,
+          ply: analyzePly,
+          turn: sideToMove,
+          user_move: userMove,
+          bestmove: analysis.bestmove,
+          score_cp: analysis.multipv?.[0]?.score.type === "cp" ? analysis.multipv[0].score.cp : null,
+          score_mate: analysis.multipv?.[0]?.score.type === "mate" ? analysis.multipv[0].score.mate : null,
+          pv: analysis.multipv?.[0]?.pv || "",
+          history: recentMoves,
+          candidates,
+
+          explain_level: explainLevel,
+          delta_cp: deltaCp,
         }),
       });
       if (!res.ok) throw new Error();
@@ -556,7 +602,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     } finally {
       setIsExplaining(false);
     }
-  }, [evalSource, safeCurrentPly, usi, isEditMode, displayedBoard, activeHands, currentSideToMove, moveSequence]);
+  }, [
+    isEditMode,
+    safeCurrentPly,
+    initialTurn,
+    displayedBoard,
+    activeHands,
+    evalSource,
+    moveSequence,
+    timeline.boards,
+    timelineHands,
+    moveImpacts,
+    explainLevel,
+  ]);
 
   const handleGenerateGameDigest = useCallback(async () => {
     const hasData = Object.keys(batchData).length > 0;
@@ -713,8 +771,6 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     }
   }, [isEditMode]);
 
-  const moveImpacts = useMemo(() => buildMoveImpacts(evalSource, totalMoves, initialTurn), [evalSource, initialTurn, totalMoves]);
-  
   const moveListEntries = useMemo(() => {
     if (!moveSequence.length) return [];
     return moveSequence.map((move, index) => {
@@ -821,12 +877,44 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                   </Button>
               )}
               <Button variant="outline" onClick={handleStartStreamingAnalysis} disabled={isAnalyzing} className="border-slate-300 text-slate-700 h-9 text-sm px-3"><Play className="w-4 h-4 mr-2" /> 検討開始</Button>
-              <Button variant="default" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-9 text-sm px-3 shadow-sm hover:shadow-md transition-all">{isExplaining ? "思考中..." : <><Sparkles className="w-4 h-4 mr-2" /> AI解説</>}</Button>
+              <div className="flex items-center gap-2">
+                <select
+                  className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
+                  value={explainLevel}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "beginner" || v === "intermediate" || v === "advanced") {
+                      setExplainLevel(v);
+                    }
+                  }}
+                  aria-label="解説レベル"
+                >
+                  <option value="beginner">初心者</option>
+                  <option value="intermediate">中級</option>
+                  <option value="advanced">上級</option>
+                </select>
+                <Button variant="default" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-9 text-sm px-3 shadow-sm hover:shadow-md transition-all">{isExplaining ? "思考中..." : <><Sparkles className="w-4 h-4 mr-2" /> AI解説</>}</Button>
+              </div>
             </>
           ) : (
             <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={handleUndo} disabled={editHistory.length === 0} className="border-slate-300 text-slate-700 h-9 text-sm px-3"><RotateCcw className="w-4 h-4 mr-2" /> 1手戻す</Button>
                 <Button variant="outline" onClick={handleAnalyzeEditedPosition} disabled={isAnalyzing} className="border-amber-600 text-amber-700 h-9 text-sm px-3"><Search className="w-4 h-4 mr-2" /> 現局面を解析</Button>
+                <select
+                  className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700"
+                  value={explainLevel}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "beginner" || v === "intermediate" || v === "advanced") {
+                      setExplainLevel(v);
+                    }
+                  }}
+                  aria-label="解説レベル"
+                >
+                  <option value="beginner">初心者</option>
+                  <option value="intermediate">中級</option>
+                  <option value="advanced">上級</option>
+                </select>
                 <Button variant="default" onClick={handleGenerateExplanation} disabled={isExplaining || !hasCurrentAnalysis} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-none h-9 text-sm px-3 shadow-sm hover:shadow-md transition-all">{isExplaining ? "思考中..." : <><Sparkles className="w-4 h-4 mr-2" /> AI解説</>}</Button>
             </div>
           )}

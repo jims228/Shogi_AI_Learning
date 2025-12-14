@@ -7,6 +7,7 @@ AI推論システムのテスト
 import os
 import sys
 import json
+import pytest
 
 # パスを調整してbackendモジュールをインポート可能にする
 sys.path.append('/home/jimjace/Shogi_AI_Learning')
@@ -47,11 +48,9 @@ def test_rule_based_reasoning():
         test_result = test_reasoning_system()
         print(f"システムテスト結果: {test_result}")
         
-        return True
-        
     except Exception as e:
         print(f"✗ ルールベースのテストエラー: {e}")
-        return False
+        raise
 
 
 def test_llm_reasoning():
@@ -64,7 +63,7 @@ def test_llm_reasoning():
     
     if not gemini_key and not openai_key:
         print("⚠️  APIキーが設定されていないため、LLMテストをスキップします")
-        return True
+        pytest.skip("APIキー未設定のため LLM テストをスキップ")
     
     try:
         from backend.ai.reasoning import build_reasoning
@@ -81,7 +80,7 @@ def test_llm_reasoning():
             print("OpenAIでテスト中...")
         else:
             print("⚠️  有効なAPIキーが設定されていません")
-            return True
+            pytest.skip("有効なAPIキーが設定されていません")
         
         test_note = {
             "ply": 1,
@@ -99,14 +98,14 @@ def test_llm_reasoning():
         
         if reasoning and reasoning.get("method") == "llm_enhanced":
             print("✓ LLM推論テスト成功")
-            return True
+            assert True
         else:
             print("⚠️  LLM改善が適用されませんでした（APIエラーまたは設定問題）")
-            return True  # エラーではないが、改善されなかった
+            pytest.skip("LLM改善が適用されませんでした（APIエラーまたは設定問題）")
             
     except Exception as e:
         print(f"✗ LLMテストエラー: {e}")
-        return False
+        raise
 
 
 def test_annotate_integration():
@@ -129,34 +128,29 @@ def test_annotate_integration():
         }
         
         response = client.post("/annotate", json=test_request)
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"レスポンス例: {json.dumps(data, ensure_ascii=False, indent=2)}")
-            
-            # reasoning フィールドが追加されているかチェック
-            if "notes" in data:
-                for note in data["notes"]:
-                    if "reasoning" in note and note["reasoning"]:
-                        print(f"✓ reasoning フィールドが正常に追加されました")
-                        print(f"  - 手: {note['move']}")
-                        print(f"  - 推論: {note['reasoning']['summary']}")
-                        print(f"  - タグ: {note['reasoning']['tags']}")
-                        return True
-            
-            print("⚠️  reasoning フィールドが見つかりません")
-            return False
-        else:
-            print(f"✗ API呼び出し失敗: {response.status_code}")
-            print(f"エラー詳細: {response.text}")
-            return False
+        assert response.status_code == 200, f"API呼び出し失敗: {response.status_code} {response.text}"
+
+        data = response.json()
+        print(f"レスポンス例: {json.dumps(data, ensure_ascii=False, indent=2)}")
+
+        # 互換APIの最低限の形を検証（reasoning は環境/実装により無い場合があるので必須にしない）
+        assert "notes" in data
+        assert isinstance(data["notes"], list)
+
+        for note in data["notes"]:
+            if "reasoning" in note and note["reasoning"]:
+                print(f"✓ reasoning フィールドが追加されました")
+                print(f"  - 手: {note['move']}")
+                print(f"  - 推論: {note['reasoning']['summary']}")
+                print(f"  - タグ: {note['reasoning']['tags']}")
+                break
             
     except ImportError as e:
         print(f"⚠️  統合テストモジュールのインポートエラー（期待される）: {e}")
-        return True  # FastAPIのテストクライアントが無い場合は正常
+        pytest.skip("FastAPI test client 依存が無いためスキップ")
     except Exception as e:
         print(f"✗ 統合テストエラー: {e}")
-        return False
+        raise
 
 
 def test_features_extraction():
@@ -212,13 +206,15 @@ def test_features_extraction():
             
             print(f"  特徴: delta_cp={features.delta_cp}, 王手={features.is_check}, 駒取り={features.is_capture}")
             print(f"  タグ: {tags}")
+
+            assert features is not None
+            assert isinstance(tags, list)
         
         print("✓ 特徴抽出テスト成功")
-        return True
         
     except Exception as e:
         print(f"✗ 特徴抽出テストエラー: {e}")
-        return False
+        raise
 
 
 def main():

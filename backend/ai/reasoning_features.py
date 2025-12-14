@@ -285,38 +285,28 @@ def detect_phase(note: Dict[str, Any]) -> Dict[str, str]:
     Returns:
         Dict: {"phase": "opening|middlegame|endgame", "turn": "sente|gote"}
     """
-    ply = note.get("ply", 1)
-    score_cp = note.get("score_after_cp") or note.get("score_cp")
+    ply = int(note.get("ply") or 0)
     mate = note.get("mate")
-    evidence = note.get("evidence", {})
-    
-    # 手番判定（奇数手=先手、偶数手=後手）
-    turn = "sente" if ply % 2 == 1 else "gote"
-    
-    # 終盤判定
-    if mate is not None:
+    score_cp = note.get("score_after_cp")
+    if score_cp is None:
+        score_cp = note.get("score_cp")
+
+    if isinstance(mate, int) and mate != 0:
         phase = "endgame"
-    elif score_cp is not None and abs(score_cp) >= 1500:
+    elif isinstance(score_cp, (int, float)) and abs(score_cp) >= 1500:
         phase = "endgame"
-    elif ply >= 80:
+    elif ply >= 60:
         phase = "endgame"
-    # 序盤判定
-    elif ply <= 40:
-        # 駒交換や大きな評価値変動、戦術的要素が少ない場合は序盤
-        tactical = evidence.get("tactical", {})
-        is_tactical_move = (
-            tactical.get("is_capture", False) or 
-            tactical.get("is_check", False) or 
-            (score_cp is not None and abs(score_cp) >= 300)
-        )
-        
-        if is_tactical_move:
-            phase = "middlegame"
-        else:
-            phase = "opening"
-    else:
+    elif ply >= 24:
         phase = "middlegame"
-    
+    else:
+        phase = "opening"
+
+    # 手番: ply 1=先手、2=後手…（奇数=先手、偶数=後手）
+    if ply <= 0:
+        turn = "sente"
+    else:
+        turn = "sente" if (ply % 2 == 1) else "gote"
     return {"phase": phase, "turn": turn}
 
 
@@ -330,42 +320,21 @@ def classify_plan(note: Dict[str, Any]) -> Dict[str, str]:
     Returns:
         Dict: {"plan": "develop|attack|defend|trade|castle|promotion|endgame-technique"}
     """
-    ply = note.get("ply", 1)
-    delta_cp = note.get("delta_cp", 0)
-    evidence = note.get("evidence", {})
-    tactical = evidence.get("tactical", {})
-    tags = note.get("tags", [])
-    move = note.get("move", "")
-    
-    # 終盤技術
-    if ply >= 80 or note.get("mate") is not None:
+    delta = note.get("delta_cp")
+    mate = note.get("mate")
+    tactical = (note.get("evidence") or {}).get("tactical") or {}
+
+    if isinstance(mate, int) and mate != 0:
         return {"plan": "endgame-technique"}
-    
-    # 成り
-    if "+" in move or "成り" in tags:
-        return {"plan": "promotion"}
-    
-    # 玉の移動（囲い）
-    if _is_king_move(move) and ply <= 30:
-        return {"plan": "castle"}
-    
-    # 駒交換
-    if tactical.get("is_capture", False):
-        return {"plan": "trade"}
-    
-    # 攻め（王手、大きな評価値向上）
-    if tactical.get("is_check", False) or (delta_cp and delta_cp > 80):
-        return {"plan": "attack"}
-    
-    # 守り（評価値悪化防止、王の安全）
-    if delta_cp and delta_cp < -50:
+
+    if isinstance(delta, (int, float)) and delta < 0:
         return {"plan": "defend"}
-    
-    # 駒組み（序盤）
-    if ply <= 30:
-        return {"plan": "develop"}
-    
-    return {"plan": "develop"}
+
+    if tactical.get("is_check") and isinstance(delta, (int, float)) and delta > 0:
+        return {"plan": "attack"}
+
+    phase = detect_phase(note)["phase"]
+    return {"plan": "develop" if phase == "opening" else "develop"}
 
 
 def classify_move(note: Dict[str, Any]) -> Dict[str, str]:
@@ -378,40 +347,24 @@ def classify_move(note: Dict[str, Any]) -> Dict[str, str]:
     Returns:
         Dict: {"move_type": "normal|check|capture|promote|sacrifice|quiet-improve|blunder-flag"}
     """
-    delta_cp = note.get("delta_cp", 0)
-    evidence = note.get("evidence", {})
-    tactical = evidence.get("tactical", {})
-    move = note.get("move", "")
-    pv = note.get("pv", "")
-    depth = evidence.get("depth", 0)
-    
-    # 大悪手フラグ
-    if delta_cp is not None and delta_cp <= -200 and depth >= 8:
+    move = (note.get("move") or "")
+    delta = note.get("delta_cp")
+    tags = note.get("tags") or []
+    tactical = (note.get("evidence") or {}).get("tactical") or {}
+
+    if "悪手" in tags or (isinstance(delta, (int, float)) and delta <= -200):
         return {"move_type": "blunder-flag"}
-    
-    # 犠牲手（評価値一時的悪化だが戦術的補償あり）
-    if delta_cp is not None and delta_cp < -100:
-        # PVで後続手順をチェック（簡易版）
-        if pv and ("+" in pv or len(pv.split()) >= 3):
-            # 戦術的補償の可能性あり
-            return {"move_type": "sacrifice"}
-    
-    # 成り
+
+    # 「王手」を成りより優先
+    if tactical.get("is_check") or "王手" in tags:
+        return {"move_type": "check"}
+
+    if tactical.get("is_capture"):
+        return {"move_type": "capture"}
+
     if "+" in move:
         return {"move_type": "promote"}
-    
-    # 王手
-    if tactical.get("is_check", False):
-        return {"move_type": "check"}
-    
-    # 駒取り
-    if tactical.get("is_capture", False):
-        return {"move_type": "capture"}
-    
-    # 静かな改善手
-    if delta_cp is not None and 30 <= delta_cp <= 100:
-        return {"move_type": "quiet-improve"}
-    
+
     return {"move_type": "normal"}
 
 
@@ -425,35 +378,21 @@ def analyze_pv_comparison(note: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict: PV比較の要約
     """
-    pv = note.get("pv", "")
-    bestmove = note.get("bestmove")
-    move = note.get("move", "")
-    delta_cp = note.get("delta_cp", 0)
-    
-    pv_summary = {
-        "line": pv[:50] + "..." if len(pv) > 50 else pv,
-        "why_better": []
-    }
-    
-    if not bestmove or move == bestmove:
-        pv_summary["why_better"] = ["最善手です"]
-        return pv_summary
-    
-    # 最善手との差異を分析
-    if delta_cp is not None:
-        if delta_cp <= -100:
-            pv_summary["why_better"].append(f"評価値が{abs(delta_cp)}cp改善される")
-        
-        if "+" in pv and "+" not in move:
-            pv_summary["why_better"].append("王手による攻撃機会")
-        
-        if len(pv.split()) >= 4:
-            pv_summary["why_better"].append("より長期的な構想")
-    
-    if not pv_summary["why_better"]:
-        pv_summary["why_better"] = ["エンジン推奨の手順"]
-    
-    return pv_summary
+    move = note.get("move")
+    best = note.get("bestmove")
+    pv = (note.get("pv") or "").strip()
+    line = pv.split() if pv else []
+
+    if move and best and move == best:
+        why_better = ["最善手"]
+    else:
+        why_better = []
+        if best:
+            why_better.append(f"最善手は{best}")
+        if line:
+            why_better.append("PVを参考に改善")
+
+    return {"line": line, "why_better": why_better}
 
 
 def compute_confidence(note: Dict[str, Any]) -> float:

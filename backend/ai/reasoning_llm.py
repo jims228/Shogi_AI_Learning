@@ -14,6 +14,10 @@ from typing import Optional, Dict, Any, List
 import time
 
 
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "0") == "1"
+
+
 def call_llm_for_reasoning(base_reasoning: str, 
                           features: Dict[str, Any], 
                           context: Dict[str, Any]) -> Optional[str]:
@@ -28,19 +32,8 @@ def call_llm_for_reasoning(base_reasoning: str,
     Returns:
         Optional[str]: LLMで改善された文章、またはNone（失敗時）
     """
-    # 環境変数チェック
-    use_llm = os.getenv("USE_LLM", "0") == "1"
-    if not use_llm:
-        return None
-    
-    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
-    
-    if provider == "gemini":
-        return _call_gemini(base_reasoning, features, context)
-    elif provider == "openai":
-        return _call_openai(base_reasoning, features, context)
-    else:
-        return None
+    # v1入口はv2へ委譲（呼び出し経路の重複を防ぐ）
+    return call_llm_for_reasoning_v2(base_reasoning, features, context)
 
 
 def _gemini_models_to_try() -> List[str]:
@@ -74,29 +67,45 @@ def _call_gemini(base_reasoning: str, features: Dict[str, Any], context: Dict[st
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
+
+    sdk_only = _env_flag("GEMINI_SDK_ONLY")
+    http_only = _env_flag("GEMINI_HTTP_ONLY")
+    disable_fallback = _env_flag("GEMINI_DISABLE_FALLBACK")
+    forced_api_ver = (os.getenv("GEMINI_API_VERSION") or "").strip()
     
     try:
         prompt = _build_gemini_prompt(base_reasoning, features, context)
 
         # まずは公式SDKで試行（利用可能ならエンドポイント差分を吸収できる）
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
-            print(f"Gemini SDK calling model: {model_name}")
-            generation_config = {
-                "temperature": 0.3,
-                "top_k": 20,
-                "top_p": 0.8,
-                "max_output_tokens": 200,
-            }
-            model = genai.GenerativeModel(model_name)
-            resp = model.generate_content(prompt, generation_config=generation_config)
-            text = getattr(resp, "text", None)
-            if text:
-                return _clean_llm_output(text)
-        except Exception as sdk_e:
-            print(f"Gemini SDK path failed, fallback to HTTP: {sdk_e}")
+        if not http_only:
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
+                print(f"Gemini SDK calling model: {model_name}")
+                generation_config = {
+                    "temperature": 0.3,
+                    "top_k": 20,
+                    "top_p": 0.8,
+                    "max_output_tokens": 200,
+                }
+                model = genai.GenerativeModel(model_name)
+                resp = model.generate_content(prompt, generation_config=generation_config)
+                text = getattr(resp, "text", None)
+                if text:
+                    return _clean_llm_output(text)
+            except Exception as sdk_e:
+                if sdk_only or disable_fallback:
+                    print(f"Gemini SDK path failed: {sdk_e}")
+                    return None
+                print(f"Gemini SDK path failed, fallback to HTTP: {sdk_e}")
+
+        if sdk_only:
+            return None
+
+        if disable_fallback:
+            # フォールバック多重呼び出し抑制: SDK失敗時もHTTPへ行かない
+            return None
 
         payload = {
             "contents": [
@@ -111,12 +120,17 @@ def _call_gemini(base_reasoning: str, features: Dict[str, Any], context: Dict[st
             }
         }
 
+        api_versions = [forced_api_ver] if forced_api_ver else (["v1"] if disable_fallback else ["v1beta", "v1"])
+        models = _gemini_models_to_try()
+        if disable_fallback and models:
+            models = [models[0]]
+
         last_error: Optional[Exception] = None
-        for model in _gemini_models_to_try():
+        for model in models:
             try:
                 last_http_error: Optional[Exception] = None
                 result: Optional[Dict[str, Any]] = None
-                for api_ver in ["v1beta", "v1"]:
+                for api_ver in api_versions:
                     url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model}:generateContent?key={api_key}"
                     print(f"Gemini calling model: {model} via {api_ver}")
                     req = urllib.request.Request(
@@ -318,6 +332,8 @@ def _validate_llm_output(text: str, context: Dict[str, Any]) -> bool:
     Returns:
         bool: 出力が妥当かどうか
     """
+    import re
+
     if not text or len(text.strip()) < 10:
         return False
     
@@ -335,11 +351,13 @@ def _validate_llm_output(text: str, context: Dict[str, Any]) -> bool:
     for keyword in inappropriate_keywords:
         if keyword in text_lower:
             return False
-    
-    # 基本的な将棋用語が含まれているかチェック
+
+    # 戦術的な手種では、最低限「将棋っぽさ」がない出力（英語のみ等）を拒否
     if context.get("move_type") in ["check", "capture", "promote"]:
         shogi_terms = ["王手", "駒", "成り", "攻", "守", "評価", "局面"]
-        if not any(term in text for term in shogi_terms):
+        has_shogi_terms = any(term in text for term in shogi_terms)
+        has_japanese = bool(re.search(r"[ぁ-んァ-ン一-龥]", text))
+        if not has_shogi_terms and not has_japanese:
             return False
     
     return True
@@ -399,9 +417,12 @@ def call_llm_for_reasoning_v2(base_reasoning: str,
     Returns:
         Optional[str]: LLMで改善された文章、またはNone（失敗時）
     """
-    # 環境変数チェック
+    # 環境変数チェック（上位許可 + 用途別トグル）
     use_llm = os.getenv("USE_LLM", "0") == "1"
-    if not use_llm:
+    # 後方互換: USE_LLM_REASONING 未設定なら「有効」扱い
+    use_reasoning_raw = os.getenv("USE_LLM_REASONING")
+    use_reasoning = True if use_reasoning_raw is None else (use_reasoning_raw == "1")
+    if not use_llm or not use_reasoning:
         return None
     
     provider = os.getenv("LLM_PROVIDER", "gemini").lower()
@@ -438,9 +459,11 @@ def enhance_multiple_explanations(explanations: List[str],
     Returns:
         List[str]: 改善された説明のリスト
     """
-    # 環境変数チェック
+    # 環境変数チェック（上位許可 + 用途別トグル）
     use_llm = os.getenv("USE_LLM", "0") == "1"
-    if not use_llm:
+    use_reasoning_raw = os.getenv("USE_LLM_REASONING")
+    use_reasoning = True if use_reasoning_raw is None else (use_reasoning_raw == "1")
+    if not use_llm or not use_reasoning:
         return explanations
     
     enhanced = []
@@ -474,7 +497,9 @@ def generate_overall_summary_llm(notes: List[Dict[str, Any]],
         Optional[str]: 生成された総括、またはNone
     """
     use_llm = os.getenv("USE_LLM", "0") == "1"
-    if not use_llm:
+    use_reasoning_raw = os.getenv("USE_LLM_REASONING")
+    use_reasoning = True if use_reasoning_raw is None else (use_reasoning_raw == "1")
+    if not use_llm or not use_reasoning:
         return None
     
     provider = os.getenv("LLM_PROVIDER", "gemini").lower()
@@ -521,34 +546,54 @@ def _call_gemini_simple(prompt: str) -> Optional[str]:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return None
+
+    sdk_only = _env_flag("GEMINI_SDK_ONLY")
+    http_only = _env_flag("GEMINI_HTTP_ONLY")
+    disable_fallback = _env_flag("GEMINI_DISABLE_FALLBACK")
+    forced_api_ver = (os.getenv("GEMINI_API_VERSION") or "").strip()
     
     try:
         # SDK優先
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
-            print(f"Gemini SDK (summary) calling model: {model_name}")
-            generation_config = {"temperature": 0.4, "max_output_tokens": 150}
-            model = genai.GenerativeModel(model_name)
-            resp = model.generate_content(prompt, generation_config=generation_config)
-            text = getattr(resp, "text", None)
-            if text:
-                return _clean_llm_output(text)
-        except Exception as sdk_e:
-            print(f"Gemini SDK (summary) failed, fallback to HTTP: {sdk_e}")
+        if not http_only:
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash"
+                print(f"Gemini SDK (summary) calling model: {model_name}")
+                generation_config = {"temperature": 0.4, "max_output_tokens": 150}
+                model = genai.GenerativeModel(model_name)
+                resp = model.generate_content(prompt, generation_config=generation_config)
+                text = getattr(resp, "text", None)
+                if text:
+                    return _clean_llm_output(text)
+            except Exception as sdk_e:
+                if sdk_only or disable_fallback:
+                    print(f"Gemini SDK (summary) failed: {sdk_e}")
+                    return None
+                print(f"Gemini SDK (summary) failed, fallback to HTTP: {sdk_e}")
+
+        if sdk_only:
+            return None
+
+        if disable_fallback:
+            return None
 
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.4, "maxOutputTokens": 150}
         }
 
+        api_versions = [forced_api_ver] if forced_api_ver else (["v1"] if disable_fallback else ["v1beta", "v1"])
+        models = _gemini_models_to_try()
+        if disable_fallback and models:
+            models = [models[0]]
+
         last_error: Optional[Exception] = None
-        for model in _gemini_models_to_try():
+        for model in models:
             try:
                 last_http_error: Optional[Exception] = None
                 result: Optional[Dict[str, Any]] = None
-                for api_ver in ["v1beta", "v1"]:
+                for api_ver in api_versions:
                     url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model}:generateContent?key={api_key}"
                     print(f"Gemini (summary) calling model: {model} via {api_ver}")
                     req = urllib.request.Request(

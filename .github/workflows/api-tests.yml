@@ -16,6 +16,12 @@ jobs:
   test-api:
     name: Run backend/api pytest
     runs-on: ubuntu-latest
+    env:
+      ALLOW_NETWORK: "0"
+      ALLOW_EXTERNAL_LLM: "0"
+      USE_LLM: "0"
+      OPENAI_API_KEY: ""
+      GEMINI_API_KEY: ""
     strategy:
       matrix:
         python-version: [ "3.11" ]
@@ -37,7 +43,6 @@ jobs:
 
       - name: Run pytest for backend/api
         env:
-          OPENAI_API_KEY: ""
           ENGINE_PER_MOVE_MS: "10"
           ENGINE_HASH_MB: "16"
           PYTHONPATH: .

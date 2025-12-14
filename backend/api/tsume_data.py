@@ -10,21 +10,21 @@ TSUME_PROBLEMS = [
     {
         "id": 2,
         "title": "尻金の基本",
-        "sfen": "sfen 9/9/9/9/9/9/9/4K4/4G4 b P 1",
+        "sfen": "sfen +R8/7gk/7pp/9/9/9/9/9/K8 b G 1",
         "steps": 1,
         "description": "玉の背後から打つ金を尻金と呼びます。"
     },
     {
         "id": 3,
         "title": "一間龍",
-        "sfen": "sfen 9/9/9/9/9/9/9/5K3/6R2 b G 1",
+        "sfen": "sfen 6+Rgk/9/9/9/9/9/9/9/K8 b G 1",
         "steps": 1,
         "description": "龍と金で挟撃します。"
     },
     {
         "id": 4,
         "title": "送りの手筋 (3手)",
-        "sfen": "sfen 9/9/9/9/9/9/8R1/9/7K1 b G 1",
+        "sfen": "sfen 9/9/9/9/9/9/8R/9/7K1 b G 1",
         "steps": 3,
         "description": "玉を危険な場所に誘い込みます。"
     },

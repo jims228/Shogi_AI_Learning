@@ -52,6 +52,15 @@ cd apps/backend && python -m venv .venv && source .venv/bin/activate && pip inst
 # Terminal 1 – Backend + engine proxy
 ./scripts/run_backend.sh      # starts FastAPI on :8787 and engine bridge
 
+# Optional: load env file and/or enable LLM
+# - Default: USE_LLM=0 (no external calls)
+# - To enable: set USE_LLM=1 and provide provider key in the env file
+# - Optional: use USE_LLM_REASONING / USE_LLM_REWRITE to avoid double LLM in one request
+#
+# Example:
+#   ./scripts/run_backend.sh
+#   ENV_FILE=.env.production USE_LLM=1 USE_LLM_REASONING=1 USE_LLM_REWRITE=0 ./scripts/run_backend.sh
+
 # Terminal 2 – Web
 pnpm --filter web dev         # or ./scripts/run_web.sh
 
