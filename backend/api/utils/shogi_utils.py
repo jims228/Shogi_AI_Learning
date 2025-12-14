@@ -8,6 +8,16 @@ class ShogiUtils:
     }
 
     @staticmethod
+    def _rank_to_int(r: str) -> int:
+        # USI rank: a..i -> 1..9 （例: f -> 6）
+        if not r:
+            return 0
+        if r.isdigit():
+            return int(r)
+        o = ord(r.lower()) - ord("a") + 1
+        return o if 1 <= o <= 9 else 0
+
+    @staticmethod
     def format_move_label(move: str, turn: str) -> str:
         """
         USI符号（例: 7g7f）を日本語表記（例: ▲7六歩）に変換する
@@ -18,10 +28,10 @@ class ShogiUtils:
         
         # 持ち駒打ち (例: P*7f)
         if "*" in move:
-            piece_char, dest = move.split("*")
+            piece_char, dest = move.split("*", 1)
             piece_name = ShogiUtils.PIECE_NAMES.get(piece_char, piece_char)
             file_idx = int(dest[0])
-            rank_idx = int(dest[1])
+            rank_idx = ShogiUtils._rank_to_int(dest[1])
             return f"{prefix}{file_idx}{ShogiUtils.KANJI_NUM[rank_idx]}{piece_name}打"
         
         # 通常の指し手 (例: 7g7f, 7g7f+)
@@ -30,7 +40,7 @@ class ShogiUtils:
         promote = "+" in move
         
         file_idx = int(dest[0])
-        rank_idx = int(dest[1])
+        rank_idx = ShogiUtils._rank_to_int(dest[1])
         
         # ここでは簡易的に「歩」などを決め打ちせず、文脈がないため「指し手」として返す
         # 本来は移動元の駒種が必要だが、簡易版として座標のみ変換する

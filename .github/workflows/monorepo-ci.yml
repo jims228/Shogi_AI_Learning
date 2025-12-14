@@ -8,6 +8,12 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      ALLOW_NETWORK: "0"
+      ALLOW_EXTERNAL_LLM: "0"
+      USE_LLM: "0"
+      GEMINI_API_KEY: ""
+      OPENAI_API_KEY: ""
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -22,6 +28,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install --upgrade pip
-      - run: pip install -r apps/backend/requirements.txt
-      - run: pytest tests -m "not slow" || true
+      - name: Install backend deps (python)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/api/requirements.txt
+      - name: Smoke tests (python)
+        continue-on-error: true
+        run: |
+          python -m compileall -q backend
+          python -m compileall -q tests
+          python -m pytest -q

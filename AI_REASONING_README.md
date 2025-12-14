@@ -48,12 +48,28 @@ backend/ai/
 # AI推論機能の有効化
 USE_LLM=1                    # 0=ルールベースのみ, 1=LLM併用
 
+# 用途別トグル（上位許可: USE_LLM=1 のときだけ意味を持つ）
+# - reasoning: 推論文の言い換え（backend/ai/reasoning_llm.py）
+# - rewrite:   ルールベース説明の言い換え（backend/api/utils/shogi_explain_core.py）
+USE_LLM_REASONING=1
+USE_LLM_REWRITE=0
+
 # LLMプロバイダーの選択
 LLM_PROVIDER=gemini          # gemini または openai
 
 # APIキー（どちらか一つを設定）
 GEMINI_API_KEY=your_key_here
 OPENAI_API_KEY=your_key_here
+
+# Gemini model
+# - GEMINI_MODEL: reasoning / summary / rewrite で共通の既定モデル
+# - GEMINI_EXPLAIN_MODEL: “言い換え(rewrite)”だけ別モデルにしたい場合の上書き
+GEMINI_MODEL=gemini-2.5-flash
+# GEMINI_EXPLAIN_MODEL=gemini-2.5-flash
+
+# Gemini 多重フォールバック抑止（1回の意図に対して複数回叩かない運用に寄せる）
+GEMINI_DISABLE_FALLBACK=1
+GEMINI_SDK_ONLY=1
 ```
 
 ### 設定例

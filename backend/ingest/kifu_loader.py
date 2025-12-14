@@ -210,12 +210,15 @@ class KifuLoader:
         if len(csa_move) < 7:
             return None
         
-        player = csa_move[0]  # + or -
-        from_file = int(csa_move[1])
-        from_rank = int(csa_move[2])  
-        to_file = int(csa_move[3])
-        to_rank = int(csa_move[4])
-        piece = csa_move[5:7]
+        try:
+            player = csa_move[0]  # + or -
+            from_file = int(csa_move[1])
+            from_rank = int(csa_move[2])
+            to_file = int(csa_move[3])
+            to_rank = int(csa_move[4])
+            piece = csa_move[5:7]
+        except (ValueError, IndexError):
+            return None
         
         # Handle drops
         if from_file == 0 and from_rank == 0:

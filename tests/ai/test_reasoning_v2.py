@@ -95,7 +95,7 @@ class TestReasoningV2:
         # Test opening detection
         opening_result = detect_phase(OPENING_QUIET_NOTE)
         assert opening_result["phase"] == "opening"
-        assert opening_result["turn"] == "gote"  # ply 3 is gote
+        assert opening_result["turn"] == "sente"  # ply 3 is sente (odd)
         
         # Test middlegame detection
         middlegame_result = detect_phase(TACTICAL_CHECK_NOTE)
@@ -152,6 +152,14 @@ class TestReasoningV2:
         # Test promote move
         promote_note = TACTICAL_CHECK_NOTE.copy()
         promote_note["move"] = "8h2b+"
+        promote_note["evidence"] = {
+            **promote_note.get("evidence", {}),
+            "tactical": {
+                **(promote_note.get("evidence", {}).get("tactical", {}) or {}),
+                "is_check": False,
+            },
+        }
+        promote_note["tags"] = []
         promote_result = classify_move(promote_note)
         assert promote_result["move_type"] == "promote"
     

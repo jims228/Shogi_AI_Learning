@@ -4,6 +4,7 @@ API経由でのreasoning v2機能テストスクリプト
 
 import json
 import sys
+import pytest
 
 # Add project root to path
 sys.path.insert(0, '/home/jimjace/Shogi_AI_Learning')
@@ -119,26 +120,26 @@ def test_api_reasoning_v2():
         # スキーマ検証
         required_fields = ["summary", "tags", "confidence", "method", "context", "pv_summary"]
         for field in required_fields:
-            if field not in reasoning:
-                print(f"❌ Missing field: {field}")
-                return False
+            assert field in reasoning, f"Missing field: {field}"
         
         required_context_fields = ["phase", "plan", "move_type"]
         for field in required_context_fields:
-            if field not in reasoning["context"]:
-                print(f"❌ Missing context field: {field}")
-                return False
+            assert field in reasoning["context"], f"Missing context field: {field}"
         
         # 信頼度範囲チェック
         confidence = reasoning["confidence"]
-        if not (0 <= confidence <= 1):
-            print(f"❌ Confidence out of range: {confidence}")
-            return False
+        assert 0 <= confidence <= 1, f"Confidence out of range: {confidence}"
     
     print("\n🎉 All API tests passed! Reasoning v2 is working correctly via API interface.")
-    return True
+
+    # pytestテストとしては「到達=成功」
+    assert True
 
 
 if __name__ == "__main__":
-    success = test_api_reasoning_v2()
-    sys.exit(0 if success else 1)
+    # 手動実行用（pytestとは別）
+    try:
+        test_api_reasoning_v2()
+    except Exception:
+        sys.exit(1)
+    sys.exit(0)
