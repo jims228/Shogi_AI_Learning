@@ -578,6 +578,52 @@ def detect_opening_style(ply: int, moves_so_far: List[str], board=None) -> Dict[
         result["features"] = features
 
     # ===== 判定ロジック =====
+    # 角換わり（両者の角交換が成立）を最優先で検出
+    # 条件: 盤上に角系(角/馬)が0枚 かつ 両者の持ち駒に角が1枚以上
+    if shogi is not None and board is not None:
+        try:
+            bishop_types = {getattr(shogi, "BISHOP", 6), getattr(shogi, "PROM_BISHOP", 13)}
+            bishops_on_board = 0
+            for sq in range(81):
+                piece = board.piece_at(sq)
+                if piece is None:
+                    continue
+                if getattr(piece, "piece_type", None) in bishop_types:
+                    bishops_on_board += 1
+
+            # pieces_in_hand は Counter
+            b_color = getattr(shogi, "BLACK", 0)
+            w_color = getattr(shogi, "WHITE", 1)
+            bishop_pt = getattr(shogi, "BISHOP", 6)
+            b_hand = 0
+            w_hand = 0
+            try:
+                b_hand = board.pieces_in_hand[b_color][bishop_pt]
+                w_hand = board.pieces_in_hand[w_color][bishop_pt]
+            except Exception:
+                # 念のためのガード（構造が異なる場合）
+                b_hand = 0
+                w_hand = 0
+
+            if bishops_on_board == 0 and b_hand >= 1 and w_hand >= 1:
+                result["style"] = "居飛車"
+                result["subtype"] = "角換わり"
+                result["side"] = "both"
+                # 仕様: confidence >= 0.8
+                result["confidence"] = max(0.8, 0.85)
+                result["reasons"].append("盤上に角が無く、双方の持ち駒に角があるため角換わり")
+                result["features"].update({
+                    "bishops_on_board": bishops_on_board,
+                    "black_bishop_in_hand": b_hand,
+                    "white_bishop_in_hand": w_hand,
+                })
+                # detected を計算して即返す
+                result["detected"] = result["style"] != "unknown" and result["confidence"] >= 0.6
+                return result
+        except Exception as e:
+            result["reasons"].append(f"角換わり判定エラー: {e}")
+
+    # 以降は飛車の位置による基本的な戦型判定
     ranged_set = {5, 6, 7, 8}
     sente_norm = rook_files["sente"]
     gote_norm = rook_files["gote"]

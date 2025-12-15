@@ -129,14 +129,11 @@ class TestOpeningStyleDetection:
         assert result["detected"] == True  # detected = (style != "unknown") and (confidence >= 0.6)
     
     def test_kakuwagawari_detection(self):
-        """角交換が起きる進行でも戦型判定が壊れない（現状は居飛車扱い）"""
-        # detect_opening_style は角換わり自体は判定しないため、
-        # 「角交換が起きても例外なく安定して戦型（居飛車）を返す」ことを検証する。
+        """角換わりの検出: 盤上の角が0、双方の持ち駒に角がある"""
+        # 合法な角交換の最短例
         moves = [
             "7g7f", "3c3d",
-            "8h2b+", "3a2b",  # 角交換（双方の角が持ち駒になる）
-            "2g2f", "8c8d",
-            "2f2e", "4c4d",
+            "8h2b+", "3a2b",  # ここで両者の持ち駒に角が1枚以上、盤上の角は0
         ]
         
         board = shogi.Board()
@@ -146,7 +143,9 @@ class TestOpeningStyleDetection:
         result = detect_opening_style(len(moves), moves, board)
 
         assert result["style"] == "居飛車"
-        assert result["confidence"] >= 0.65
+        assert result["subtype"] == "角換わり"
+        assert result["side"] == "both"
+        assert result["confidence"] >= 0.8
         assert result["detected"] is True
     
     def test_ply_over_30_confidence_penalty(self):
