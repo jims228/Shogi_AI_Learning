@@ -492,3 +492,140 @@ def extract_tags_from_features(features: MoveFeatures) -> List[str]:
         tags.append("終盤")
     
     return tags
+
+
+def detect_opening_style(ply: int, moves_so_far: List[str], board=None) -> Dict[str, Any]:
+    """序盤の戦型（居飛車/振り飛車/相振り飛車）を推定する。
+
+    - board がある場合は盤面スキャン（0..80）で飛車の筋を取得し判定する。
+    - board が無い / python-shogi が無い場合は、USIの from-square に基づく簡易フォールバック。
+    - 後方互換のため、既存フィールドは削除せず、detected を常に返す。
+    """
+
+    result: Dict[str, Any] = {
+        "style": "unknown",
+        "subtype": None,
+        "confidence": 0.0,
+        "side": "unknown",
+        "reasons": [],
+        "features": {},
+    }
+
+    # 30手以降は序盤判定の信頼度を下げる（序盤戦型としては不安定）
+    if ply > 30:
+        result["confidence"] = max(0.2, (40 - ply) / 20)  # 40手で0
+        result["reasons"].append("中盤以降は序盤判定の信頼度が低い")
+        result["detected"] = result["style"] != "unknown" and result["confidence"] >= 0.6
+        return result
+
+    try:
+        import shogi  # type: ignore
+    except Exception:
+        shogi = None
+
+    rook_files = {
+        "sente": None,  # 先手（黒）基準 1-9
+        "gote": None,   # 後手（白）基準 1-9
+    }
+
+    # ===== board ベース（推奨） =====
+    if shogi is not None and board is not None:
+        try:
+            rook_piece_types = {7, 14}  # ROOK=7 / PROM_ROOK=14（python-shogi の piece_type）
+            for sq in range(81):
+                piece = board.piece_at(sq)
+                if piece is None:
+                    continue
+                ptype = getattr(piece, "piece_type", None)
+                if ptype not in rook_piece_types:
+                    continue
+
+                square_name = shogi.SQUARE_NAMES[sq]
+                file_num = int(square_name[0])  # 例: "2h" -> 2
+
+                color = getattr(piece, "color", None)
+                if color == 0:  # BLACK
+                    rook_files["sente"] = file_num
+                elif color == 1:  # WHITE
+                    rook_files["gote"] = 10 - file_num  # 黒基準へ正規化
+
+            result["features"] = {
+                "sente_rook_file": rook_files["sente"],
+                "gote_rook_file": rook_files["gote"],
+                "move_count": len(moves_so_far),
+            }
+        except Exception as e:
+            # 盤面スキャン失敗時はフォールバックへ
+            result["reasons"].append(f"盤面スキャンエラー: {e}")
+
+    # ===== フォールバック（board/shogi なし） =====
+    if not result["features"]:
+        features: Dict[str, Any] = {"move_count": len(moves_so_far)}
+
+        # 先手飛車: 初期 2h からの移動
+        for mv in moves_so_far:
+            if isinstance(mv, str) and len(mv) >= 4 and mv[:2] == "2h" and mv[2].isdigit():
+                rook_files["sente"] = int(mv[2])
+                features["sente_rook_file"] = rook_files["sente"]
+
+        # 後手飛車: 初期 8b からの移動（黒基準へ正規化）
+        for mv in moves_so_far:
+            if isinstance(mv, str) and len(mv) >= 4 and mv[:2] == "8b" and mv[2].isdigit():
+                gote_file = int(mv[2])
+                rook_files["gote"] = 10 - gote_file
+                features["gote_rook_file"] = rook_files["gote"]
+
+        result["features"] = features
+
+    # ===== 判定ロジック =====
+    ranged_set = {5, 6, 7, 8}
+    sente_norm = rook_files["sente"]
+    gote_norm = rook_files["gote"]
+    sente_ranged = sente_norm in ranged_set
+    gote_ranged = gote_norm in ranged_set
+
+    subtype_map = {
+        5: "中飛車",
+        6: "四間飛車",
+        7: "三間飛車",
+        8: "向かい飛車",
+    }
+
+    def opening_confidence(p: int, base: float) -> float:
+        # 目安: 序盤(<=10)は 0.8〜0.9、進むほど少し下げる
+        if p <= 10:
+            return min(0.9, max(0.8, base))
+        # 11手目以降は 1手ごとに 0.01 下げ、下限 0.65
+        return max(0.65, base - 0.01 * (p - 10))
+
+    if sente_ranged and gote_ranged:
+        result["style"] = "相振り飛車"
+        result["side"] = "both"
+        result["confidence"] = opening_confidence(ply, 0.88)
+        result["reasons"].append(f"先手飛車{sente_norm}筋、後手飛車{gote_norm}筋")
+    elif sente_ranged and not gote_ranged:
+        result["style"] = "振り飛車"
+        result["side"] = "black"
+        result["subtype"] = subtype_map.get(sente_norm)
+        result["confidence"] = opening_confidence(ply, 0.86)
+        result["reasons"].append(f"先手振り飛車（{sente_norm}筋）")
+    elif gote_ranged and not sente_ranged:
+        result["style"] = "振り飛車"
+        result["side"] = "white"
+        result["subtype"] = subtype_map.get(gote_norm)
+        result["confidence"] = opening_confidence(ply, 0.86)
+        result["reasons"].append(f"後手振り飛車（{gote_norm}筋）")
+    else:
+        # 両方振りでない & ply>=8 → 居飛車として検出
+        if ply >= 8:
+            result["style"] = "居飛車"
+            result["side"] = "both"
+            result["confidence"] = max(0.65, opening_confidence(ply, 0.85))
+            result["reasons"].append("序盤8手以上で飛車が振り飛車筋に動いていない")
+        else:
+            result["confidence"] = 0.4
+            result["reasons"].append("手数が少なく戦型が確定しない")
+
+    # detected を計算（全 return パスで必ず付与）
+    result["detected"] = result["style"] != "unknown" and result["confidence"] >= 0.6
+    return result
