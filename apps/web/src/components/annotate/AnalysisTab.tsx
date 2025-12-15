@@ -171,15 +171,24 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [currentPly, setCurrentPly] = useState(0);
   const [realtimeAnalysis, setRealtimeAnalysis] = useState<AnalysisCache>({});
 
-  const [explainLevel, setExplainLevel] = useState<"beginner" | "intermediate" | "advanced">(
-    () => {
-      const v = localStorage.getItem("explainLevel");
-      return v === "beginner" || v === "intermediate" || v === "advanced" ? v : "beginner";
-    }
-  );
+  const [explainLevel, setExplainLevel] = useState<"beginner" | "intermediate" | "advanced">("beginner");
 
   useEffect(() => {
-    localStorage.setItem("explainLevel", explainLevel);
+    // SSRガード: window/localStorage 未定義環境では何もしない
+    if (typeof window === "undefined") return;
+    try {
+      const v = window.localStorage.getItem("explainLevel");
+      if (v === "beginner" || v === "intermediate" || v === "advanced") {
+        setExplainLevel(v);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("explainLevel", explainLevel);
+    } catch {}
   }, [explainLevel]);
   
   const { 
