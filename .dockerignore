@@ -1,9 +1,19 @@
------ keep it minimal & safe -----
+# keep it minimal & safe
 .git
+.git/
 .gitignore
 .vscode
 node_modules
 */node_modules
+apps
+apps/
+.venv
+.venv/
+.pytest_cache
+*/.pytest_cache
+__pycache__
+*/__pycache__
+__pycache__/
 .env
 .env.
 *.log
@@ -15,6 +25,5 @@ coverage
 pycache/
 
 # DO NOT ignore our sources (MUST be at the end)
-!apps/**
-!apps/web/**
 !backend/**
+!scripts/**

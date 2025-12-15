@@ -46,15 +46,18 @@ logs/
 *.o
 *.a
 engines/
-docker/engine/eval/*
-docker/engine/book/*
-!docker/engine/eval/.gitkeep
-!docker/engine/book/.gitkeep
+docker/engine/**
+!docker/engine/
+!docker/engine/**/
+!docker/engine/.gitkeep
+!docker/engine/**/.gitkeep
+!docker/engine/*.example
 
 ### Environment / secrets
 .env
 .env*
 !.env.example
+!.env.prod.example
 apps/web/.env.local
 apps/backend/.env
 apps/backend/.env.local

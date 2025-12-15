@@ -73,6 +73,149 @@ Endpoints:
 - Backend API: http://localhost:8787
 - Engine health: http://localhost:8001/health (standalone engine server)
 
+## Docker (backend only)
+
+This repo includes a minimal backend-only `docker-compose.yml` so a server can boot FastAPI with one command.
+
+### B: annotate まで動かす（エンジン/資産はマウントで提供）
+
+`docker compose up -d --build` で FastAPI とエンジン連携（annotate）が動くように、ホスト側にエンジンと資産を配置してコンテナへマウントします。
+
+配置するもの（ホスト側）:
+- `docker/engine/yaneuraou` : YaneuraOu 実行ファイル（USI対応）。
+- `docker/engine/eval/` : NNUE 等の eval 資産（例: `nn.bin`）。
+- `docker/engine/book/` : 定跡/学習用データ（任意）。
+
+補足:
+- `docker-compose.yml` は上記をそれぞれ `/usr/local/bin/yaneuraou`・`/usr/local/bin/eval`・`/usr/local/bin/book` に read-only でマウントします。
+- リポジトリには `docker/engine/yaneuraou.example` があり、実体のバイナリはコミットしない運用です。
+
+実行権限（ホスト側）:
+
+```bash
+chmod +x docker/engine/yaneuraou
+```
+
+推奨（ホスト側セットアップ）:
+
+```bash
+chmod +x scripts/setup_engine_assets.sh
+./scripts/setup_engine_assets.sh
+```
+
+起動:
+
+```bash
+docker compose up -d --build
+```
+
+確認:
+
+```bash
+docker compose logs -f api
+curl -fsS http://localhost:8787/health
+```
+
+Swagger:
+- http://localhost:8787/docs
+
+annotate の確認:
+- Swagger の `/annotate` (POST) を開き、`backend/api/test_annotate.py` と同じ例として `{"usi": "startpos moves 7g7f 3c3d 2g2f 8c8d"}` を送って `notes` が返ることを確認します。
+
+curl での疎通例（テストと同じ JSON）:
+
+```bash
+curl -fsS -X POST http://localhost:8787/annotate \
+	-H 'Content-Type: application/json' \
+	-d '{"usi":"startpos moves 7g7f 3c3d 2g2f 8c8d"}'
+```
+
+## VPS (production)
+
+目的: VPS 上で **80/443 のみ公開**し、TLS(Let's Encrypt) と Basic 認証を入口に付けたうえで、FastAPI 側でも高負荷 API を `X-API-Key` 必須にできます。
+
+### 1) VPS 側の前提
+
+- DNS: `A` レコードで `DOMAIN` (例: `shogi.example.com`) を VPS のグローバル IP に向ける
+- ConoHa 等のセキュリティグループ/ファイアウォール: **22/80/443 のみ許可**、**8787 は閉じる**
+
+### 2) .env を用意
+
+本番では `docker compose -f docker-compose.yml -f docker-compose.prod.yml ...` を使います。
+
+`.env` 例:
+
+```bash
+# Reverse proxy
+DOMAIN=shogi.example.com
+
+# Caddy Basic Auth
+BASIC_AUTH_USER=tester
+# 生成例: docker run --rm caddy:2 caddy hash-password --plaintext 'your-password'
+BASIC_AUTH_HASH=$2a$14$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# App-level API keys (CSV). 未設定だとローカル/dev互換で no-op。
+API_KEYS=devkey1,devkey2
+
+運用メモ（推奨）:
+- `X-API-Key` は **1人1キー** で配布（漏えい時の影響範囲を最小化）
+- 漏えい/退会/停止したいキーは **`API_KEYS` から削除**して失効（再起動/再デプロイで反映）
+- 生成用の簡易スクリプト: `python3 scripts/gen_api_key.py`
+
+# Safety defaults
+USE_LLM=0
+
+# /annotate rate limit (per IP, per minute)
+RATE_LIMIT_PER_MINUTE=60
+```
+
+### 3) 起動
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+### 4) 起動後の確認
+
+- health (認証なし):
+
+```bash
+curl -fsS http://$DOMAIN/health
+```
+
+- 認証なしで docs は 401（HTTPS で確認）:
+
+```bash
+curl -i https://$DOMAIN/docs | head
+```
+
+- Basic 認証ありでアクセスできる:
+
+```bash
+curl -u "$BASIC_AUTH_USER:your-password" -i https://$DOMAIN/docs | head
+```
+
+- `X-API-Key` なしで /annotate は 401/403（本番は `API_KEYS` を必ず設定）:
+
+```bash
+curl -u "$BASIC_AUTH_USER:your-password" -i https://$DOMAIN/annotate \
+	-H 'Content-Type: application/json' \
+	-d '{"usi":"startpos moves 7g7f 3c3d 2g2f 8c8d"}' | head
+```
+
+- `X-API-Key` ありで /annotate が通る:
+
+```bash
+curl -u "$BASIC_AUTH_USER:your-password" -fsS https://$DOMAIN/annotate \
+	-H 'Content-Type: application/json' \
+	-H 'X-API-Key: devkey1' \
+	-d '{"usi":"startpos moves 7g7f 3c3d 2g2f 8c8d"}'
+```
+
+- レート制限超過で 429:
+	- `RATE_LIMIT_PER_MINUTE` を小さくして短時間に連打すると `429 Rate limit exceeded` になります。
+
 ## pnpm Workspace
 - Defined in `pnpm-workspace.yaml` (see below).
 - Install once at the repo root: `pnpm install`.

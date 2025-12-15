@@ -2,33 +2,22 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/Dockerfile.api
     ports:
       - "8787:8787"
+    volumes:
+      - "./docker/engine/yaneuraou:/usr/local/bin/yaneuraou:ro"
+      - "./docker/engine/eval:/usr/local/bin/eval:ro"
+      - "./docker/engine/book:/usr/local/bin/book:ro"
+    environment:
+      PORT: "8787"
+      HOST: "0.0.0.0"
+      RELOAD: "0"
+      USE_LLM: "0"
+      LLM_PROVIDER: "gemini"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8787/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8787/health').read()"]
       interval: 5s
       timeout: 3s
       retries: 30
-    environment:
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ${ENGINE_EVAL_DIR:-/home/jimjace/engines/yaneuraou/eval}:/engines/yaneuraou/eval:ro
-      - ${ENGINE_BOOK_DIR:-/home/jimjace/engines/yaneuraou/book}:/engines/yaneuraou/book:ro
-      - ./engines:/engines:ro
-
-  web:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.web
-    ports:
-      - "3000:3000"
-    depends_on:
-      api:
-        condition: service_healthy
-    environment:
-      NEXT_DEV: "0"
-      PORT: "3000"
-      NEXT_PUBLIC_API_BASE: "http://api:8787"
-      NEXT_TELEMETRY_DISABLED: "1"
+    restart: unless-stopped
 

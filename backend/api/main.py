@@ -2,13 +2,15 @@ from __future__ import annotations
 import asyncio, os, re, shlex, time, json, shutil
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, List, AsyncGenerator
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from backend.api.services.ai_service import AIService
+from backend.api.auth import Principal, require_api_key
+from backend.api.middleware.rate_limit import RateLimitMiddleware
 from backend.api.tsume_data import TSUME_PROBLEMS
 
 load_dotenv()
@@ -28,7 +30,11 @@ print(f"[Config] Eval Dir:   {EVAL_DIR}")
 USI_BOOT_TIMEOUT = 10.0
 USI_GO_TIMEOUT = 20.0
 
+_MAIN_LOOP: Optional[asyncio.AbstractEventLoop] = None
+
 async def _on_startup() -> None:
+    global _MAIN_LOOP
+    _MAIN_LOOP = asyncio.get_running_loop()
     # stream_engine / batch_engine はモジュール後半で生成される（起動時には存在する）
     print("[App] Startup: Launching engines...")
     await asyncio.gather(
@@ -53,6 +59,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="USI Engine Gateway", lifespan=lifespan)
+app.add_middleware(RateLimitMiddleware)
 
 _default_origins = ["http://localhost:3000", "http://localhost:3001"]
 _env_origins = os.getenv("FRONTEND_ORIGINS", "")
@@ -97,7 +104,74 @@ class _EnginePlaceholder:
         raise RuntimeError("engine.analyze is not configured")
 
 
-# tests が monkeypatch する前提のシンボル
+class _EngineAdapter:
+    def analyze(self, payload: Any) -> AnalyzeResponse:
+        data = _dump_model(payload)
+
+        usi = (data or {}).get("usi") or ""
+        ply_raw = (data or {}).get("ply")
+
+        try:
+            ply = int(ply_raw) if ply_raw is not None else None
+        except Exception:
+            ply = None
+
+        moves_all = _extract_moves_from_usi(usi)
+        moves_prefix = moves_all[:ply] if ply is not None else moves_all
+
+        pos_str = "startpos moves " + " ".join(moves_prefix) if moves_prefix else "startpos"
+        position_cmd = f"position {pos_str}"
+
+        async def _run() -> Dict[str, Any]:
+            async with batch_engine.lock:
+                await batch_engine.ensure_alive()
+                await batch_engine.stop_and_flush()
+                return await batch_engine.fast_analyze_one(position_cmd)
+
+        if _MAIN_LOOP is None:
+            print("[EngineAdapter] analyze skipped: main loop not initialized")
+            return AnalyzeResponse(bestmove="", candidates=[])
+
+        try:
+            fut = asyncio.run_coroutine_threadsafe(_run(), _MAIN_LOOP)
+            res = fut.result(timeout=15.0)
+        except Exception as e:
+            print(f"[EngineAdapter] analyze failed: {e}")
+            return AnalyzeResponse(bestmove="", candidates=[])
+
+        bestmove = (res or {}).get("bestmove") or ""
+        multipv = (res or {}).get("multipv") or []
+
+        candidates: List[PVItem] = []
+        for item in multipv:
+            score_cp: Optional[int] = None
+            score_mate: Optional[int] = None
+            depth: Optional[int] = None
+            pv_list: List[str] = []
+
+            if isinstance(item, dict):
+                depth = item.get("depth")
+                pv_raw = item.get("pv")
+                if isinstance(pv_raw, str):
+                    pv_list = [p for p in pv_raw.split() if p]
+                elif isinstance(pv_raw, list):
+                    pv_list = [p for p in pv_raw if isinstance(p, str) and p]
+                else:
+                    pv_list = []
+                score = item.get("score") or {}
+                if isinstance(score, dict):
+                    if score.get("type") == "cp":
+                        score_cp = score.get("cp")
+                    elif score.get("type") == "mate":
+                        score_mate = score.get("mate")
+
+            move0 = pv_list[0] if pv_list else ""
+            candidates.append(PVItem(move=move0, score_cp=score_cp, score_mate=score_mate, depth=depth, pv=pv_list))
+
+        return AnalyzeResponse(bestmove=bestmove, candidates=candidates)
+
+
+# tests が monkeypatch する前提のシンボル（モジュール末尾で実エンジンに差し替える）
 engine = _EnginePlaceholder()
 
 class AnalyzeIn(BaseModel):
@@ -286,7 +360,7 @@ def annotate(payload: Any):
 
 
 @app.post("/annotate")
-def annotate_endpoint(payload: Dict[str, Any]):
+def annotate_endpoint(payload: Dict[str, Any], _principal: Principal = Depends(require_api_key)):
     return annotate(payload)
 
 
@@ -871,6 +945,9 @@ class BatchEngineState(EngineState):
 stream_engine = EngineState(name="StreamEngine")
 batch_engine = BatchEngineState() 
 
+# /annotate の engine.analyze を実装（テストは monkeypatch で差し替え可能）
+engine = _EngineAdapter()
+
 @app.get("/")
 def root(): return {"message": "engine ok"}
 
@@ -878,11 +955,11 @@ def root(): return {"message": "engine ok"}
 def health(): return {"status": "ok"}
 
 @app.post("/api/explain")
-async def explain_endpoint(req: ExplainRequest):
+async def explain_endpoint(req: ExplainRequest, _principal: Principal = Depends(require_api_key)):
     return {"explanation": await AIService.generate_shogi_explanation(_dump_model(req))}
 
 @app.post("/api/explain/digest")
-async def digest_endpoint(req: GameDigestInput):
+async def digest_endpoint(req: GameDigestInput, _principal: Principal = Depends(require_api_key)):
     return {"explanation": await AIService.generate_game_digest(_dump_model(req))}
 
 @app.get("/api/tsume/list")
@@ -899,11 +976,11 @@ def get_tsume_detail(problem_id: int):
     return problem
 
 @app.post("/api/tsume/play")
-async def tsume_play_endpoint(req: TsumePlayRequest):
+async def tsume_play_endpoint(req: TsumePlayRequest, _principal: Principal = Depends(require_api_key)):
     return await stream_engine.solve_tsume_hand(req.sfen)
 
 @app.post("/api/analysis/batch")
-async def batch_endpoint(req: BatchAnalysisRequest):
+async def batch_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_api_key)):
     moves = req.moves or []
     if req.usi and "moves" in req.usi:
          moves = req.usi.split("moves")[1].split()
@@ -919,11 +996,11 @@ async def batch_endpoint(req: BatchAnalysisRequest):
     return StreamingResponse(generator(), media_type="application/x-ndjson")
 
 @app.post("/api/analysis/batch-stream")
-async def batch_stream_endpoint(req: BatchAnalysisRequest):
+async def batch_stream_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_api_key)):
     return await batch_endpoint(req)
 
 @app.get("/api/analysis/stream")
-def stream_endpoint(position: str):
+def stream_endpoint(position: str, _principal: Principal = Depends(require_api_key)):
     return StreamingResponse(
         stream_engine.stream_analyze(AnalyzeIn(position=position, depth=15, multipv=3)),
         media_type="text/event-stream"

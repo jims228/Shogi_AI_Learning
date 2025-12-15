@@ -1,0 +1,36 @@
+{
+  # Optional email for Let's Encrypt account
+  email {$LETSENCRYPT_EMAIL}
+}
+
+# HTTP: allow /health without auth; redirect everything else to HTTPS
+http://{$DOMAIN} {
+  handle_path /health* {
+    reverse_proxy api:8787
+  }
+
+  handle {
+    redir https://{$DOMAIN}{uri} 308
+  }
+}
+
+# HTTPS: /health is open; everything else requires Basic auth
+{$DOMAIN} {
+  encode gzip zstd
+
+  handle_path /health* {
+    reverse_proxy api:8787
+  }
+
+  handle {
+    basicauth {
+      {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+    }
+
+    reverse_proxy api:8787 {
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-Host {host}
+      header_up X-Forwarded-For {remote_host}
+    }
+  }
+}
