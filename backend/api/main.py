@@ -294,6 +294,7 @@ def annotate(payload: Any):
     data = _dump_model(payload)
 
     usi = (data or {}).get("usi") or ""
+    options = (data or {}).get("options") or {}
     moves = _extract_moves_from_usi(usi)
 
     notes: List[Dict[str, Any]] = []
@@ -337,6 +338,35 @@ def annotate(payload: Any):
             },
         }
         notes.append(note)
+
+        # --- PV根拠（任意） ---
+        # 計算量抑制のため、基本はタグが付いた場合や options 指定時のみ生成。
+        try:
+            if pv_line and (note["tags"] or options):
+                # board_before: startpos + moves[:i]
+                import shogi  # type: ignore
+                b = shogi.Board()
+                for m0 in moves[:i]:
+                    try:
+                        mv0 = shogi.Move.from_usi(m0)
+                        # 安全側: 合法だけ適用
+                        if hasattr(b, "is_legal") and b.is_legal(mv0):
+                            b.push(mv0)
+                        else:
+                            # フォールバック（慎重）
+                            b.push(mv0)
+                    except Exception:
+                        break
+
+                # Build pv_reason
+                from backend.ai.pv_reason import build_pv_reason
+                pv_reason = build_pv_reason(b, mv, " ".join(pv_line), options)
+                if pv_reason:
+                    note.setdefault("evidence", {}).setdefault("pv_reason", pv_reason)
+                    note["explain"] = pv_reason.get("summary")
+        except Exception as e:
+            # フォールバック: pv_reason 無しで続行
+            pass
 
         if isinstance(score_after, int):
             prev_score = score_after

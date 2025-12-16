@@ -22,21 +22,21 @@ const ProgressContext = createContext<{
 } | null>(null);
 
 export function ProgressProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<ProgressState>(() => {
-    try {
-      if (typeof window !== "undefined") {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) return JSON.parse(raw) as ProgressState;
-      }
-    } catch {
-      // ignore
-    }
-    return defaultState;
-  });
+  const [state, setState] = useState<ProgressState>(defaultState);
 
   useEffect(() => {
+    // SSRガード
+    if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) setState(JSON.parse(raw) as ProgressState);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {}
   }, [state]);
 
