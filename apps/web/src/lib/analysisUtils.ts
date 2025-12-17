@@ -7,10 +7,18 @@ export type EvalImpactCategory =
   | "good"       // 好手
   | "inaccuracy" // 疑問手
   | "mistake"    // 悪手
+  | "blunder"    // 大悪手
   | "neutral"    // 普通
   | "unknown";
 
-export type HighlightClassification = "good" | "inaccuracy" | "mistake";
+export type HighlightClassification = "good" | "inaccuracy" | "mistake" | "blunder";
+
+export const THRESH = {
+  good: 200,
+  inaccuracy: -200,
+  mistake: -350,
+  blunder: -500,
+} as const;
 
 const DIFF_LABEL = {
   waiting: "解析待ち",
@@ -34,10 +42,10 @@ export const getPrimaryEvalScore = (payload?: EngineAnalyzeResponse): number | n
 export const classifyEvalImpact = (diff: number | null): EvalImpactCategory => {
   if (diff === null) return "unknown";
   
-  // ★修正: 判定基準（ここが大悪手を消すポイント）
-  if (diff >= 200) return "good";       
-  if (diff <= -500) return "mistake";    // -500以下なら悪手
-  if (diff <= -350) return "inaccuracy"; // -350以下なら疑問手
+  if (diff >= THRESH.good) return "good";
+  if (diff <= THRESH.blunder) return "blunder";
+  if (diff <= THRESH.mistake) return "mistake";
+  if (diff <= THRESH.inaccuracy) return "inaccuracy";
   
   return "neutral";
 };
@@ -50,7 +58,7 @@ export const formatDiffLabel = (diff: number | null): string => {
 
 export const isHighlightClassification = (
   value: EvalImpactCategory,
-): value is HighlightClassification => ["good", "inaccuracy", "mistake"].includes(value);
+): value is HighlightClassification => ["good", "inaccuracy", "mistake", "blunder"].includes(value);
 
 export const getImpactDescriptor = (diff: number | null) => {
   const classification = classifyEvalImpact(diff);
@@ -89,12 +97,13 @@ export const buildMoveImpacts = (
     // 手番側にとっての得失点に変換
     const turnSideDiff = (i % 2 !== 0) ? rawDiff : -rawDiff;
 
+    const classification = classifyEvalImpact(turnSideDiff);
+
     let label = "";
-    
     // ★ここが最重要: "大悪手" という文字をコードから消し去る
-    if (turnSideDiff <= -500) label = "悪手"; 
-    else if (turnSideDiff <= -350) label = "疑問手";
-    else if (turnSideDiff >= 400) label = "好手";
+    if (classification === "good") label = "好手";
+    else if (classification === "inaccuracy") label = "疑問手";
+    else if (classification === "mistake" || classification === "blunder") label = "悪手";
 
     impacts[i] = { diff: turnSideDiff, label };
     
