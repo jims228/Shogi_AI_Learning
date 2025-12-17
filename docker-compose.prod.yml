@@ -1,33 +1,16 @@
 services:
   api:
-    # Override the dev compose: never publish 8787 publicly.
-    ports: []
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
     environment:
-      # Production: fail fast if engine is missing/unusable.
-      REQUIRE_ENGINE: "1"
-      # App-level auth/rate-limit knobs (see backend/api/auth.py and middleware)
-      API_KEYS: ${API_KEYS:-}
-      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
-      # Safety defaults
-      USE_LLM: ${USE_LLM:-0}
-
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    depends_on:
-      - api
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN}
-      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?set BASIC_AUTH_USER}
-      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?set BASIC_AUTH_HASH}
+      - PYTHONPATH=/app
+      - USE_LLM=0
+      - USE_LLM_REWRITE=0
+      - USE_EXPLAIN_V2=1
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-
-volumes:
-  caddy_data:
-  caddy_config:
+      - ./engine/yaneuraou:/usr/local/bin/yaneuraou:ro
+      - ./engine/eval:/usr/local/bin/eval:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
