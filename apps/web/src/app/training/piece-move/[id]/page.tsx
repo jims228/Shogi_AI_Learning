@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Board } from "@/components/Board";
+import { ManRive } from "@/components/ManRive";
 import { Placed } from "@/lib/sfen";
 import { ArrowLeft, CheckCircle, ChevronRight } from "lucide-react";
 
@@ -51,6 +52,7 @@ export default function PieceMoveLessonPage() {
   const [step, setStep] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [message, setMessage] = useState("");
+  const [correctSignal, setCorrectSignal] = useState(0);
 
   useEffect(() => {
     if (lesson) {
@@ -77,6 +79,7 @@ export default function PieceMoveLessonPage() {
       });
       setPieces(newPieces);
       setIsCompleted(true);
+      setCorrectSignal((v) => v + 1);
       setMessage("正しい動きです！レッスン完了！");
     } else {
       // Optional: feedback for wrong move
@@ -91,6 +94,19 @@ export default function PieceMoveLessonPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] font-sans flex flex-col">
+      <div
+        style={{
+          position: "fixed",
+          left: 12,
+          top: 12,
+          zIndex: 50,
+          width: 160,
+          height: 160,
+          pointerEvents: "none",
+        }}
+      >
+        <ManRive correctSignal={correctSignal} style={{ width: "100%", height: "100%" }} />
+      </div>
       {/* Header */}
       <header className="h-16 border-b border-black/10 flex items-center px-4 bg-[#f9f3e5]/95">
         <Link href="/learn" className="flex items-center text-[#555] hover:text-[#2b2b2b] transition-colors">

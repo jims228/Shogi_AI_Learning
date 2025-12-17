@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 import { ShogiBoard } from "@/components/ShogiBoard"; 
+import { ManRive } from "@/components/ManRive";
 import { GOLD_LESSONS } from "@/constants/rulesData"; 
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
@@ -16,6 +17,7 @@ export default function GoldTrainingPage() {
   const [board, setBoard] = useState<any[][]>([]); 
   const [hands, setHands] = useState<any>({ b: {}, w: {} });
   const [isCorrect, setIsCorrect] = useState(false);
+  const [correctSignal, setCorrectSignal] = useState(0);
   
   const currentLesson = GOLD_LESSONS[currentStepIndex];
 
@@ -47,6 +49,7 @@ export default function GoldTrainingPage() {
 
     if (correct) {
       setIsCorrect(true);
+      setCorrectSignal((v) => v + 1);
       showToast({ title: "正解！", description: currentLesson.successMessage });
     } else {
       showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
@@ -78,6 +81,19 @@ export default function GoldTrainingPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] flex flex-col">
+      <div
+        style={{
+          position: "fixed",
+          left: 12,
+          top: 12,
+          zIndex: 50,
+          width: 160,
+          height: 160,
+          pointerEvents: "none",
+        }}
+      >
+        <ManRive correctSignal={correctSignal} style={{ width: "100%", height: "100%" }} />
+      </div>
       <header className="h-16 border-b border-black/10 bg-white/50 flex items-center px-4 justify-between sticky top-0 z-10 backdrop-blur-sm">
         <Link href="/learn" className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold transition-colors">
           <ChevronLeft className="w-5 h-5" />
