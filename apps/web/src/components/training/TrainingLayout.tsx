@@ -25,15 +25,15 @@ export function TrainingLayout({
   return (
     <div
       className={cn(
-        "grid min-h-0 w-full gap-4 lg:grid-cols-[minmax(0,1fr)_360px]",
+        "grid min-h-0 w-full grid-cols-1 items-start gap-6 lg:grid-cols-12",
         className,
       )}
     >
-      <div className={cn("min-h-0", leftClassName)}>{left}</div>
+      <div className={cn("min-h-0 lg:col-span-8", leftClassName)}>{left}</div>
 
       <aside
         className={cn(
-          "min-h-0",
+          "min-h-0 lg:col-span-4",
           stickyRight && "lg:sticky lg:top-20 lg:self-start",
           rightClassName,
         )}

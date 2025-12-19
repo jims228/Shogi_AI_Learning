@@ -102,10 +102,13 @@ export default function RoadmapPage() {
     : (layout.length > 0 ? layout[layout.length - 1].y + 150 : 800);
 
   return (
-    <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] overflow-x-hidden">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#f9f3e5]/95 border-b border-black/10 shadow-sm backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-4 h-16 flex items-center">
+    <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] overflow-x-hidden flex flex-col">
+      {/* Header - sticky, not fixed */}
+      <header 
+        className="sticky top-0 left-0 right-0 z-50 bg-[#f9f3e5]/95 border-b border-black/10 shadow-sm backdrop-blur-sm"
+        style={{ paddingTop: "var(--safe-area-inset-top, 0px)" }}
+      >
+        <div className="mx-auto max-w-6xl px-4 h-14 flex items-center">
           <Link href="/learn" className="flex items-center text-slate-600 hover:text-slate-900 transition-colors">
             <ArrowLeft className="w-5 h-5 mr-1" />
             <span className="font-bold">メニューに戻る</span>
@@ -114,7 +117,7 @@ export default function RoadmapPage() {
         </div>
       </header>
 
-      <main className="pt-32 pb-20 px-4" ref={containerRef}>
+      <main className="flex-1 pb-20 px-4" ref={containerRef}>
         
         {/* === Desktop / Tablet View (蛇行レイアウト) === */}
         {!isMobile && (

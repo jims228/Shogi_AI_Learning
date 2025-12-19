@@ -1,19 +1,21 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
+import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 import { ShogiBoard } from "@/components/ShogiBoard"; 
 import { ManRive } from "@/components/ManRive";
-import { SILVER_LESSONS } from "@/constants/rulesData"; // 銀のデータをインポート
+import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
+import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
+import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { SILVER_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
 
 export default function SilverTrainingPage() {
   const router = useRouter();
   
-  // 状態管理
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [board, setBoard] = useState<any[][]>([]); 
   const [hands, setHands] = useState<any>({ b: {}, w: {} });
@@ -21,6 +23,7 @@ export default function SilverTrainingPage() {
   const [correctSignal, setCorrectSignal] = useState(0);
   
   const currentLesson = SILVER_LESSONS[currentStepIndex];
+  const isDesktop = useMediaQuery("(min-width: 820px)");
 
   useEffect(() => {
     if (currentLesson) {
@@ -63,87 +66,101 @@ export default function SilverTrainingPage() {
 
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
 
-  return (
-    <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] flex flex-col">
+  const boardElement = (
+    <div className="w-full h-full flex items-center justify-center">
       <div
+        className="w-full"
         style={{
-          position: "fixed",
-          left: 12,
-          top: 12,
-          zIndex: 50,
-          width: 160,
-          height: 160,
-          pointerEvents: "none",
+          maxWidth: 760,
+          aspectRatio: "1 / 1",
+          minHeight: isDesktop ? 560 : 360,
         }}
       >
-        <ManRive correctSignal={correctSignal} style={{ width: "100%", height: "100%" }} />
+        <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
+          <WoodBoardFrame paddingClassName="p-3" className="inline-block">
+            <ShogiBoard
+              board={board}
+              hands={hands}
+              mode="edit"
+              onMove={handleMove}
+              onBoardChange={setBoard}
+              onHandsChange={setHands}
+              orientation="sente"
+            />
+          </WoodBoardFrame>
+        </AutoScaleToFit>
       </div>
-      <header className="h-16 border-b border-black/10 bg-white/50 flex items-center px-4 justify-between sticky top-0 z-10 backdrop-blur-sm">
-        <Link href="/learn" className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold transition-colors">
-          <ChevronLeft className="w-5 h-5" />
-          <span>学習マップ</span>
-        </Link>
-        <div className="font-bold text-lg text-[#3a2b17]">基本の駒：銀</div>
-        <div className="w-20" />
-      </header>
+    </div>
+  );
 
-      <main className="flex-1 flex flex-col lg:flex-row items-start justify-center gap-8 p-4 md:p-8 max-w-6xl mx-auto w-full">
-        <div className="flex-1 w-full max-w-md space-y-6">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-400">
-            <span>STEP {currentStepIndex + 1}</span>
-            <span className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
-              <span 
-                className="block h-full bg-emerald-500 transition-all duration-500" 
-                style={{ width: `${((currentStepIndex + 1) / SILVER_LESSONS.length) * 100}%` }}
-              />
-            </span>
-            <span>{SILVER_LESSONS.length}</span>
-          </div>
+  const explanationElement = (
+    <div className="bg-white/80 backdrop-blur rounded-2xl shadow border border-black/10 p-4">
+      <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+        <span>STEP {currentStepIndex + 1}</span>
+        <span className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+          <span
+            className="block h-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${((currentStepIndex + 1) / SILVER_LESSONS.length) * 100}%` }}
+          />
+        </span>
+        <span>{SILVER_LESSONS.length}</span>
+      </div>
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-black/5">
-            <h1 className="text-2xl font-bold text-[#3a2b17] mb-4">{currentLesson.title}</h1>
-            
-            <div className="flex items-start gap-3 bg-amber-50 p-4 rounded-xl text-amber-900 mb-6">
-              <Lightbulb className="w-5 h-5 shrink-0 mt-0.5" />
-              <p className="leading-relaxed font-medium">{currentLesson.description}</p>
+      <div className="mt-3">
+        <h1 className="text-xl font-bold text-[#3a2b17]">{currentLesson.title}</h1>
+
+        <div className="mt-3 flex items-start gap-3 bg-amber-50/80 p-3 rounded-2xl text-amber-900 border border-amber-200/50">
+          <Lightbulb className="w-5 h-5 shrink-0 mt-0.5" />
+          <p className="leading-relaxed font-medium text-sm">{currentLesson.description}</p>
+        </div>
+
+        {isCorrect && (
+          <div className="animate-in fade-in zoom-in-95 duration-300 mt-4">
+            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 mb-2">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-emerald-800 mb-1">Excellent!</h3>
+              <p className="text-emerald-700 text-sm">{currentLesson.successMessage}</p>
             </div>
 
-            {isCorrect && (
-              <div className="animate-in fade-in zoom-in-95 duration-300">
-                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 text-center mb-6">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mb-3">
-                    <CheckCircle className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-lg font-bold text-emerald-800 mb-1">Excellent!</h3>
-                  <p className="text-emerald-700">{currentLesson.successMessage}</p>
-                </div>
-
-                <button 
-                  onClick={handleNext}
-                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
-                >
-                  {currentStepIndex < SILVER_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              </div>
-            )}
+            <button
+              onClick={handleNext}
+              className="mt-3 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+            >
+              {currentStepIndex < SILVER_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
+              <ArrowRight className="w-5 h-5" />
+            </button>
           </div>
-        </div>
-
-        <div className="flex-none w-full lg:w-auto flex justify-center">
-          <div className="bg-[#f3c882] p-1 rounded-xl shadow-2xl border-4 border-[#5d4037]">
-             <ShogiBoard
-                board={board}
-                hands={hands}
-                mode="edit" 
-                onMove={handleMove}
-                onBoardChange={setBoard} 
-                onHandsChange={setHands}
-                orientation="sente"
-             />
-          </div>
-        </div>
-      </main>
+        )}
+      </div>
     </div>
+  );
+
+  const mascotElement = (
+    <div style={{ transform: "translateY(-12px)" }}>
+      <ManRive
+        correctSignal={correctSignal}
+        className="bg-transparent [&>canvas]:bg-transparent"
+        style={{
+          width: isDesktop ? 380 : 260,
+          height: isDesktop ? 380 : 260,
+        }}
+      />
+    </div>
+  );
+
+  return (
+    <LessonScaffold
+      title="基本の駒：銀"
+      backHref="/learn/roadmap"
+      board={boardElement}
+      explanation={explanationElement}
+      mascot={mascotElement}
+      topLabel="NEW CONCEPT"
+      progress01={(currentStepIndex + 1) / SILVER_LESSONS.length}
+      headerRight={<span>❤ 4</span>}
+      desktopMinWidthPx={820}
+    />
   );
 }
