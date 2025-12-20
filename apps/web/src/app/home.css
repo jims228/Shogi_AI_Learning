@@ -364,6 +364,13 @@
   }
 }
 
+/* Hide success overlay on desktop (prevent showing the '正解' explanation box) */
+@media (min-width: 820px) {
+  .animate-in.fade-in.zoom-in-95 {
+    display: none !important;
+  }
+}
+
 /* Hide success/overlay explanation blocks on mobile inside lesson scaffold */
 @media (max-width: 420px) {
   .lesson-explanation-mobile .animate-in {
