@@ -100,7 +100,7 @@ export function LessonScaffold({
 				{/* スクロールなし */}
 				{/* ===================== */}
 				<div
-					className="md:hidden h-full min-h-0 flex flex-col overflow-hidden px-3 pt-3"
+					className="md:hidden h-full min-h-0 flex flex-col overflow-visible px-3 pt-3"
 					style={{
 						paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
 					}}
@@ -113,7 +113,7 @@ export function LessonScaffold({
 								<div
 									className="pointer-events-none origin-top-left"
 									style={{
-										transform: `translate(-14px, -18px) scale(${mobileMascotScale})`,
+										transform: `translate(-6px, -12px) scale(${mobileMascotScale})`,
 									}}
 								>
 									{mascot}
@@ -121,7 +121,7 @@ export function LessonScaffold({
 							</div>
 
 							{/* 解説（右上） */}
-							<div className="min-w-0 flex-1">
+							<div className="min-w-0 flex-1 text-sm leading-tight">
 								{topLabel ? (
 									<div className="text-[11px] font-bold tracking-wide text-slate-500">
 										{topLabel}
