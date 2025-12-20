@@ -41,8 +41,27 @@ export function LessonScaffold({
 }: LessonScaffoldProps) {
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
 
+  // prepare mobile-overridden board (remove inline maxWidth from page-provided board)
+  let mobileBoard: React.ReactNode = board;
+  if (!isDesktop && React.isValidElement(board)) {
+    const el = board as React.ReactElement<any>;
+    const newStyle = { ...(el.props.style ?? {}), maxWidth: "100%", aspectRatio: "1 / 1", minHeight: "auto" };
+    const newClass = `${el.props.className ?? ""} w-full`;
+    mobileBoard = React.cloneElement(el, { style: newStyle, className: newClass });
+  }
+
   return (
     <div className="fixed inset-0 z-[9999] h-[100dvh] w-[100dvw] overflow-hidden bg-[#f6f1e6] text-[#2b2b2b] flex flex-col">
+      {/* Mobile fixed back button (always non-scrolling) */}
+      <div className="sm:hidden">
+        <Link
+          href={backHref}
+          className="fixed left-3 top-3 z-[10010] bg-white/90 backdrop-blur rounded-full p-2 shadow-md border border-black/10"
+          aria-label="戻る"
+        >
+          <ChevronLeft className="w-5 h-5 text-slate-700" />
+        </Link>
+      </div>
       {/* Header */}
       <header className="h-12 md:h-14 flex items-center justify-between px-3 md:px-6 border-b border-black/10 bg-white/40 backdrop-blur shrink-0">
         <Link
@@ -144,7 +163,7 @@ export function LessonScaffold({
                 {/* Explanation (右上) */}
                 <div className="min-w-0">
                   {/* 高さを制限して1画面固定。中身はページ側で “モバイルは短く” するのが理想 */}
-                  <div className="max-h-[180px] overflow-hidden">
+                  <div className="max-h-[180px] overflow-hidden lesson-explanation-mobile">
                     {explanation}
                   </div>
                 </div>
@@ -152,9 +171,15 @@ export function LessonScaffold({
             </div>
 
             {/* Board area（残り全部） */}
-            <div className="flex-1 min-h-0 overflow-hidden px-3 pb-2">
-              <div className="h-full min-h-0 flex items-end justify-center">
-                {board}
+            <div className="flex-1 min-h-0 overflow-hidden px-3 pb-2 flex flex-col items-center">
+              <div className="w-full max-w-[640px] flex-1 flex items-center justify-center lesson-mobile-board-wrapper">
+                <div className="w-full">
+                  {mobileBoard}
+                </div>
+              </div>
+
+              <div className="w-full mt-2 mb-2 flex items-center justify-center">
+                <div className="w-full max-w-[640px]" />
               </div>
             </div>
 

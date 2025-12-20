@@ -363,3 +363,27 @@
     padding: 12px;
   }
 }
+
+/* Hide success/overlay explanation blocks on mobile inside lesson scaffold */
+@media (max-width: 420px) {
+  .lesson-explanation-mobile .animate-in {
+    display: none !important;
+  }
+
+  /* Ensure the mobile board wrapper does not clip hands */
+  .lesson-mobile-board-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    height: 100%;
+  }
+
+  /* Ensure the cloned board fills width and keeps square aspect */
+  .lesson-mobile-board-wrapper .w-full {
+    max-width: 100% !important;
+    aspect-ratio: 1 / 1 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+}
