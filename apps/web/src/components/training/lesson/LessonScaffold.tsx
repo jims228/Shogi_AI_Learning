@@ -113,7 +113,7 @@ export function LessonScaffold({
 								<div
 									className="pointer-events-none origin-top-left"
 									style={{
-										transform: `translateY(-22px) scale(${mobileMascotScale})`,
+										transform: `translate(-14px, -18px) scale(${mobileMascotScale})`,
 									}}
 								>
 									{mascot}
@@ -138,7 +138,7 @@ export function LessonScaffold({
 								) : null}
 
 								{/* スクロール禁止なので高さを制限して切る */}
-								<div className="mt-2 max-h-[28vh] overflow-hidden">
+								<div className="mt-2 max-h-[22vh] overflow-hidden">
 									{explanation}
 								</div>
 							</div>
@@ -146,7 +146,7 @@ export function LessonScaffold({
 					</div>
 
 					{/* 下段：盤面（残り全て） */}
-					<div className="relative flex-1 min-h-0 flex items-end justify-center pt-2">
+					<div className="relative flex-1 min-h-0 flex items-center justify-center pt-1">
 						<div className="w-full max-w-[min(92vw,520px)] aspect-square">
 							{board}
 						</div>
