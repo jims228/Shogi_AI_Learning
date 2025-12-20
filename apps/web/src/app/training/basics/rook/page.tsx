@@ -156,13 +156,21 @@ export default function RookTrainingPage() {
     </div>
   );
 
+  const mascotOverlay = isCorrect ? (
+    <div className="bg-white/95 border border-emerald-100 rounded-2xl p-3 shadow-md w-56">
+      <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
+      <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
+    </div>
+  ) : null;
+
   return (
     <LessonScaffold
       title="基本の駒：飛車"
-      backHref="/learn"
+      backHref="/learn/roadmap"
       board={boardElement}
       explanation={explanationElement}
       mascot={mascotElement}
+      mascotOverlay={mascotOverlay}
       topLabel="NEW CONCEPT"
       progress01={(currentStepIndex + 1) / ROOK_LESSONS.length}
       headerRight={<span>❤ 4</span>}

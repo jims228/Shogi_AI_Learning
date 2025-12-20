@@ -315,3 +315,51 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Mobile tweaks to ensure buttons/cards fit on a single viewport */
+@media (max-width: 420px) {
+  .home-shell {
+    padding: 0 12px;
+    gap: 12px;
+  }
+
+  .home-page-title {
+    font-size: 18px;
+  }
+
+  .training-card {
+    padding: 14px 16px;
+    border-radius: 16px;
+  }
+
+  .training-card-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 8px;
+  }
+
+  .training-card-title {
+    font-size: 16px;
+  }
+
+  .training-card-sub {
+    font-size: 12px;
+  }
+
+  .home-main {
+    min-height: calc(100vh - 64px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 64px;
+    padding-bottom: 12px;
+  }
+
+  .home-training-grid {
+    gap: 12px;
+  }
+
+  .home-mascot {
+    padding: 12px;
+  }
+}

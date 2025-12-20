@@ -21,6 +21,8 @@ export type LessonScaffoldProps = {
 
   // ★追加：モバイル下部の固定アクション（次へボタンをここに出す）
   mobileAction?: React.ReactNode;
+  // mascot そばに出す小さなオーバーレイ（正解メッセージ等）
+  mascotOverlay?: React.ReactNode;
 };
 
 export function LessonScaffold({
@@ -35,6 +37,7 @@ export function LessonScaffold({
   desktopMinWidthPx = 820,
   mobileMascotScale = 0.78,
   mobileAction,
+  mascotOverlay,
 }: LessonScaffoldProps) {
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
 
@@ -85,8 +88,13 @@ export function LessonScaffold({
                 {explanation}
               </div>
 
-              <div className="flex-1 min-h-0 flex items-end justify-center pb-2">
+              <div className="flex-1 min-h-0 flex items-end justify-center pb-2 relative">
                 {mascot}
+                {mascotOverlay ? (
+                  <div className="absolute -left-44 bottom-12 hidden lg:block">
+                    {mascotOverlay}
+                  </div>
+                ) : null}
               </div>
             </section>
           </div>
@@ -124,6 +132,11 @@ export function LessonScaffold({
                   >
                     {mascot}
                   </div>
+                  {mascotOverlay ? (
+                    <div className="absolute left-[110px] top-0 block lg:hidden">
+                      {mascotOverlay}
+                    </div>
+                  ) : null}
                   {/* レイアウト用の箱 */}
                   <div className="h-full" />
                 </div>

@@ -51,7 +51,7 @@ export default function LearnMenuPage() {
                   <Puzzle className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="training-card-title">詰め将棋</div>
+                  <div className="training-card-title">詰将棋</div>
                   <div className="training-card-sub">短手数から鍛える（解答→チェック）</div>
                 </div>
               </Link>

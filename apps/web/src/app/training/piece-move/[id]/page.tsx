@@ -89,7 +89,7 @@ export default function PieceMoveLessonPage() {
   const handleFinish = () => {
     // Mark as completed (mock)
     // In a real app, call API or update global state
-    router.push("/learn");
+    router.push("/learn/roadmap");
   };
 
   return (
@@ -109,26 +109,32 @@ export default function PieceMoveLessonPage() {
       </div>
       {/* Header */}
       <header className="h-16 border-b border-black/10 flex items-center px-4 bg-[#f9f3e5]/95">
-        <Link href="/learn" className="flex items-center text-[#555] hover:text-[#2b2b2b] transition-colors">
+        <Link href="/learn/roadmap" className="flex items-center text-[#555] hover:text-[#2b2b2b] transition-colors">
           <ArrowLeft className="w-5 h-5 mr-2 text-[#555]" />
           マップに戻る
         </Link>
         <h1 className="ml-4 font-bold text-lg">駒の動きレッスン</h1>
       </header>
-
-      <div className="flex-1 flex flex-col md:flex-row max-w-6xl mx-auto w-full p-4 gap-8">
-        {/* Left: Board */}
-        <div className="flex-1 flex items-center justify-center bg-[#fef8e6] rounded-2xl border border-black/10 p-4 shadow-[0_10px_25px_rgba(0,0,0,0.08)]">
-          <Board 
-            pieces={pieces} 
-            highlightSquares={!isCompleted ? [lesson.targetSquare] : []}
-            onSquareClick={handleSquareClick}
-          />
+      <div
+        style={{
+          position: "fixed",
+          left: 12,
+          top: 12,
+          zIndex: 50,
+          width: 160,
+          height: 160,
+          pointerEvents: "none",
+        }}
+      >
+        <ManRive correctSignal={correctSignal} style={{ width: "100%", height: "100%" }} />
+        {isCompleted ? (
+          <div className="absolute left-[170px] top-0 w-64 bg-white/95 border border-emerald-100 rounded-xl p-3 shadow-md">
+            <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
+            <p className="text-sm text-emerald-700 mt-1">正しい動きです！レッスン完了！</p>
+          </div>
+        ) : null}
         </div>
-
-        {/* Right: Instructions */}
-        <div className="w-full md:w-96 flex flex-col gap-6">
-          <div className="bg-[#fdf3de] border border-black/10 rounded-2xl p-6 shadow-[0_10px_25px_rgba(0,0,0,0.08)]">
+        <div className="bg-[#fdf3de] border border-black/10 rounded-2xl p-6 shadow-[0_10px_25px_rgba(0,0,0,0.08)]">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-[#fef1d6] flex items-center justify-center font-bold text-xl text-[#2b2b2b]">
                 {isCompleted ? <CheckCircle className="w-6 h-6 text-[#555]" /> : (step + 1)}
@@ -156,9 +162,7 @@ export default function PieceMoveLessonPage() {
                 <ChevronRight className="w-5 h-5 text-[#555]" />
               </button>
             )}
-          </div>
-        </div>
-      </div>
-    </div>
+              </div>
+            </div>
   );
 }

@@ -77,7 +77,7 @@ export default function GoldTrainingPage() {
     if (currentStepIndex < GOLD_LESSONS.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
     } else {
-      router.push("/learn");
+      router.push("/learn/roadmap");
     }
   };
 
@@ -171,13 +171,21 @@ export default function GoldTrainingPage() {
     </div>
   );
 
+  const mascotOverlay = isCorrect ? (
+    <div className="bg-white/95 border border-emerald-100 rounded-2xl p-3 shadow-md w-56">
+      <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
+      <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
+    </div>
+  ) : null;
+
   return (
     <LessonScaffold
       title="基本の駒：金"
-      backHref="/learn"
+      backHref="/learn/roadmap"
       board={boardElement}
       explanation={explanationElement}
       mascot={mascotElement}
+      mascotOverlay={mascotOverlay}
       topLabel="NEW CONCEPT"
       progress01={(currentStepIndex + 1) / GOLD_LESSONS.length}
       headerRight={<span>❤ 4</span>}
