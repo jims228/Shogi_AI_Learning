@@ -86,7 +86,7 @@ export function LessonScaffold({
 							{explanation}
 						</div>
 
-						<div className="flex-1 min-h-0 flex items-end justify-end pb-2">
+						<div className="flex-1 min-h-0 flex items-end justify-center pb-2">
 							{mascot}
 						</div>
 
