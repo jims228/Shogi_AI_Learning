@@ -147,7 +147,17 @@ export function LessonScaffold({
 
 					{/* 下段：盤面（残り全て） */}
 					<div className="relative flex-1 min-h-0 flex items-center justify-center pt-1">
-						<div className="w-full max-w-[min(92vw,520px)] aspect-square">
+						<div
+							className="w-full"
+							style={{
+								maxWidth: "min(92vw,520px)",
+								aspectRatio: "1 / 1",
+								// 100dvh からヘッダ、高さ制限した解説領域（22vh）、フッタ想定を差し引いて
+								// 盤面の最大高さを確保する（safe-area を考慮）。フッタ高さは約4remを想定。
+								maxHeight:
+									"calc(100dvh - 3rem - 22vh - 4rem - env(safe-area-inset-bottom, 0px))",
+							}}
+						>
 							{board}
 						</div>
 					</div>
