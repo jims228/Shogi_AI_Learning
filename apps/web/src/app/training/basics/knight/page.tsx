@@ -8,7 +8,6 @@ import { ManRive } from "@/components/ManRive";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { KNIGHT_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
@@ -23,7 +22,6 @@ export default function KnightTrainingPage() {
   const [correctSignal, setCorrectSignal] = useState(0);
   
   const currentLesson = KNIGHT_LESSONS[currentStepIndex];
-  const isDesktop = useMediaQuery("(min-width: 820px)");
 
   // ステップが変わったら盤面を初期化
   useEffect(() => {
@@ -72,7 +70,7 @@ export default function KnightTrainingPage() {
   const nextButton = isCorrect ? (
     <button
       onClick={handleNext}
-      className="w-full py-3 md:py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95 text-sm md:text-base"
+      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95 text-sm md:text-base"
     >
       {currentStepIndex < KNIGHT_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
       <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
@@ -81,16 +79,9 @@ export default function KnightTrainingPage() {
 
   const boardElement = (
     <div className="w-full h-full flex items-center justify-center">
-      <div
-        className="w-full"
-        style={{
-          maxWidth: 760,
-          aspectRatio: "1 / 1",
-          minHeight: isDesktop ? 560 : 360,
-        }}
-      >
-        <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
-          <WoodBoardFrame paddingClassName="p-3" className="inline-block">
+      <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
+        <WoodBoardFrame paddingClassName="p-3" className="w-full h-full">
+          <div className="relative w-full h-full">
             <ShogiBoard
               board={board}
               hands={hands}
@@ -100,9 +91,9 @@ export default function KnightTrainingPage() {
               onHandsChange={setHands}
               orientation="sente"
             />
-          </WoodBoardFrame>
-        </AutoScaleToFit>
-      </div>
+          </div>
+        </WoodBoardFrame>
+      </AutoScaleToFit>
     </div>
   );
 
@@ -128,7 +119,7 @@ export default function KnightTrainingPage() {
         </div>
 
         {isCorrect && (
-          <div className="animate-in fade-in zoom-in-95 duration-300">
+          <div className="hidden md:block animate-in fade-in zoom-in-95 duration-300">
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 md:p-6 text-center mb-4">
               <div className="inline-flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-emerald-100 text-emerald-600 mb-2">
                 <CheckCircle className="w-5 h-5 md:w-6 md:h-6" />
@@ -139,30 +130,24 @@ export default function KnightTrainingPage() {
           </div>
         )}
 
-        {isDesktop && nextButton}
+        <div className="hidden md:block">{nextButton}</div>
       </div>
     </div>
   );
 
   const mascotElement = (
-    <div style={{ transform: "translateY(-12px)" }}>
-      <ManRive
-        correctSignal={correctSignal}
-        className="bg-transparent [&>canvas]:bg-transparent"
-        style={{
-          width: isDesktop ? 380 : 260,
-          height: isDesktop ? 380 : 260,
-        }}
-      />
+    <div className="flex items-center justify-center">
+      <div className="w-[260px] md:w-[380px]" style={{ transform: "translateY(-12px)" }}>
+        <ManRive
+          correctSignal={correctSignal}
+          className="bg-transparent [&>canvas]:bg-transparent"
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
     </div>
   );
 
-  const mascotOverlay = isCorrect ? (
-    <div className="bg-white/95 border border-emerald-100 rounded-2xl p-3 shadow-md w-56">
-      <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
-      <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
-    </div>
-  ) : null;
+  const footerElement = isCorrect ? nextButton : <div className="h-12" />;
 
   return (
     <LessonScaffold
@@ -171,12 +156,11 @@ export default function KnightTrainingPage() {
       board={boardElement}
       explanation={explanationElement}
       mascot={mascotElement}
-      mascotOverlay={mascotOverlay}
+      footer={footerElement}
       progress01={(currentStepIndex + 1) / KNIGHT_LESSONS.length}
       headerRight={<span>❤ 4</span>}
       topLabel="NEW CONCEPT"
-      desktopMinWidthPx={820}
-      mobileAction={!isDesktop ? nextButton : null}
+      mobileMascotScale={0.72}
     />
   );
 }

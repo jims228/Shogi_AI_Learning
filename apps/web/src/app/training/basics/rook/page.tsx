@@ -8,7 +8,6 @@ import { ManRive } from "@/components/ManRive";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ROOK_LESSONS } from "@/constants/rulesData"; 
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
@@ -23,7 +22,6 @@ export default function RookTrainingPage() {
   const [correctSignal, setCorrectSignal] = useState(0);
   
   const currentLesson = ROOK_LESSONS[currentStepIndex];
-  const isDesktop = useMediaQuery("(min-width: 820px)");
 
   useEffect(() => {
     if (currentLesson) {
@@ -60,7 +58,7 @@ export default function RookTrainingPage() {
     if (currentStepIndex < ROOK_LESSONS.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
     } else {
-      router.push("/learn");
+      router.push("/learn/roadmap");
     }
   };
 
@@ -78,14 +76,7 @@ export default function RookTrainingPage() {
 
   const boardElement = (
     <div className="w-full h-full flex items-center justify-center">
-      <div
-        className="w-full"
-        style={{
-          maxWidth: 760,
-          aspectRatio: "1 / 1",
-          minHeight: isDesktop ? 560 : 360,
-        }}
-      >
+      <div className="w-full h-full">
         <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-3" className="inline-block">
             <ShogiBoard
@@ -126,42 +117,32 @@ export default function RookTrainingPage() {
           <p className="leading-relaxed font-medium text-sm md:text-base">{currentLesson.description}</p>
         </div>
 
-        {isCorrect && (
-          <div className="animate-in fade-in zoom-in-95 duration-300">
-            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 md:p-6 text-center mb-4">
-              <div className="inline-flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-emerald-100 text-emerald-600 mb-2">
-                <CheckCircle className="w-5 h-5 md:w-6 md:h-6" />
+        <div className="hidden md:block">
+          {isCorrect && (
+            <div className="animate-in fade-in zoom-in-95 duration-300">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 md:p-6 text-center mb-4">
+                <div className="inline-flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-emerald-100 text-emerald-600 mb-2">
+                  <CheckCircle className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <h3 className="text-base md:text-lg font-bold text-emerald-800 mb-1">Excellent!</h3>
+                <p className="text-sm md:text-base text-emerald-700">{currentLesson.successMessage}</p>
               </div>
-              <h3 className="text-base md:text-lg font-bold text-emerald-800 mb-1">Excellent!</h3>
-              <p className="text-sm md:text-base text-emerald-700">{currentLesson.successMessage}</p>
             </div>
-          </div>
-        )}
+          )}
 
-        {isDesktop && nextButton}
+          {nextButton}
+        </div>
       </div>
     </div>
   );
 
   const mascotElement = (
-    <div style={{ transform: "translateY(-12px)" }}>
-      <ManRive
-        correctSignal={correctSignal}
-        className="bg-transparent [&>canvas]:bg-transparent"
-        style={{
-          width: isDesktop ? 380 : 260,
-          height: isDesktop ? 380 : 260,
-        }}
-      />
+    <div className="-translate-y-3">
+      <ManRive correctSignal={correctSignal} className="bg-transparent [&>canvas]:bg-transparent w-64 md:w-[380px] h-64 md:h-[380px]" />
     </div>
   );
 
-  const mascotOverlay = isCorrect ? (
-    <div className="bg-white/95 border border-emerald-100 rounded-2xl p-3 shadow-md w-56">
-      <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
-      <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
-    </div>
-  ) : null;
+  const mascotOverlay = null;
 
   return (
     <LessonScaffold
@@ -170,12 +151,10 @@ export default function RookTrainingPage() {
       board={boardElement}
       explanation={explanationElement}
       mascot={mascotElement}
-      mascotOverlay={mascotOverlay}
       topLabel="NEW CONCEPT"
       progress01={(currentStepIndex + 1) / ROOK_LESSONS.length}
       headerRight={<span>❤ 4</span>}
-      desktopMinWidthPx={820}
-      mobileAction={!isDesktop ? nextButton : null}
+      footer={nextButton}
     />
   );
 }

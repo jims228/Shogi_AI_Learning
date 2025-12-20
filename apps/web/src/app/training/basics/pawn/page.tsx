@@ -8,7 +8,7 @@ import { ShogiBoard } from "@/components/ShogiBoard";
 import { ManRive } from "@/components/ManRive";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { /*useMediaQuery*/ } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 
 import { PAWN_LESSONS } from "@/constants/rulesData";
@@ -35,8 +35,7 @@ export default function PawnTrainingPage() {
 
   const currentLesson = PAWN_LESSONS[currentStepIndex];
 
-  // レイアウト判定（Scaffoldと揃える）
-  const isDesktop = useMediaQuery("(min-width: 820px)");
+  // NOTE: layout breakpoint handled by LessonScaffold via Tailwind md: classes
 
   useEffect(() => {
     if (!currentLesson) return;
@@ -81,7 +80,7 @@ export default function PawnTrainingPage() {
   const nextButton = isCorrect ? (
     <button
       onClick={handleNext}
-      className="mt-3 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
     >
       {currentStepIndex < PAWN_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
       <ArrowRight className="w-5 h-5" />
@@ -91,16 +90,9 @@ export default function PawnTrainingPage() {
   // ===== 盤面（左側に常に出す）=====
   const boardElement = (
     <div className="w-full h-full flex items-center justify-center">
-      <div
-        className="w-full"
-        style={{
-          maxWidth: 760,
-          aspectRatio: "1 / 1",
-          minHeight: isDesktop ? 560 : 360,
-        }}
-      >
-        <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
-          <WoodBoardFrame paddingClassName="p-3" className="inline-block">
+      <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
+        <WoodBoardFrame paddingClassName="p-3" className="w-full h-full">
+          <div className="relative w-full h-full">
             <ShogiBoard
               board={board}
               hands={hands}
@@ -110,9 +102,9 @@ export default function PawnTrainingPage() {
               onHandsChange={setHands}
               orientation="sente"
             />
-          </WoodBoardFrame>
-        </AutoScaleToFit>
-      </div>
+          </div>
+        </WoodBoardFrame>
+      </AutoScaleToFit>
     </div>
   );
 
@@ -140,7 +132,7 @@ export default function PawnTrainingPage() {
         </div>
 
         {isCorrect && (
-          <div className="animate-in fade-in zoom-in-95 duration-300 mt-4">
+          <div className="hidden md:block animate-in fade-in zoom-in-95 duration-300 mt-4">
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center">
               <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 mb-2">
                 <CheckCircle className="w-5 h-5" />
@@ -150,32 +142,29 @@ export default function PawnTrainingPage() {
             </div>
           </div>
         )}
-
-        {isDesktop && nextButton}
       </div>
     </div>
   );
 
   // ===== おじいちゃん（右下）=====
   const mascotElement = (
-    <div style={{ transform: "translateY(-12px)" }}>
-      <ManRive
-        correctSignal={correctSignal}
-        className="bg-transparent [&>canvas]:bg-transparent"
-        style={{
-          width: isDesktop ? 380 : 260,
-          height: isDesktop ? 380 : 260,
-        }}
-      />
+    <div className="flex items-center justify-center">
+      <div className="w-[260px] md:w-[380px]" style={{ transform: "translateY(-12px)" }}>
+        <ManRive
+          correctSignal={correctSignal}
+          className="bg-transparent [&>canvas]:bg-transparent"
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
     </div>
   );
 
-  const mascotOverlay = isCorrect ? (
-    <div className="bg-white/95 border border-emerald-100 rounded-2xl p-3 shadow-md w-56">
-      <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
-      <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
-    </div>
-  ) : null;
+  // footer for mobile (fixed at bottom)
+  const footerElement = isCorrect ? (
+    nextButton
+  ) : (
+    <div className="h-12" />
+  );
 
   return (
     <LessonScaffold
@@ -184,12 +173,11 @@ export default function PawnTrainingPage() {
       board={boardElement}
       explanation={explanationElement}
       mascot={mascotElement}
-      mascotOverlay={mascotOverlay}
+      footer={footerElement}
       topLabel="NEW CONCEPT"
       progress01={(currentStepIndex + 1) / PAWN_LESSONS.length}
       headerRight={<span>❤ 4</span>}
-      desktopMinWidthPx={820}
-      mobileAction={!isDesktop ? nextButton : null}
+      mobileMascotScale={0.72}
     />
   );
 }
