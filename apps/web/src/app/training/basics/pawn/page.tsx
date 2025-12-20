@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 
 import { ShogiBoard } from "@/components/ShogiBoard";
 import { ManRive } from "@/components/ManRive";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
-import { ShogiHands } from "@/components/ShogiHands";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
@@ -35,9 +34,6 @@ export default function PawnTrainingPage() {
   const [correctSignal, setCorrectSignal] = useState(0);
 
   const currentLesson = PAWN_LESSONS[currentStepIndex];
-
-  // “持ち駒を角に寄せる”判定
-  const wideHands = useMediaQuery("(min-width: 1280px) and (min-height: 720px)");
 
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
@@ -82,6 +78,16 @@ export default function PawnTrainingPage() {
 
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
 
+  const nextButton = isCorrect ? (
+    <button
+      onClick={handleNext}
+      className="mt-3 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+    >
+      {currentStepIndex < PAWN_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
+      <ArrowRight className="w-5 h-5" />
+    </button>
+  ) : null;
+
   // ===== 盤面（左側に常に出す）=====
   const boardElement = (
     <div className="w-full h-full flex items-center justify-center">
@@ -95,29 +101,15 @@ export default function PawnTrainingPage() {
       >
         <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-3" className="inline-block">
-            <div className="relative">
-              <ShogiBoard
-                board={board}
-                hands={hands}
-                mode="edit"
-                onMove={handleMove}
-                onBoardChange={setBoard}
-                onHandsChange={setHands}
-                orientation="sente"
-                showHands={!wideHands}
-              />
-
-              {wideHands && (
-                <div className="absolute inset-0">
-                  <ShogiHands
-                    hands={hands}
-                    viewerSide="sente"
-                    layout="corners"
-                    className="absolute inset-0"
-                  />
-                </div>
-              )}
-            </div>
+            <ShogiBoard
+              board={board}
+              hands={hands}
+              mode="edit"
+              onMove={handleMove}
+              onBoardChange={setBoard}
+              onHandsChange={setHands}
+              orientation="sente"
+            />
           </WoodBoardFrame>
         </AutoScaleToFit>
       </div>
@@ -156,16 +148,10 @@ export default function PawnTrainingPage() {
               <h3 className="text-base font-bold text-emerald-800 mb-1">Excellent!</h3>
               <p className="text-emerald-700 text-sm">{currentLesson.successMessage}</p>
             </div>
-
-            <button
-              onClick={handleNext}
-              className="mt-3 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
-            >
-              {currentStepIndex < PAWN_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
-              <ArrowRight className="w-5 h-5" />
-            </button>
           </div>
         )}
+
+        {isDesktop && nextButton}
       </div>
     </div>
   );
@@ -195,6 +181,7 @@ export default function PawnTrainingPage() {
       progress01={(currentStepIndex + 1) / PAWN_LESSONS.length}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
+      mobileAction={!isDesktop ? nextButton : null}
     />
   );
 }

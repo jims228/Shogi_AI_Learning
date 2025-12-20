@@ -69,6 +69,16 @@ export default function KnightTrainingPage() {
 
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
 
+  const nextButton = isCorrect ? (
+    <button
+      onClick={handleNext}
+      className="w-full py-3 md:py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95 text-sm md:text-base"
+    >
+      {currentStepIndex < KNIGHT_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
+      <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
+    </button>
+  ) : null;
+
   const boardElement = (
     <div className="w-full h-full flex items-center justify-center">
       <div
@@ -126,16 +136,10 @@ export default function KnightTrainingPage() {
               <h3 className="text-base md:text-lg font-bold text-emerald-800 mb-1">Excellent!</h3>
               <p className="text-sm md:text-base text-emerald-700">{currentLesson.successMessage}</p>
             </div>
-
-            <button
-              onClick={handleNext}
-              className="w-full py-3 md:py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95 text-sm md:text-base"
-            >
-              {currentStepIndex < KNIGHT_LESSONS.length - 1 ? "次のステップへ" : "レッスン完了！"}
-              <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
-            </button>
           </div>
         )}
+
+        {isDesktop && nextButton}
       </div>
     </div>
   );
@@ -159,9 +163,12 @@ export default function KnightTrainingPage() {
       backHref="/learn"
       board={boardElement}
       explanation={explanationElement}
-      mascot={mascotElement}      topLabel="NEW CONCEPT"
+      mascot={mascotElement}
       progress01={(currentStepIndex + 1) / KNIGHT_LESSONS.length}
       headerRight={<span>❤ 4</span>}
-      desktopMinWidthPx={820}    />
+      topLabel="NEW CONCEPT"
+      desktopMinWidthPx={820}
+      mobileAction={!isDesktop ? nextButton : null}
+    />
   );
 }

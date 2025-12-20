@@ -1,12 +1,5 @@
-import "./home.css";
 import Link from "next/link";
-import { Swords, Map, BookOpenCheck, Bell, UserCircle } from "lucide-react";
-
-const metrics = [
-  { label: "継続日数", value: "22日" },
-  { label: "本日の修練", value: "45分" },
-  { label: "棋力レート", value: "1850" },
-];
+import { Swords, Map, BookOpenCheck } from "lucide-react";
 
 const trainingCards = [
   {
@@ -37,69 +30,23 @@ const trainingCards = [
 
 export default function HomePage() {
   return (
-    <div className="home-root">
-      <header className="home-header">
-        <div className="home-header-inner">
-          <div className="home-logo">
-            <span className="home-logo-main">Shogi AI</span>
-            <span className="home-logo-sub">Learning</span>
-          </div>
-          <div className="home-header-icons">
-            <button type="button" aria-label="notifications">
-              <Bell size={24} />
-            </button>
-            <button type="button" aria-label="profile">
-              <UserCircle size={32} />
-            </button>
-          </div>
-        </div>
-      </header>
-
+    <div className="home-root home-root--no-header">
       <main className="home-main">
         <div className="home-shell">
-          <section className="home-metrics">
-            {metrics.map((metric, index) => (
-              <div
-                key={metric.label}
-                className={`home-metric-item${index === 1 ? " home-metric-item--divider" : ""}`}
-              >
-                <p className="home-metric-label">{metric.label}</p>
-                <p className="home-metric-value">{metric.value}</p>
-              </div>
+          <h1 className="home-page-title">将棋学習サイト</h1>
+          <div className="home-training-grid">
+            {trainingCards.map((card) => (
+              <Link key={card.title} href={card.href} className={`training-card ${card.modifier}`}>
+                <div className="training-card-icon">
+                  <card.icon size={24} color={card.iconColor} />
+                </div>
+                <div>
+                  <div className="training-card-title">{card.title}</div>
+                  <div className="training-card-sub">{card.description}</div>
+                </div>
+              </Link>
             ))}
-          </section>
-
-          <section className="home-mascot">
-            <div className="home-mascot-copy">
-              <p className="home-mascot-name">ドラゴ</p>
-              <p className="home-mascot-text">
-                おかえり！今日は「棒銀」の復習から始めるといい感じだぞ！
-              </p>
-            </div>
-            <div className="home-mascot-avatar" aria-hidden="true">
-              🐲
-            </div>
-          </section>
-
-          <section className="home-training">
-            <div className="home-training-header">
-              <div className="home-training-accent" />
-              <h2 className="home-training-title">修練の間</h2>
-            </div>
-            <div className="home-training-grid">
-              {trainingCards.map((card) => (
-                <Link key={card.title} href={card.href} className={`training-card ${card.modifier}`}>
-                  <div className="training-card-icon">
-                    <card.icon size={24} color={card.iconColor} />
-                  </div>
-                  <div>
-                    <div className="training-card-title">{card.title}</div>
-                    <div className="training-card-sub">{card.description}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
+          </div>
         </div>
       </main>
     </div>

@@ -257,7 +257,7 @@ export default function RoadmapPage() {
 
       {/* Modal (Dialog) */}
       <Dialog open={!!selectedLesson} onOpenChange={(open) => !open && setSelectedLessonId(null)}>
-        <DialogContent className="fixed z-[99999] left-1/2 top-1/2 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-[#fdf8ee] p-6 shadow-2xl border border-black/10 gap-0 [&>button]:hidden">
+        <DialogContent className="fixed z-[99999] left-1/2 top-1/2 w-[80vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-[#cfc3a8] p-6 shadow-2xl border border-black/20 gap-0 text-[#3a2b17] [&>button]:hidden">
           {selectedLesson && (
             <>
               <div className="flex justify-between items-start mb-4">
@@ -265,46 +265,50 @@ export default function RoadmapPage() {
                   <div className="text-xs font-bold text-[#b67a3c] uppercase tracking-wider mb-1">
                     {selectedLesson.category === "basics" ? "基本" : "詰将棋"}
                   </div>
-                  <DialogTitle className="text-2xl font-bold text-[#3a2b17]">{selectedLesson.title}</DialogTitle>
+                  <DialogTitle className="text-2xl font-bold !text-[#3a2b17]">
+                    {selectedLesson.title}
+                  </DialogTitle>
                 </div>
+
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setSelectedLessonId(null)}
-                  className="h-8 w-8 rounded-full hover:bg-black/5 text-[#555]"
+                  className="h-8 w-8 rounded-full hover:bg-black/5 !text-[#3a2b17]"
                 >
                   <X className="w-6 h-6" />
                 </Button>
               </div>
 
-              <DialogDescription className="text-slate-700 mb-6 leading-relaxed text-base">
-                {selectedLesson.description}
-              </DialogDescription>
+              {/* 説明文を非表示にしました */}
 
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-500">難易度:</span>
+                  <span className="text-sm !text-[#6b4a2b]">難易度:</span>
                   <div className="flex">
                     {[...Array(3)].map((_, i) => (
                       <Star
                         key={i}
-                        className={cn("w-4 h-4", i < (selectedLesson.stars || 1) ? "text-[#555]" : "text-[#555]/30")}
+                        className={cn(
+                          "w-4 h-4",
+                          i < (selectedLesson.stars || 1) ? "text-[#3a2b17]" : "text-[#3a2b17]/30"
+                        )}
                       />
                     ))}
                   </div>
                 </div>
-                <div className="text-sm font-bold text-emerald-600">
-                  {selectedLesson.status === "completed" ? "クリア済み" : "スタートできます"}
+
+                {/* ステータス文言は表示しない */}
+                <div className="text-sm font-bold !text-emerald-700" aria-hidden>
+                  {/* intentionally left blank */}
                 </div>
               </div>
 
               <DialogFooter className="sm:justify-center">
-                <Link
-                  href={`/training/${selectedLesson.category}/${selectedLesson.id}`}
-                  className="w-full"
-                >
-                  <Button className="w-full py-6 bg-emerald-600 hover:bg-emerald-500 text-[#fdf8ee] font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center gap-2 text-base">
-                    <Play className="w-5 h-5 text-[#fdf8ee]" fill="currentColor" />
+                <Link href={`/training/${selectedLesson.category}/${selectedLesson.id}`} className="w-full">
+                  {/* Buttonのデフォルト text-primary-foreground に負けないように !text-black を入れる */}
+                  <Button className="w-full py-6 bg-emerald-600 hover:bg-emerald-500 !text-black font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center gap-2 text-base [&_svg]:!text-black">
+                    <Play className="w-5 h-5" fill="currentColor" />
                     レッスンを始める
                   </Button>
                 </Link>
