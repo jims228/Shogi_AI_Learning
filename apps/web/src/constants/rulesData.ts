@@ -677,6 +677,9 @@ const l3_pawnDropTo = (file: number, rank: number) => (m: any) => l3_isPawnDrop(
 const l3_cfg = {
   step1_correct_to: sq(2, 4),
 
+  // ★Step1 用の矢印（2五→2四）
+  step1_hint_arrow: { from: sq(2, 5), to: sq(2, 4) },
+
   // ★ここを 2四 にしたい（以前は 2三）
   step2_correct_drop_to: sq(2, 4),
 
@@ -695,6 +698,8 @@ export const PAWN_LESSON_3_TSUGIFU_STEPS: TrainingStep[] = [
     sfen: "position sfen 7kl/6gb1/7pp/5pp2/7P1/9/9/7R1/4K4 b P 1",
     // ★Step1でも 2四 を視覚的に示す
     hintSquares: [l3_cfg.step1_correct_to],
+    // 本番データとして Step1 にも矢印を追加
+    hintArrows: [l3_cfg.step1_hint_arrow],
     checkMove: l3_pawnMoveTo(l3_cfg.step1_correct_to.file, l3_cfg.step1_correct_to.rank),
     successMessage: "OK！これで次に『持ち歩を継ぐ』準備ができたね。",
   },

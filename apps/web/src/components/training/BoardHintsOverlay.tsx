@@ -11,6 +11,7 @@ type Props = {
   coordMode?: "shogi" | "ltr";
   className?: string;
   boardPxSize?: number;
+  flipped?: boolean;
 };
 
 export default function BoardHintsOverlay({
@@ -19,6 +20,7 @@ export default function BoardHintsOverlay({
   coordMode = "shogi",
   className,
   boardPxSize,
+  flipped = false,
 }: Props) {
   const rid = useId();
   const markerId = useMemo(() => `hintArrow-${rid.replace(/[:]/g, "")}`, [rid]);
@@ -26,48 +28,28 @@ export default function BoardHintsOverlay({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const el = wrapperRef.current;
-    if (!el) return;
-    try {
-      const rect = el.getBoundingClientRect();
-      const svg = el.querySelector('svg[viewBox="0 0 9 9"]');
-      const rects = svg ? svg.querySelectorAll('rect.hintSquare') : [];
-      const lines = svg ? svg.querySelectorAll('line.hintArrow') : [];
-      const marker = svg ? svg.querySelector('marker') : null;
-      const color = window.getComputedStyle(el).color;
-
-      // Walk up ancestor chain and log bounding rects to help identify 0x0 parent
-      const ancestors: Array<{ tag: string; className: string; rect: DOMRect | null }> = [];
-      let p: Element | null = el;
-      while (p) {
-        try {
-          const r = (p as Element).getBoundingClientRect ? (p as Element).getBoundingClientRect() : null;
-          ancestors.push({ tag: p.tagName, className: (p as Element).className?.toString?.() ?? "", rect: r });
-        } catch (e) {
-          ancestors.push({ tag: p.tagName, className: (p as Element).className?.toString?.() ?? "", rect: null });
-        }
-        p = p.parentElement;
-      }
-
-      // eslint-disable-next-line no-console
-      console.debug('[DEBUG-BoardHintsOverlay] mounted', { rect, svgExists: !!svg, rects: rects.length, lines: lines.length, marker: !!marker, color, ancestors });
-
-      // warn if any ancestor has zero width/height
-      const zeroAnc = ancestors.find((a) => a.rect && (a.rect.width <= 0 || a.rect.height <= 0));
-      if (zeroAnc) {
-        // eslint-disable-next-line no-console
-        console.warn('[DEBUG-BoardHintsOverlay] found zero-sized ancestor', zeroAnc);
-      }
-    } catch (e) {
-      // ignore
-    }
+    // removed verbose debug logging in production
+    return;
   }, []);
   if (!hasAnything) return null;
 
   const toColRow = (sq: HintSquare) => {
-    const row = sq.rank - 1; // rankは上が1
-    const col = coordMode === "shogi" ? 9 - sq.file : sq.file - 1; // fileの向きだけ切替
+    // screen: left=9, right=1, top=1, bottom=9
+    if (coordMode === "shogi") {
+      if (!flipped) {
+        const col = 9 - sq.file; // 9..1 -> 0..8
+        const row = sq.rank - 1; // 1..9 -> 0..8
+        return { col, row };
+      } else {
+        // flipped 表示のときのマッピング
+        const col = sq.file - 1;
+        const row = 9 - sq.rank;
+        return { col, row };
+      }
+    }
+    // ltr mode (left-to-right file increases)
+    const row = sq.rank - 1;
+    const col = sq.file - 1;
     return { col, row };
   };
 
@@ -102,13 +84,14 @@ export default function BoardHintsOverlay({
           <marker
             id={markerId}
             markerUnits="userSpaceOnUse"
-            markerWidth="0.8"
-            markerHeight="0.8"
-            refX="0.7"
-            refY="0.4"
+            markerWidth="0.4"
+            markerHeight="0.4"
+            refX="0.36"
+            refY="0.2"
             orient="auto"
+            viewBox="0 0 0.4 0.4"
           >
-            <path d="M0,0 L0.8,0.4 L0,0.8 z" fill="currentColor" />
+            <path d="M0,0 L0.4,0.2 L0,0.4 z" fill="currentColor" />
           </marker>
 
           <style>{`
@@ -143,6 +126,7 @@ export default function BoardHintsOverlay({
               height={r.h}
               rx={0.12}
               className="hintSquare"
+              vectorEffect="non-scaling-stroke"
               fill="currentColor"
               opacity={0.25}
             />
@@ -162,7 +146,9 @@ export default function BoardHintsOverlay({
               y2={t.cy}
               className="hintArrow"
               stroke="currentColor"
-              strokeWidth={0.12}
+              strokeWidth={0.14}
+              vectorEffect="non-scaling-stroke"
+              strokeOpacity={0.95}
               strokeLinecap="round"
               strokeDasharray="0.5 0.4"
               markerEnd={`url(#${markerId})`}

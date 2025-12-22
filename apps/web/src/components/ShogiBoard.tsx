@@ -394,28 +394,28 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         }}
       />
 
-        {/* Board overlay rendered as direct child of the board root so absolute inset-0 fills board */}
-        <BoardHintsOverlay
-          hintSquares={hintSquares ?? []}
-          hintArrows={hintArrows ?? []}
-          coordMode="shogi"
-          className="z-[9999] text-amber-400"
-          boardPxSize={boardSize}
-        />
-
-        <div ref={containerRef} className="absolute inset-0">
-        {(() => {
-          // === DEBUG: boardElement size をログ ===
-          if (typeof window !== "undefined") {
-            console.log("[DEBUG-ShogiBoard] boardElement size:", {
-              boardSize,
-              CELL_SIZE,
-              placedPieces: placedPieces.length,
-            });
-          }
-          return null;
-        })()}
-        <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-0">
+        {/* 9x9 マス領域のコンテナ（明示的に幅高を持たせる） */}
+        <div ref={containerRef} className="relative" style={{ width: boardSize, height: boardSize }}>
+          <BoardHintsOverlay
+            hintSquares={hintSquares ?? []}
+            hintArrows={hintArrows ?? []}
+            coordMode="shogi"
+            className="absolute inset-0 z-[9999] text-amber-400"
+            boardPxSize={boardSize}
+            flipped={flipped}
+          />
+          {(() => {
+            // === DEBUG: boardElement size をログ ===
+            if (typeof window !== "undefined") {
+              console.log("[DEBUG-ShogiBoard] boardElement size:", {
+                boardSize,
+                CELL_SIZE,
+                placedPieces: placedPieces.length,
+              });
+            }
+            return null;
+          })()}
+          <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-0">
           {[...Array(10)].map((_, i) => (
             <line
               key={`v-${i}`}
@@ -438,9 +438,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
               strokeWidth={i === 0 || i === 9 ? 2 : 1}
             />
           ))}
-        </svg>
+          </svg>
 
-        <div className="absolute inset-0 pointer-events-none z-[1]">
+          <div className="absolute inset-0 pointer-events-none z-[1]">
           {HOSHI_POINTS.map(({ file, rank }) => {
             const display = getDisplayPos(file - 1, rank - 1);
             return (
@@ -455,9 +455,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
               />
             );
           })}
-        </div>
+          </div>
 
-        <div className="absolute inset-0 grid grid-cols-9 grid-rows-9 z-[5] pointer-events-none">
+          <div className="absolute inset-0 grid grid-cols-9 grid-rows-9 z-[5] pointer-events-none">
           {[...Array(81)].map((_, index) => {
             const x = index % 9;
             const y = Math.floor(index / 9);
@@ -483,9 +483,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
               />
             );
           })}
-        </div>
+          </div>
 
-        <div className="absolute inset-0 z-10 pointer-events-none">
+          <div className="absolute inset-0 z-10 pointer-events-none">
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
             return (
@@ -503,88 +503,88 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
               </div>
             );
           })}
-        </div>
-
-        {effectiveBestMove && (
-          <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-30">
-            <Arrow
-              x1={getDisplayPos(effectiveBestMove.from.x, effectiveBestMove.from.y).x * CELL_SIZE + CELL_SIZE / 2}
-              y1={getDisplayPos(effectiveBestMove.from.x, effectiveBestMove.from.y).y * CELL_SIZE + CELL_SIZE / 2}
-              x2={getDisplayPos(effectiveBestMove.to.x, effectiveBestMove.to.y).x * CELL_SIZE + CELL_SIZE / 2}
-              y2={getDisplayPos(effectiveBestMove.to.x, effectiveBestMove.to.y).y * CELL_SIZE + CELL_SIZE / 2}
-            />
-          </svg>
-        )}
-
-        {/* 盤面クリック用レイヤー（z=100） */}
-        <div
-          className="absolute top-0 left-0 z-[100]"
-          style={{
-            width: `${boardSize}px`,
-            height: `${boardSize}px`,
-            backgroundColor: "transparent",
-            cursor: mode === "edit" ? "pointer" : "default",
-            pointerEvents: "auto",
-          }}
-          onClick={handleBoardClick}
-          onDoubleClick={handleBoardDoubleClick}
-        />
-
-        {pendingMove && (
-          <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl animate-in fade-in duration-200">
-            <div className="bg-white p-4 rounded-xl shadow-2xl flex gap-4 border border-slate-200 transform scale-110">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  executeMove(
-                    pendingMove.sourceSquare,
-                    pendingMove.targetSquare,
-                    promotePiece(pendingMove.piece) as PieceCode,
-                    false
-                  );
-                }}
-                className="flex flex-col items-center gap-2 p-3 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 min-w-[80px]"
-              >
-                <div className="scale-125">
-                  <PieceSprite
-                    piece={promotePiece(pendingMove.piece) as PieceCode}
-                    x={0}
-                    y={0}
-                    size={40}
-                    cellSize={40}
-                    orientationMode="sprite"
-                    owner="sente"
-                    viewerSide="sente"
-                  />
-                </div>
-                <span className="font-bold text-amber-900 text-sm">成る</span>
-              </button>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
-                }}
-                className="flex flex-col items-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 min-w-[80px]"
-              >
-                <div className="scale-125">
-                  <PieceSprite
-                    piece={pendingMove.piece}
-                    x={0}
-                    y={0}
-                    size={40}
-                    cellSize={40}
-                    orientationMode="sprite"
-                    owner="sente"
-                    viewerSide="sente"
-                  />
-                </div>
-                <span className="font-bold text-slate-700 text-sm">成らず</span>
-              </button>
-            </div>
           </div>
-        )}
-      </div>
+
+          {effectiveBestMove && (
+            <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-30">
+              <Arrow
+                x1={getDisplayPos(effectiveBestMove.from.x, effectiveBestMove.from.y).x * CELL_SIZE + CELL_SIZE / 2}
+                y1={getDisplayPos(effectiveBestMove.from.x, effectiveBestMove.from.y).y * CELL_SIZE + CELL_SIZE / 2}
+                x2={getDisplayPos(effectiveBestMove.to.x, effectiveBestMove.to.y).x * CELL_SIZE + CELL_SIZE / 2}
+                y2={getDisplayPos(effectiveBestMove.to.x, effectiveBestMove.to.y).y * CELL_SIZE + CELL_SIZE / 2}
+              />
+            </svg>
+          )}
+
+          {/* 盤面クリック用レイヤー（z=100） */}
+          <div
+            className="absolute top-0 left-0 z-[100]"
+            style={{
+              width: `${boardSize}px`,
+              height: `${boardSize}px`,
+              backgroundColor: "transparent",
+              cursor: mode === "edit" ? "pointer" : "default",
+              pointerEvents: "auto",
+            }}
+            onClick={handleBoardClick}
+            onDoubleClick={handleBoardDoubleClick}
+          />
+
+          {pendingMove && (
+            <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl animate-in fade-in duration-200">
+              <div className="bg-white p-4 rounded-xl shadow-2xl flex gap-4 border border-slate-200 transform scale-110">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    executeMove(
+                      pendingMove.sourceSquare,
+                      pendingMove.targetSquare,
+                      promotePiece(pendingMove.piece) as PieceCode,
+                      false
+                    );
+                  }}
+                  className="flex flex-col items-center gap-2 p-3 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 min-w-[80px]"
+                >
+                  <div className="scale-125">
+                    <PieceSprite
+                      piece={promotePiece(pendingMove.piece) as PieceCode}
+                      x={0}
+                      y={0}
+                      size={40}
+                      cellSize={40}
+                      orientationMode="sprite"
+                      owner="sente"
+                      viewerSide="sente"
+                    />
+                  </div>
+                  <span className="font-bold text-amber-900 text-sm">成る</span>
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
+                  }}
+                  className="flex flex-col items-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 min-w-[80px]"
+                >
+                  <div className="scale-125">
+                    <PieceSprite
+                      piece={pendingMove.piece}
+                      x={0}
+                      y={0}
+                      size={40}
+                      cellSize={40}
+                      orientationMode="sprite"
+                      owner="sente"
+                      viewerSide="sente"
+                    />
+                  </div>
+                  <span className="font-bold text-slate-700 text-sm">成らず</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
     </div>
   );
 

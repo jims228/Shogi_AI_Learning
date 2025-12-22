@@ -36,7 +36,7 @@ export default function TsugifuTrainingPage() {
   const currentLesson = PAWN_LESSON_3_TSUGIFU_STEPS[currentStepIndex];
 
   // DEBUG: set true to force-show fixed hints for visual debugging
-  const DEBUG_OVERLAY = true;
+  const DEBUG_OVERLAY = false;
 
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
@@ -114,11 +114,7 @@ export default function TsugifuTrainingPage() {
                 onHandsChange={setHands}
                 orientation="sente"
                 hintSquares={currentLesson.hintSquares ?? []}
-                hintArrows={
-                  DEBUG_OVERLAY
-                    ? [{ from: { file: 5, rank: 2 }, to: { file: 5, rank: 4 } }]
-                    : (currentLesson?.hintArrows ?? [])
-                }
+                hintArrows={currentLesson?.hintArrows ?? []}
               />
 
               {/* Overlay is rendered inside ShogiBoard component now. */}
