@@ -23,7 +23,14 @@ export type LessonScaffoldProps = {
   mobileAction?: React.ReactNode;
   // mascot そばに出す小さなオーバーレイ（正解メッセージ等）
   mascotOverlay?: React.ReactNode;
+
+  // ★追加：デスクトップのレイアウト
+  desktopLayout?: "twoCol" | "threeCol"; // default "twoCol"
 };
+
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v));
+}
 
 export function LessonScaffold({
   title,
@@ -38,158 +45,104 @@ export function LessonScaffold({
   mobileMascotScale = 0.78,
   mobileAction,
   mascotOverlay,
+  desktopLayout = "twoCol",
 }: LessonScaffoldProps) {
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
-
-  // prepare mobile-overridden board (remove inline maxWidth from page-provided board)
-  let mobileBoard: React.ReactNode = board;
-  if (!isDesktop && React.isValidElement(board)) {
-    const el = board as React.ReactElement<any>;
-    const newStyle = { ...(el.props.style ?? {}), maxWidth: "100%", aspectRatio: "1 / 1", minHeight: "auto" };
-    const newClass = `${el.props.className ?? ""} w-full`;
-    mobileBoard = React.cloneElement(el, { style: newStyle, className: newClass });
-  }
+  const p = typeof progress01 === "number" ? clamp01(progress01) : null;
 
   return (
-    <div className="fixed inset-0 z-[9999] h-[100dvh] w-[100dvw] overflow-hidden bg-[#f6f1e6] text-[#2b2b2b] flex flex-col">
-      {/* Mobile fixed back button (always non-scrolling) */}
-      <div className="sm:hidden">
-        <Link
-          href={backHref}
-          className="fixed left-3 top-3 z-[10010] bg-white/90 backdrop-blur rounded-full p-2 shadow-md border border-black/10"
-          aria-label="戻る"
-        >
-          <ChevronLeft className="w-5 h-5 text-slate-700" />
-        </Link>
-      </div>
+    <div className="min-h-[100svh] w-full overflow-auto bg-[#f6f1e7] text-[#3a2b17]">
       {/* Header */}
-      <header className="h-12 md:h-14 flex items-center justify-between px-3 md:px-6 border-b border-black/10 bg-white/40 backdrop-blur shrink-0">
+      <div className="h-12 px-3 flex items-center gap-2 border-b border-black/10">
         <Link
           href={backHref}
-          className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold transition-colors"
+          className="inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-black/5 active:scale-95 transition"
+          aria-label="Back"
         >
           <ChevronLeft className="w-5 h-5" />
-          <span className="hidden sm:inline">学習マップ</span>
         </Link>
 
-        <div className="font-bold text-sm md:text-base text-[#3a2b17] flex-1 text-center">
-          {title}
+        <div className="flex-1 min-w-0">
+          {topLabel ? (
+            <div className="text-[11px] font-extrabold tracking-wide text-slate-600">{topLabel}</div>
+          ) : null}
+          <div className="font-bold truncate">{title}</div>
         </div>
 
-        <div className="min-w-[80px] flex justify-end">{headerRight ?? <span />}</div>
-      </header>
+        {headerRight ? <div className="shrink-0 text-[#3a2b17]">{headerRight}</div> : null}
+      </div>
 
-      <main className="flex-1 min-h-0 overflow-hidden">
+      {/* Content */}
+      <div className="h-[calc(100svh-3rem)] min-h-0">
         {isDesktop ? (
-          // Desktop: 左=盤面 / 右=解説+マスコット（今まで通り）
-          <div className="h-full min-h-0 grid grid-cols-12 gap-6 p-4 md:p-6">
-            <section className="col-span-8 h-full min-h-0 flex items-center justify-center">
-              {board}
-            </section>
-
-            <section className="col-span-4 h-full min-h-0 flex flex-col gap-4">
-              <div className="flex-none">
-                {topLabel ? (
-                  <div className="text-xs font-bold tracking-wide text-slate-500 mb-2">
-                    {topLabel}
-                  </div>
-                ) : null}
-
-                {typeof progress01 === "number" ? (
-                  <div className="h-1 bg-black/10 rounded-full overflow-hidden mb-2">
-                    <div
-                      className="h-full bg-emerald-500 transition-all"
-                      style={{ width: `${Math.round(progress01 * 100)}%` }}
-                    />
-                  </div>
-                ) : null}
-
-                {explanation}
-              </div>
-
-              <div className="flex-1 min-h-0 flex items-end justify-center pb-2 relative">
-                {mascot}
-                {mascotOverlay ? (
-                  <div className="absolute -left-44 bottom-12 hidden lg:block">
-                    {mascotOverlay}
-                  </div>
-                ) : null}
-              </div>
-            </section>
-          </div>
-        ) : (
-          // Mobile: ★1画面固定（スクロール無し）
-          <div className="h-full min-h-0 flex flex-col overflow-hidden">
-            {/* Top HUD（固定高）：左=おじいちゃん / 右=解説 */}
-            <div className="relative shrink-0 px-3 pt-3">
-              {topLabel ? (
-                <div className="text-[11px] font-bold tracking-wide text-slate-500">
-                  {topLabel}
-                </div>
-              ) : null}
-
-              {typeof progress01 === "number" ? (
-                <div className="mt-2 h-1 bg-black/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 transition-all"
-                    style={{ width: `${Math.round(progress01 * 100)}%` }}
-                  />
-                </div>
-              ) : null}
-
-              {/* top row */}
+          <div className="h-full min-h-0 px-5 py-4">
+            {desktopLayout === "threeCol" ? (
               <div
-                className="mt-3 grid grid-cols-[120px,1fr] gap-3 items-start"
-                style={{ height: "min(180px, 24dvh)" }}
+                className="h-full min-h-0 grid gap-5"
+                style={{
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(300px, 420px) minmax(360px, 520px)",
+                }}
               >
-                {/* Mascot (peek) */}
-                <div className="relative">
-                  {/* ここで下にはみ出させる → 下の盤が後から描画されて胴体が隠れる */}
-                  <div
-                    className="absolute left-0 bottom-[-26px] origin-bottom-left pointer-events-none"
-                    style={{ transform: `scale(${mobileMascotScale})` }}
-                  >
+                {/* Left: Board */}
+                <section className="min-h-0 flex items-center justify-center">
+                  <div className="w-full h-full min-h-0">{board}</div>
+                </section>
+
+                {/* Middle: Mascot */}
+                <section className="min-h-0 relative flex items-center justify-center">
+                  {mascotOverlay ? <div className="absolute top-2 left-2 z-10">{mascotOverlay}</div> : null}
+                  <div className="w-full h-full min-h-0 flex items-end justify-center">{mascot}</div>
+                </section>
+
+                {/* Right: Explanation */}
+                <section className="min-h-0 flex flex-col">
+                  <div className="min-h-0">{explanation}</div>
+                </section>
+              </div>
+            ) : (
+              <div
+                className="h-full min-h-0 grid gap-5"
+                style={{
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(360px, 520px)",
+                }}
+              >
+                <section className="min-h-0 flex items-center justify-center">
+                  <div className="w-full h-full min-h-0">{board}</div>
+                </section>
+
+                <section className="min-h-0 flex flex-col gap-4">
+                  <div className="min-h-0">{explanation}</div>
+
+                  <div className="min-h-0 flex-1 relative flex items-end justify-center">
+                    {mascotOverlay ? <div className="absolute top-2 left-2 z-10">{mascotOverlay}</div> : null}
                     {mascot}
                   </div>
-                  {mascotOverlay ? (
-                    <div className="absolute left-[110px] top-0 block lg:hidden">
-                      {mascotOverlay}
-                    </div>
-                  ) : null}
-                  {/* レイアウト用の箱 */}
-                  <div className="h-full" />
-                </div>
-
-                {/* Explanation (右上) */}
-                <div className="min-w-0">
-                  {/* 高さを制限して1画面固定。中身はページ側で “モバイルは短く” するのが理想 */}
-                  <div className="max-h-[180px] overflow-hidden lesson-explanation-mobile">
-                    {explanation}
-                  </div>
-                </div>
+                </section>
               </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full min-h-0 px-4 py-3 flex flex-col gap-3">
+            <div className="flex-1 min-h-0">{board}</div>
+
+            <div className="min-h-0">{explanation}</div>
+
+            <div className="relative flex items-end justify-center" style={{ transform: `scale(${mobileMascotScale})` }}>
+              {mascotOverlay ? <div className="absolute top-2 left-2 z-10">{mascotOverlay}</div> : null}
+              {mascot}
             </div>
 
-            {/* Board area（残り全部） */}
-            <div className="flex-1 min-h-0 overflow-hidden px-3 pb-2 flex flex-col items-center">
-              <div className="w-full max-w-[640px] flex-1 flex items-center justify-center lesson-mobile-board-wrapper">
-                <div className="w-full">
-                  {mobileBoard}
-                </div>
-              </div>
-
-              <div className="w-full mt-2 mb-2 flex items-center justify-center">
-                <div className="w-full max-w-[640px]" />
-              </div>
-            </div>
-
-            {/* Bottom action bar（固定）：次へボタンはここ */}
-            <div className="shrink-0 border-t border-black/10 bg-white/40 backdrop-blur px-3 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
-              {mobileAction ? mobileAction : <div className="h-12" />}
-            </div>
+            {mobileAction ? <div className="pt-2">{mobileAction}</div> : null}
           </div>
         )}
-      </main>
+      </div>
+
+      {/* Progress bar (optional) */}
+      {p !== null ? (
+        <div className="h-2 w-full bg-black/10">
+          <div className="h-full bg-emerald-600" style={{ width: `${p * 100}%` }} />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -7,6 +7,7 @@ export interface Lesson {
   description: string;
   category: LessonCategory;
   status: LessonStatus;
+  href?: string;
   stars?: number; // 0-3
   order: number;
   prerequisites?: string[];

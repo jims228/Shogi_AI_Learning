@@ -11,7 +11,7 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 
-import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
+import { PAWN_LESSON_3_TSUGIFU_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
 
@@ -24,7 +24,7 @@ const normalizeUsiPosition = (s: string) => {
   return `position sfen ${t}`;
 };
 
-export default function PawnTrainingPage() {
+export default function TsugifuTrainingPage() {
   const router = useRouter();
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -33,7 +33,10 @@ export default function PawnTrainingPage() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctSignal, setCorrectSignal] = useState(0);
 
-  const currentLesson = PAWN_LESSON_0_STEPS[currentStepIndex];
+  const currentLesson = PAWN_LESSON_3_TSUGIFU_STEPS[currentStepIndex];
+
+  // DEBUG: set true to force-show fixed hints for visual debugging
+  const DEBUG_OVERLAY = true;
 
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
@@ -72,7 +75,7 @@ export default function PawnTrainingPage() {
   );
 
   const handleNext = () => {
-    if (currentStepIndex < PAWN_LESSON_0_STEPS.length - 1) setCurrentStepIndex((p) => p + 1);
+    if (currentStepIndex < PAWN_LESSON_3_TSUGIFU_STEPS.length - 1) setCurrentStepIndex((p) => p + 1);
     else router.push("/learn/roadmap");
   };
 
@@ -83,16 +86,16 @@ export default function PawnTrainingPage() {
       onClick={handleNext}
       className="mt-3 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
     >
-      {currentStepIndex < PAWN_LESSON_0_STEPS.length - 1 ? "次のステップへ" : "レッスン完了！"}
+      {currentStepIndex < PAWN_LESSON_3_TSUGIFU_STEPS.length - 1 ? "次のステップへ" : "レッスン完了！"}
       <ArrowRight className="w-5 h-5" />
     </button>
   ) : null;
 
   // ===== 盤面（左側に常に出す）=====
   const boardElement = (
-    <div className="w-full h-full flex items-center justify-center">
+    <div className="w-full h-full flex items-start justify-center overflow-auto">
       <div
-        className="w-full"
+        className="w-full pb-10"
         style={{
           maxWidth: 760,
           aspectRatio: "1 / 1",
@@ -101,15 +104,25 @@ export default function PawnTrainingPage() {
       >
         <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-3" className="inline-block">
-            <ShogiBoard
-              board={board}
-              hands={hands}
-              mode="edit"
-              onMove={handleMove}
-              onBoardChange={setBoard}
-              onHandsChange={setHands}
-              orientation="sente"
-            />
+            <div className="relative inline-block">
+              <ShogiBoard
+                board={board}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation="sente"
+                hintSquares={currentLesson.hintSquares ?? []}
+                hintArrows={
+                  DEBUG_OVERLAY
+                    ? [{ from: { file: 5, rank: 2 }, to: { file: 5, rank: 4 } }]
+                    : (currentLesson?.hintArrows ?? [])
+                }
+              />
+
+              {/* Overlay is rendered inside ShogiBoard component now. */}
+            </div>
           </WoodBoardFrame>
         </AutoScaleToFit>
       </div>
@@ -125,10 +138,10 @@ export default function PawnTrainingPage() {
         <span className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
           <span
             className="block h-full bg-emerald-500 transition-all duration-500"
-            style={{ width: `${((currentStepIndex + 1) / PAWN_LESSON_0_STEPS.length) * 100}%` }}
+            style={{ width: `${((currentStepIndex + 1) / PAWN_LESSON_3_TSUGIFU_STEPS.length) * 100}%` }}
           />
         </span>
-        <span>{PAWN_LESSON_0_STEPS.length}</span>
+        <span>{PAWN_LESSON_3_TSUGIFU_STEPS.length}</span>
       </div>
 
       <div className="mt-3">
@@ -179,14 +192,14 @@ export default function PawnTrainingPage() {
 
   return (
     <LessonScaffold
-      title="基本の駒：歩兵"
+      title="継ぎ歩（復習）"
       backHref="/learn/roadmap"
       board={boardElement}
       explanation={explanationElement}
       mascot={mascotElement}
       mascotOverlay={mascotOverlay}
-      topLabel="NEW CONCEPT"
-      progress01={(currentStepIndex + 1) / PAWN_LESSON_0_STEPS.length}
+      topLabel="DRILL"
+      progress01={(currentStepIndex + 1) / PAWN_LESSON_3_TSUGIFU_STEPS.length}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       mobileAction={!isDesktop ? nextButton : null}

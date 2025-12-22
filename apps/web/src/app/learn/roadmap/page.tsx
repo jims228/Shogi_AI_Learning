@@ -305,7 +305,7 @@ export default function RoadmapPage() {
               </div>
 
               <DialogFooter className="sm:justify-center">
-                <Link href={`/training/${selectedLesson.category}/${selectedLesson.id}`} className="w-full">
+                <Link href={selectedLesson.href ?? `/training/${selectedLesson.category}/${selectedLesson.id}`} className="w-full">
                   {/* Buttonのデフォルト text-primary-foreground に負けないように !text-black を入れる */}
                   <Button className="w-full py-6 bg-emerald-600 hover:bg-emerald-500 !text-black font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center gap-2 text-base [&_svg]:!text-black">
                     <Play className="w-5 h-5" fill="currentColor" />

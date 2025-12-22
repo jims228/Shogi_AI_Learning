@@ -10,7 +10,32 @@ export type TrainingStep = {
     drop?: boolean 
   }) => boolean;
   successMessage: string;
+  // 既存：マスを光らせる
+  hintSquares?: { file: number; rank: number }[];
+
+  // ★追加：矢印を表示する（盤上オーバーレイ用）
+  hintArrows?: { from: { file: number; rank: number }; to: { file: number; rank: number } }[];
 };
+
+// 安全なダミー SFEN（TODO を埋めるときの一時置換用）
+const SAFE_SFEN = "position sfen 4k4/9/9/9/9/9/9/9/4K4 b - 1";
+
+// 使いやすいヘルパー
+type Square = { file: number; rank: number };
+const sq = (file: number, rank: number): Square => ({ file, rank });
+
+const pieceStr = (m: any) => (typeof m?.piece === "string" ? m.piece : "");
+
+const isDropPiece = (m: any, pieceUpper: string) => {
+  const p = pieceStr(m).toUpperCase();
+  const isDrop = m?.drop === true || m?.from == null;
+  return isDrop && p === pieceUpper;
+};
+
+// `getXY` / `isMasu` helpers are defined later in this file to handle
+// multiple coordinate conventions; dropTo will use those definitions.
+
+const dropTo = (pieceUpper: string, target: Square) => (m: any) => isDropPiece(m, pieceUpper) && isMasu(m.to, target.file, target.rank);
 
 // 1. 歩
 export const PAWN_LESSONS: TrainingStep[] = [
@@ -364,4 +389,341 @@ export const TSUME_3_LESSONS: TrainingStep[] = [
     },
     successMessage: "正解！4二に打つことで玉の逃げ道をなくせます。"
   }
+];
+
+// --- Lesson 0: 歩の動きと成り（復習） ---
+type XY = { x: number; y: number };
+
+// あなたの page.tsx から渡ってくる move の形（ユーザー調査結果に合わせた最小型）
+type TrainingMove = {
+  from?: XY;                 // 打ちの場合 undefined
+  to: XY;
+  piece: string;             // 例: "P", "+P", "R", "+R"
+  drop?: boolean;            // 打ちなら true
+  promote?: boolean;         // 実装によってはあるかも（保険）
+};
+
+const isPawnMove = (m: TrainingMove) =>
+  !!m.from && !m.drop && (m.piece === "P" || m.piece === "+P");
+
+const isPromotedPawnMove = (m: TrainingMove) => {
+  // 実装差異に強くする（piece が +P / promote フラグ / 文字列先頭+）
+  const promotedByPiece = typeof m.piece === "string" && m.piece.startsWith("+");
+  const promotedByFlag = (m as any).promote === true || (m as any).promoted === true;
+  return !!m.from && !m.drop && (m.piece === "+P" || promotedByPiece || promotedByFlag);
+};
+
+const movedOneStepStraight = (m: TrainingMove) => {
+  if (!m.from) return false;
+  const dx = Math.abs(m.to.x - m.from.x);
+  const dy = Math.abs(m.to.y - m.from.y);
+  return dx === 0 && dy === 1;
+};
+
+export const PAWN_LESSON_0_STEPS: TrainingStep[] = [
+  {
+    step: 1,
+    title: "歩は前に1マス",
+    description:
+      "歩は前に1マスだけ進めます。まずは歩を1マス進めてみよう。",
+    // buildPositionFromUsi() が受けられるように「position sfen ...」形式にする（安全）
+    sfen: "position sfen 4k4/9/9/9/9/9/4P4/9/4K4 b - 1",
+    checkMove: (move: TrainingMove) => isPawnMove(move) && movedOneStepStraight(move),
+    successMessage: "OK！歩は前に1マスだね。",
+  },
+
+  {
+    step: 2,
+    title: "クイズ：歩を動かすのはどれ？",
+    description:
+      "盤上に歩と金がいます。『歩』を前に1マス動かしてください（歩以外を動かしたら不正解）。",
+    sfen: "position sfen 4k4/9/9/9/9/9/4P4/4G4/4K4 b - 1",
+    checkMove: (move: TrainingMove) => {
+      // 「歩を動かしたこと」だけを判定（座標依存しない）
+      return isPawnMove(move) && movedOneStepStraight(move);
+    },
+    successMessage: "正解！いま動かしたのは歩だよ。",
+  },
+
+  {
+    step: 3,
+    title: "敵陣に入ると成れる（歩→と金）",
+    description:
+      "相手の陣地（相手側3段）に入ると『成る』ことができます。歩を進めて、成れるなら『成る』を選ぼう。",
+    // 4段目に歩を置いて、1歩で敵陣（3段目）に入る位置
+    sfen: "position sfen 4k4/9/9/4P4/9/9/9/9/4K4 b - 1",
+    checkMove: (move: TrainingMove) => isPromotedPawnMove(move),
+    successMessage: "ナイス！歩が成って『と金』になったよ。",
+  },
+
+  {
+    step: 4,
+    title: "クイズ：成れるけど『成らない（不成）』もできる",
+    description:
+      "成れる場面でも『不成』を選べます。今回は、歩を敵陣へ進めるけど『成らない』を選んでみよう。",
+    sfen: "position sfen 4k4/9/9/4P4/9/9/9/9/4K4 b - 1",
+    checkMove: (move: TrainingMove) => {
+      // 成れても「成らない」＝結果が P のまま
+      return isPawnMove(move) && !isPromotedPawnMove(move);
+    },
+    successMessage: "OK！成れる場面でも不成を選べるね。",
+  },
+
+  {
+    step: 5,
+    title: "クイズ：敵陣に入った後でも成れる",
+    description:
+      "敵陣に入った『次の手』でも成れます。歩をもう1マス進めて、今度は『成る』を選ぼう。",
+    // すでに敵陣（3段目）に歩がいる状態から、もう1回進めて成る
+    sfen: "position sfen 4k4/9/4P4/9/9/9/9/9/4K4 b - 1",
+    checkMove: (move: TrainingMove) => isPromotedPawnMove(move),
+    successMessage: "正解！敵陣に入った後の手でも成れるよ。",
+  },
+];
+
+// --- Lesson 1: 歩の役割（壁・道を開ける・捨て駒・と金） ---
+// 既存の TrainingMove 系があればそれを使うが、安全のためローカル定義を入れる
+type AnyMove = {
+  from?: XY;
+  to: XY;
+  piece?: string;
+  drop?: boolean;
+  promote?: boolean;
+  promoted?: boolean;
+};
+
+const l1_piece = (m: AnyMove) => (typeof m.piece === "string" ? m.piece : "");
+const l1_isPawn = (m: AnyMove) => !!m.from && !m.drop && l1_piece(m) === "P";
+const l1_isTokin = (m: AnyMove) => {
+  const p = l1_piece(m);
+  const promotedByPiece = p.startsWith("+");
+  const promotedByFlag = (m as any).promote === true || (m as any).promoted === true;
+  return !!m.from && !m.drop && (p === "+P" || promotedByPiece || promotedByFlag);
+};
+const l1_oneStepStraight = (m: AnyMove) => {
+  if (!m.from) return false;
+  const dx = Math.abs(m.to.x - m.from.x);
+  const dy = Math.abs(m.to.y - m.from.y);
+  return dx === 0 && dy === 1;
+};
+const l1_oneStepSideways = (m: AnyMove) => {
+  if (!m.from) return false;
+  const dx = Math.abs(m.to.x - m.from.x);
+  const dy = Math.abs(m.to.y - m.from.y);
+  return dx === 1 && dy === 0;
+};
+const l1_isKingSideStep = (m: AnyMove) => l1_piece(m) === "K" && l1_oneStepSideways(m);
+
+export const PAWN_LESSON_1_ROLE_STEPS: TrainingStep[] = [
+  {
+    step: 1,
+    title: "歩は自陣の壁",
+    description:
+      "歩は王様の前で「壁」になります。いまは歩が飛車の筋を止めてくれています。歩は動かさず、王を左右どちらかに1マス動かしてみよう。",
+    sfen: "position sfen k3r4/9/9/9/9/9/9/4P4/4K4 b - 1",
+    checkMove: (move: AnyMove) => l1_isKingSideStep(move),
+    successMessage: "OK！歩が壁になっていると、王が安全になりやすいね。",
+  },
+
+  {
+    step: 2,
+    title: "攻め駒の前の壁は退ける（飛車）",
+    description:
+      "飛車の前にいる歩は、攻めるときは邪魔になりがち。歩を1マス進めて、飛車の道を作ろう。",
+    sfen: "position sfen k8/9/9/9/9/9/9/4P4/4R3K b - 1",
+    checkMove: (move: AnyMove) => l1_isPawn(move) && l1_oneStepStraight(move),
+    successMessage: "ナイス！攻めるときは「攻め駒の前の壁」をどかす意識が大事。",
+  },
+
+  {
+    step: 3,
+    title: "攻め駒の前の壁は退ける（角）",
+    description:
+      "角の斜めの道を歩が塞いでいます。歩を1マス進めて、角の道を開けよう。",
+    sfen: "position sfen k8/9/9/9/9/9/9/5P3/6B1K b - 1",
+    checkMove: (move: AnyMove) => l1_isPawn(move) && l1_oneStepStraight(move),
+    successMessage: "OK！角や飛車のラインは、歩で塞がないように意識しよう。",
+  },
+
+  {
+    step: 4,
+    title: "歩はどんどん捨てよう（歩交換）",
+    description:
+      "歩は軽い駒です。まずは歩を前に進めて相手の歩を取ろう（歩交換）。",
+    sfen: "position sfen k8/9/9/9/4p4/4P4/9/9/8K b - 1",
+    checkMove: (move: AnyMove) => l1_isPawn(move) && l1_oneStepStraight(move),
+    successMessage: "いいね！歩交換は攻めの入口。歩は「軽い」から捨てやすい。",
+  },
+
+  {
+    step: 5,
+    title: "歩はどんどん捨てよう（取らせて崩す）",
+    description:
+      "相手に取らせる歩も大事。歩を1マス進めると、相手の金が取れる位置になります。歩を1マス進めてみよう。",
+    sfen: "position sfen k8/9/9/9/9/4g4/9/4P4/4R3K b - 1",
+    checkMove: (move: AnyMove) => l1_isPawn(move) && l1_oneStepStraight(move),
+    successMessage: "OK！歩は取られても痛くないことが多い。形を崩すために使えるよ。",
+  },
+
+  {
+    step: 6,
+    title: "と金は強い（成った歩で取ろう）",
+    description:
+      "歩が成ると「と金」になって強くなります。と金で前の歩を取ってみよう。",
+    sfen: "position sfen k8/9/9/9/9/3PpP3/3P+PP3/4P4/8K b - 1",
+    checkMove: (move: AnyMove) => l1_isTokin(move) && l1_oneStepStraight(move),
+    successMessage: "ナイス！と金は前線で超えらい。歩が成る価値がわかるね。",
+  },
+];
+
+// （すでにあるなら重複定義しないでOK）
+const l2_isPawnDrop = (move: any) => {
+  const piece = typeof move?.piece === "string" ? move.piece : "";
+  const isDrop = move?.drop === true || move?.from == null; // from無しも打ち扱い
+  return isDrop && piece.toUpperCase() === "P";
+};
+
+const l2_isPromotedPawnMove = (move: any) => {
+  const piece = typeof move?.piece === "string" ? move.piece : "";
+  const promotedByPiece = piece.startsWith("+");
+  const promotedByFlag = move?.promote === true || move?.promoted === true;
+  const isMove = move?.from != null && move?.drop !== true;
+  return isMove && (piece === "+P" || promotedByPiece || promotedByFlag);
+};
+
+const l2_oneStepStraight = (move: any) => {
+  if (!move?.from || !move?.to) return false;
+  const dx = Math.abs(move.to.x - move.from.x);
+  const dy = Math.abs(move.to.y - move.from.y);
+  return dx === 0 && dy === 1;
+};
+
+// ---- 54 / 53 判定（座標系の違いに強くする）----
+// あなたの move.to が (x,y) / (file,rank) / 0-index / 1-index / 反転 のどれでも拾えるようにしています。
+const getXY = (pos: any): { x: number; y: number } | null => {
+  if (!pos) return null;
+  if (typeof pos.x === "number" && typeof pos.y === "number") return { x: pos.x, y: pos.y };
+  if (typeof pos.file === "number" && typeof pos.rank === "number") return { x: pos.file, y: pos.rank };
+  return null;
+};
+
+const isMasu = (pos: any, file: number, rank: number) => {
+  const xy = getXY(pos);
+  if (!xy) return false;
+
+  // 候補（よくある4パターン＋保険）
+  const candidates: Array<[number, number]> = [
+    // 1-index: (file, rank)
+    [file, rank],
+    // 0-index: (file-1, rank-1)
+    [file - 1, rank - 1],
+    // file 反転（左が9列のとき）: x = 9-file
+    [9 - file, rank - 1],
+    // rank 反転（下が9段のとき）: y = 9-rank
+    [file - 1, 9 - rank],
+    [9 - file, 9 - rank],
+    // 1-index + rank反転（保険）
+    [file, 10 - rank],
+    [10 - file, rank],
+  ];
+
+  return candidates.some(([cx, cy]) => xy.x === cx && xy.y === cy);
+};
+
+const isTarefuDrop54or53 = (move: any) => {
+  if (!l2_isPawnDrop(move)) return false;
+  // 5四 or 5三
+  return isMasu(move.to, 5, 4) || isMasu(move.to, 5, 3);
+};
+
+// --- Lesson 2: 垂れ歩（図1-1 採用版） ---
+// ※ SFEN は図1-1 に合わせて作成（表示用）
+export const PAWN_LESSON_2_TAREFU_STEPS: TrainingStep[] = [
+  {
+    step: 1,
+    title: "垂れ歩（図1-1）：持ち歩はどこに打つ？",
+    description:
+      "図1-1の局面です。先手は持ち駒に歩が1枚あります。\n垂れ歩として正しい地点に「歩を打って」ください。",
+    // 先手番で先手の持ち駒に歩が1枚ある表示用SFEN
+    sfen: "position sfen 7kl/6gb1/8p/5pp2/9/9/9/7R1/4K4 b P 1",
+    // 正解マス：ここでは 2三 を正解にする
+    checkMove: (m: AnyMove) => l2_isPawnDrop(m) && isMasu(m.to, 2, 3),
+    successMessage: "ナイス！そこに打つのが垂れ歩。『次に突いて成る』狙いを作れるよ。",
+  },
+
+  {
+    step: 2,
+    title: "狙いを実行：突いて成る",
+    description:
+      "垂れ歩を打ったら、次は『突いて成る』のが狙い。\n歩を前に進めて、成れるなら成ってください。",
+    // Step1 で 2三 に歩を打った後の局面（表示用）
+    sfen: "position sfen 7kl/6gb1/8p/5ppP1/9/9/9/7R1/4K4 b P 1",
+    // 「成った歩で動いた」＋到達マスが 2二（典型）
+    checkMove: (m: AnyMove) => l2_isPromotedPawnMove(m) && isMasu(m.to, 2, 2),
+    successMessage: "OK！垂れ歩 → 突いて成る、がつながったね。",
+  },
+];
+
+// --- Lesson 3: 継ぎ歩 ---
+// 既存の type / helper があるため型定義は省略しています
+const l3_piece = (m: any) => (typeof m?.piece === "string" ? m.piece : "");
+const l3_isPawnMove = (m: any) => !!m?.from && m?.drop !== true && l3_piece(m).toUpperCase() === "P";
+const l3_isPawnDrop = (m: any) => (m?.drop === true || m?.from == null) && l3_piece(m).toUpperCase() === "P";
+
+const l3_pawnMoveTo = (file: number, rank: number) => (m: any) => l3_isPawnMove(m) && isMasu(m.to, file, rank);
+const l3_pawnDropTo = (file: number, rank: number) => (m: any) => l3_isPawnDrop(m) && isMasu(m.to, file, rank);
+
+// ここだけ触れば「正解地点」と「ヒント表示」を変えられる（手直しが楽）
+const l3_cfg = {
+  step1_correct_to: sq(2, 4),
+
+  // ★ここを 2四 にしたい（以前は 2三）
+  step2_correct_drop_to: sq(2, 4),
+
+  step3_correct_drop_to: sq(8, 4),
+
+  // ★矢印：5二の歩 → 5四 方向（ガイド用。合法手かどうかは気にしなくてOK）
+  step2_hint_arrow: { from: sq(5, 2), to: sq(5, 4) },
+};
+
+export const PAWN_LESSON_3_TSUGIFU_STEPS: TrainingStep[] = [
+  {
+    step: 1,
+    title: "歩交換：継ぎ歩の準備",
+    description:
+      "継ぎ歩は『歩を取らせたあと、持ち歩を同じ筋に継ぐ』手筋です。\nまずは歩交換（または歩を取らせる）をして、持ち歩を作る/活かす準備をしよう。",
+    sfen: "position sfen 7kl/6gb1/7pp/5pp2/7P1/9/9/7R1/4K4 b P 1",
+    // ★Step1でも 2四 を視覚的に示す
+    hintSquares: [l3_cfg.step1_correct_to],
+    checkMove: l3_pawnMoveTo(l3_cfg.step1_correct_to.file, l3_cfg.step1_correct_to.rank),
+    successMessage: "OK！これで次に『持ち歩を継ぐ』準備ができたね。",
+  },
+
+  {
+    step: 2,
+    title: "継ぎ歩：同じ筋に持ち歩を打つ",
+    description:
+      "ここが本題。さっきの筋に『持ち歩』を打って圧力を継続しよう（継ぎ歩）。\n（矢印の方向を意識してね）",
+    sfen: SAFE_SFEN, // あなたがあとでSFEN差し替え
+
+    // ★2四（24）を光らせる
+    hintSquares: [l3_cfg.step2_correct_drop_to],
+
+    // ★5二→5四 の矢印を点滅表示（Overlayで描画）
+    hintArrows: [l3_cfg.step2_hint_arrow],
+
+    checkMove: l3_pawnDropTo(l3_cfg.step2_correct_drop_to.file, l3_cfg.step2_correct_drop_to.rank),
+    successMessage: "ナイス！これが継ぎ歩。『歩を切らさず圧力を継続』できるのが強い。",
+  },
+
+  {
+    step: 3,
+    title: "クイズ：継ぎ歩を見つけよう",
+    description:
+      "別の局面でも同じ考え方。『同じ筋に持ち歩を継ぐ』一手を指そう。",
+    sfen: SAFE_SFEN,
+    hintSquares: [l3_cfg.step3_correct_drop_to],
+    checkMove: l3_pawnDropTo(l3_cfg.step3_correct_drop_to.file, l3_cfg.step3_correct_drop_to.rank),
+    successMessage: "正解！『歩交換 → 持ち歩を継ぐ』がパターン化できたね。",
+  },
 ];

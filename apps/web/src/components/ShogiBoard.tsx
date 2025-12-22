@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import BoardHintsOverlay, { type HintArrow } from "./training/BoardHintsOverlay";
 import { PieceSprite, type OrientationMode } from "./PieceSprite";
 import type { PieceBase, PieceCode } from "@/lib/sfen";
 import {
@@ -25,6 +26,8 @@ export interface ShogiBoardProps {
   onMove?: (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: PieceCode; drop?: boolean }) => void;
   onSquareClick?: (x: number, y: number) => void;
   highlightSquares?: { x: number; y: number }[];
+  hintSquares?: { file: number; rank: number }[];
+  hintArrows?: HintArrow[];
   flipped?: boolean;
   orientation?: "sente" | "gote";
   orientationMode?: OrientationMode;
@@ -79,6 +82,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   onMove,
   onSquareClick,
   highlightSquares,
+  hintSquares,
+  hintArrows = [],
   flipped = false,
   orientation = undefined,
   orientationMode = "sprite",
@@ -129,6 +134,34 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   const isHighlighted = useCallback((x: number, y: number) => {
     return highlightSquares?.some((sq) => sq.x === x && sq.y === y) ?? false;
   }, [highlightSquares]);
+
+  const isHintSquare = useCallback((x: number, y: number) => {
+    if (!hintSquares || hintSquares.length === 0) return false;
+
+    // Build tolerant candidate coordinates for each hint.
+    // Accept multiple conventions: 1) file->x as (9-file)  2) file->x as (file-1)
+    // Also consider flipped board coordinates.
+    for (const h of hintSquares) {
+      const file = h.file;
+      const rank = h.rank;
+      if (typeof file !== "number" || typeof rank !== "number") continue;
+
+      const candidates = [] as { x: number; y: number }[];
+      // interpretation A: file 1..9 -> x = 9-file (sente rightmost=1)
+      candidates.push({ x: 9 - file, y: rank - 1 });
+      // interpretation B: file 1..9 -> x = file-1 (left-origin)
+      candidates.push({ x: file - 1, y: rank - 1 });
+      // flipped variants
+      candidates.push({ x: 8 - (9 - file), y: 8 - (rank - 1) });
+      candidates.push({ x: 8 - (file - 1), y: 8 - (rank - 1) });
+
+      for (const c of candidates) {
+        if (c.x === x && c.y === y) return true;
+      }
+    }
+
+    return false;
+  }, [hintSquares]);
 
   const isPromotionZone = useCallback((y: number) => {
     return y <= 2;
@@ -352,7 +385,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   const effectiveBestMove = mode === "edit" ? null : bestmove;
 
   const boardElement = (
-    <div className="relative select-none shrink-0" style={{ width: boardSize, height: boardSize }}>
+      <div className="relative select-none shrink-0" style={{ width: boardSize, height: boardSize }}>
       <div
         className="absolute inset-0 rounded-xl shadow-2xl border-[6px] border-[#5d4037]"
         style={{
@@ -361,7 +394,16 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         }}
       />
 
-      <div ref={containerRef} className="absolute inset-0">
+        {/* Board overlay rendered as direct child of the board root so absolute inset-0 fills board */}
+        <BoardHintsOverlay
+          hintSquares={hintSquares ?? []}
+          hintArrows={hintArrows ?? []}
+          coordMode="shogi"
+          className="z-[9999] text-amber-400"
+          boardPxSize={boardSize}
+        />
+
+        <div ref={containerRef} className="absolute inset-0">
         {(() => {
           // === DEBUG: boardElement size をログ ===
           if (typeof window !== "undefined") {
@@ -432,6 +474,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   gridRowStart: display.y + 1,
                   backgroundColor: (() => {
                     if (mode === "edit" && isSelected) return "rgba(251, 191, 36, 0.5)";
+                    if (isHintSquare(x, y)) return "rgba(250, 204, 21, 0.28)";
                     if (isHighlighted(x, y)) return "rgba(59, 130, 246, 0.18)";
                     if (isZone) return "rgba(239, 68, 68, 0.25)";
                     return "transparent";

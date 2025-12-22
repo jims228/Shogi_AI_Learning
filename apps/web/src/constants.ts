@@ -45,4 +45,65 @@ export const LESSONS: Lesson[] = [
     order: 11,
   },
 
+  // --- ミニゲーム: 浮き駒キャプチャ ---
+  {
+    id: "uki-capture",
+    title: "駒の効き：浮き駒を取る（60秒）",
+    description: "浮き駒（守られていない駒）を素早く見つけて取る60秒タイムアタック。",
+    category: "basics",
+    status: "available",
+    order: 999,
+    stars: 1,
+    href: "/training/uki-capture",
+  },
+
+  {
+    id: "basics_pawn_0",
+    title: "歩の動きと成り（復習）",
+    description: "歩は前に1マス。敵陣で成る/不成、成りのタイミングを確認します。",
+    category: "basics",
+    status: "available",
+    order: 12,
+    href: "/training/basics/pawn",
+    stars: 0,
+    prerequisites: [],
+  },
+
+  {
+    id: "basics_pawn_1_role",
+    title: "歩の役割（壁・道を開ける・捨て駒・と金）",
+    description:
+      "歩は守りでは壁、攻めでは道を開ける。歩交換や捨て歩、と金の強さまで体験します。",
+    category: "basics",
+    status: "available",
+    order: 2,
+    href: "/training/basics/pawn/role",
+    stars: 0,
+    prerequisites: ["basics_pawn_0"],
+  },
+
+  {
+    id: "basics_pawn_2_tarefu",
+    title: "垂れ歩",
+    description: "相手の1つ手前に歩を打ち、『次に成る』プレッシャーを作る手筋を体験します。",
+    category: "basics",
+    status: "available",
+    order: 3,
+    href: "/training/basics/pawn/tarefu",
+    stars: 0,
+    prerequisites: ["basics_pawn_1_role"],
+  },
+
+  {
+    id: "basics_pawn_3_tsugifu",
+    title: "継ぎ歩",
+    description: "歩を取らせたあと、持ち歩を同じ筋に継いで圧力を続ける手筋を体験します。",
+    category: "basics",
+    status: "available",
+    order: 4,
+    href: "/training/basics/pawn/tsugifu",
+    stars: 0,
+    prerequisites: ["basics_pawn_2_tarefu"],
+  },
+
 ];

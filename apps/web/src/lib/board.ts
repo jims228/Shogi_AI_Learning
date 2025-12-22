@@ -100,6 +100,7 @@ export type ParsedUsiPosition = {
   board: BoardMatrix;
   moves: string[];
   turn: Side; // side to move AFTER applying moves
+  hands: HandsState; // initial hands parsed from command
 };
 
 export type BoardTimeline = {
@@ -142,7 +143,15 @@ export function buildPositionFromUsi(usiCommand: string): ParsedUsiPosition {
   const parsed = parseBasePosition(usiCommand);
   const board = cloneBoard(parsed.baseBoard);
   const turn = playMoves(board, parsed.moves, parsed.startTurn, parsed.hands);
-  return { board, moves: parsed.moves, turn };
+  // Log initial parsed hands for debugging (check if sente has pawns)
+  try {
+    // eslint-disable-next-line no-console
+    console.log("buildPositionFromUsi: parsed.hands", parsed.hands, "senteHasPawn:", !!(parsed.hands?.b && parsed.hands.b.P && parsed.hands.b.P > 0));
+  } catch (e) {
+    // ignore
+  }
+
+  return { board, moves: parsed.moves, turn, hands: cloneHands(parsed.hands) };
 }
 
 export function buildBoardTimeline(usiCommand: string): BoardTimeline {

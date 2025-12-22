@@ -11,7 +11,7 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 
-import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
+import { PAWN_LESSON_1_ROLE_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
 
@@ -24,7 +24,7 @@ const normalizeUsiPosition = (s: string) => {
   return `position sfen ${t}`;
 };
 
-export default function PawnTrainingPage() {
+export default function PawnRolePage() {
   const router = useRouter();
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -33,7 +33,7 @@ export default function PawnTrainingPage() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctSignal, setCorrectSignal] = useState(0);
 
-  const currentLesson = PAWN_LESSON_0_STEPS[currentStepIndex];
+  const currentLesson = PAWN_LESSON_1_ROLE_STEPS[currentStepIndex];
 
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
@@ -52,7 +52,7 @@ export default function PawnTrainingPage() {
 
   const handleMove = useCallback(
     (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => {
-      const correct = currentLesson.checkMove(move);
+      const correct = currentLesson.checkMove(move as any);
 
       if (correct) {
         setIsCorrect(true);
@@ -72,7 +72,7 @@ export default function PawnTrainingPage() {
   );
 
   const handleNext = () => {
-    if (currentStepIndex < PAWN_LESSON_0_STEPS.length - 1) setCurrentStepIndex((p) => p + 1);
+    if (currentStepIndex < PAWN_LESSON_1_ROLE_STEPS.length - 1) setCurrentStepIndex((p) => p + 1);
     else router.push("/learn/roadmap");
   };
 
@@ -83,7 +83,7 @@ export default function PawnTrainingPage() {
       onClick={handleNext}
       className="mt-3 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
     >
-      {currentStepIndex < PAWN_LESSON_0_STEPS.length - 1 ? "次のステップへ" : "レッスン完了！"}
+      {currentStepIndex < PAWN_LESSON_1_ROLE_STEPS.length - 1 ? "次のステップへ" : "レッスン完了！"}
       <ArrowRight className="w-5 h-5" />
     </button>
   ) : null;
@@ -116,8 +116,6 @@ export default function PawnTrainingPage() {
     </div>
   );
 
-
-  // ===== 解説（右上）=====
   const explanationElement = (
     <div className="bg-white/80 backdrop-blur rounded-2xl shadow border border-black/10 p-4">
       <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
@@ -125,10 +123,10 @@ export default function PawnTrainingPage() {
         <span className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
           <span
             className="block h-full bg-emerald-500 transition-all duration-500"
-            style={{ width: `${((currentStepIndex + 1) / PAWN_LESSON_0_STEPS.length) * 100}%` }}
+            style={{ width: `${((currentStepIndex + 1) / PAWN_LESSON_1_ROLE_STEPS.length) * 100}%` }}
           />
         </span>
-        <span>{PAWN_LESSON_0_STEPS.length}</span>
+        <span>{PAWN_LESSON_1_ROLE_STEPS.length}</span>
       </div>
 
       <div className="mt-3">
@@ -156,7 +154,6 @@ export default function PawnTrainingPage() {
     </div>
   );
 
-  // ===== おじいちゃん（右下）=====
   const mascotElement = (
     <div style={{ transform: "translateY(-12px)" }}>
       <ManRive
@@ -179,14 +176,14 @@ export default function PawnTrainingPage() {
 
   return (
     <LessonScaffold
-      title="基本の駒：歩兵"
+      title="歩の役割（壁・道を開ける・捨て駒・と金）"
       backHref="/learn/roadmap"
       board={boardElement}
       explanation={explanationElement}
       mascot={mascotElement}
       mascotOverlay={mascotOverlay}
-      topLabel="NEW CONCEPT"
-      progress01={(currentStepIndex + 1) / PAWN_LESSON_0_STEPS.length}
+      topLabel="CONCEPT"
+      progress01={(currentStepIndex + 1) / PAWN_LESSON_1_ROLE_STEPS.length}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       mobileAction={!isDesktop ? nextButton : null}
