@@ -696,8 +696,6 @@ export const PAWN_LESSON_3_TSUGIFU_STEPS: TrainingStep[] = [
     description:
       "継ぎ歩は『歩を取らせたあと、持ち歩を同じ筋に継ぐ』手筋です。\nまずは歩交換（または歩を取らせる）をして、持ち歩を作る/活かす準備をしよう。",
     sfen: "position sfen 7kl/6gb1/7pp/5pp2/7P1/9/9/7R1/4K4 b P 1",
-    // ★Step1でも 2四 を視覚的に示す
-    hintSquares: [l3_cfg.step1_correct_to],
     // 本番データとして Step1 にも矢印を追加
     hintArrows: [l3_cfg.step1_hint_arrow],
     checkMove: l3_pawnMoveTo(l3_cfg.step1_correct_to.file, l3_cfg.step1_correct_to.rank),
@@ -710,9 +708,6 @@ export const PAWN_LESSON_3_TSUGIFU_STEPS: TrainingStep[] = [
     description:
       "ここが本題。さっきの筋に『持ち歩』を打って圧力を継続しよう（継ぎ歩）。\n（矢印の方向を意識してね）",
     sfen: SAFE_SFEN, // あなたがあとでSFEN差し替え
-
-    // ★2四（24）を光らせる
-    hintSquares: [l3_cfg.step2_correct_drop_to],
 
     // ★5二→5四 の矢印を点滅表示（Overlayで描画）
     hintArrows: [l3_cfg.step2_hint_arrow],
@@ -727,7 +722,7 @@ export const PAWN_LESSON_3_TSUGIFU_STEPS: TrainingStep[] = [
     description:
       "別の局面でも同じ考え方。『同じ筋に持ち歩を継ぐ』一手を指そう。",
     sfen: SAFE_SFEN,
-    hintSquares: [l3_cfg.step3_correct_drop_to],
+    // hintSquares removed; no square highlight for step3
     checkMove: l3_pawnDropTo(l3_cfg.step3_correct_drop_to.file, l3_cfg.step3_correct_drop_to.rank),
     successMessage: "正解！『歩交換 → 持ち歩を継ぐ』がパターン化できたね。",
   },

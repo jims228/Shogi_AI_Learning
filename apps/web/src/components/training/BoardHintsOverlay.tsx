@@ -84,14 +84,14 @@ export default function BoardHintsOverlay({
           <marker
             id={markerId}
             markerUnits="userSpaceOnUse"
-            markerWidth="0.4"
-            markerHeight="0.4"
-            refX="0.36"
-            refY="0.2"
+            markerWidth="0.35"
+            markerHeight="0.35"
+            refX="1"
+            refY="0.5"
             orient="auto"
-            viewBox="0 0 0.4 0.4"
+            viewBox="0 0 1 1"
           >
-            <path d="M0,0 L0.4,0.2 L0,0.4 z" fill="currentColor" />
+            <path d="M0,0 L1,0.5 L0,1 z" fill="currentColor" />
           </marker>
 
           <style>{`
@@ -102,12 +102,8 @@ export default function BoardHintsOverlay({
             @keyframes hintDash {
               to { stroke-dashoffset: -2.0; }
             }
-            .hintSquare {
-              animation: hintBlink 1.1s ease-in-out infinite;
-            }
-            .hintArrow {
-              animation: hintBlink 1.0s ease-in-out infinite, hintDash 1.2s linear infinite;
-            }
+            /* 点滅を無効化。矢印のダッシュだけ残す場合は下行を有効化 */
+            .hintArrow { animation: hintDash 1.2s linear infinite; }
             @media (prefers-reduced-motion: reduce) {
               .hintSquare, .hintArrow { animation: none; opacity: .5; }
             }
@@ -128,7 +124,7 @@ export default function BoardHintsOverlay({
               className="hintSquare"
               vectorEffect="non-scaling-stroke"
               fill="currentColor"
-              opacity={0.25}
+              opacity={0.18}
             />
           );
         })}
@@ -146,7 +142,7 @@ export default function BoardHintsOverlay({
               y2={t.cy}
               className="hintArrow"
               stroke="currentColor"
-              strokeWidth={0.14}
+              strokeWidth={0.16}
               vectorEffect="non-scaling-stroke"
               strokeOpacity={0.95}
               strokeLinecap="round"
