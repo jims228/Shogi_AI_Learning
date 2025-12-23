@@ -93,3 +93,6 @@ temp/
 *.patch
 backend/api/user_book1.db
 backend/api/standard_book.db:Zone.Identifier
+
+# local tools
+/tools/sfx-gen/stable-audio-tools/
