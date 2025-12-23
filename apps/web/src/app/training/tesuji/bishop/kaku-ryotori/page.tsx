@@ -2,14 +2,14 @@
 
 import React from "react";
 import { LessonRunner } from "@/components/training/lesson/LessonRunner";
-import { PAWN_TSUGIFU_LESSON_V2 } from "@/lessons/pawn/tsugifu";
+import { BISHOP_KAKU_RYOTORI_L1 } from "@/lessons/bishop/kaku-ryotori";
 
-export default function TsugifuTrainingPage() {
+export default function Tesuji_BISHOP_KAKU_RYOTORI_Page() {
   return (
     <LessonRunner
-      title="継ぎ歩（復習）"
+      title="角での両取り（Lv1）"
       backHref="/learn/roadmap"
-      steps={PAWN_TSUGIFU_LESSON_V2}
+      steps={BISHOP_KAKU_RYOTORI_L1}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       onFinishHref="/learn/roadmap"

@@ -2,17 +2,19 @@
 
 import React from "react";
 import { LessonRunner } from "@/components/training/lesson/LessonRunner";
-import { PAWN_TSUGIFU_LESSON_V2 } from "@/lessons/pawn/tsugifu";
+import { PAWN_HIKAE_L1 } from "@/lessons/pawn/hikae";
 
-export default function TsugifuTrainingPage() {
+export default function TesujiPawnHikaePage() {
   return (
     <LessonRunner
-      title="継ぎ歩（復習）"
+      title="控えの歩（Lv1）"
       backHref="/learn/roadmap"
-      steps={PAWN_TSUGIFU_LESSON_V2}
+      steps={PAWN_HIKAE_L1}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       onFinishHref="/learn/roadmap"
     />
   );
 }
+
+

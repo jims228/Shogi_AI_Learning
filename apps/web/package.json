@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint \"src/lessons/**/*.{ts,tsx}\" \"src/lib/training/**/*.{ts,tsx}\" \"src/components/training/lesson/**/*.{ts,tsx}\" \"src/app/training/tesuji/**/*.{ts,tsx}\" \"src/app/training/castle/**/*.{ts,tsx}\" \"src/app/training/opening/**/*.{ts,tsx}\"",
+    "validate-lessons": "node ../../scripts/validate_lessons.js",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch"

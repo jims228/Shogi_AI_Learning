@@ -2,17 +2,19 @@
 
 import React from "react";
 import { LessonRunner } from "@/components/training/lesson/LessonRunner";
-import { PAWN_TSUGIFU_LESSON_V2 } from "@/lessons/pawn/tsugifu";
+import { SILVER_WARIUCHI_L1 } from "@/lessons/silver/warigin";
 
-export default function TsugifuTrainingPage() {
+export default function TesujiSilverWariuchiPage() {
   return (
     <LessonRunner
-      title="継ぎ歩（復習）"
+      title="割打ちの銀（Lv1）"
       backHref="/learn/roadmap"
-      steps={PAWN_TSUGIFU_LESSON_V2}
+      steps={SILVER_WARIUCHI_L1}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       onFinishHref="/learn/roadmap"
     />
   );
 }
+
+

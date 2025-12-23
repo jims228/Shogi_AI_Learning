@@ -2,14 +2,14 @@
 
 import React from "react";
 import { LessonRunner } from "@/components/training/lesson/LessonRunner";
-import { PAWN_TSUGIFU_LESSON_V2 } from "@/lessons/pawn/tsugifu";
+import { OPENING_YOKOFUDORI_L1 } from "@/lessons/opening/yokofudori";
 
-export default function TsugifuTrainingPage() {
+export default function Opening_YOKOFUDORI_Page() {
   return (
     <LessonRunner
-      title="継ぎ歩（復習）"
+      title="横歩取り（Lv1）"
       backHref="/learn/roadmap"
-      steps={PAWN_TSUGIFU_LESSON_V2}
+      steps={OPENING_YOKOFUDORI_L1}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       onFinishHref="/learn/roadmap"

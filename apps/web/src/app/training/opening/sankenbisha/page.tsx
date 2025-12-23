@@ -2,14 +2,14 @@
 
 import React from "react";
 import { LessonRunner } from "@/components/training/lesson/LessonRunner";
-import { PAWN_TSUGIFU_LESSON_V2 } from "@/lessons/pawn/tsugifu";
+import { OPENING_SANKENBISHA_L1 } from "@/lessons/opening/sankenbisha";
 
-export default function TsugifuTrainingPage() {
+export default function Opening_SANKENBISHA_Page() {
   return (
     <LessonRunner
-      title="継ぎ歩（復習）"
+      title="三間飛車（Lv1）"
       backHref="/learn/roadmap"
-      steps={PAWN_TSUGIFU_LESSON_V2}
+      steps={OPENING_SANKENBISHA_L1}
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       onFinishHref="/learn/roadmap"
