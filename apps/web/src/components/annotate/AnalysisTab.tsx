@@ -217,6 +217,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [handsOverrides, setHandsOverrides] = useState<Record<number, HandsState>>({});
   const [editHistory, setEditHistory] = useState<{ board: BoardMatrix; hands: HandsState }[]>([]);
   const [explanation, setExplanation] = useState<string>("");
+  const [explanationJson, setExplanationJson] = useState<any | null>(null);
   const [gameDigest, setGameDigest] = useState<string>("");
   const [isExplaining, setIsExplaining] = useState(false);
   const [isDigesting, setIsDigesting] = useState(false);
@@ -583,6 +584,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
     setIsExplaining(true);
     setExplanation("");
+    setExplanationJson(null);
     try {
       const res = await fetch(`${API_BASE}/api/explain`, {
         method: "POST",
@@ -606,6 +608,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       if (!res.ok) throw new Error();
       const data = await res.json();
       setExplanation(data.explanation);
+      if (data.explanation_json) setExplanationJson(data.explanation_json);
     } catch {
       showToast({ title: "解説生成エラー", variant: "error" });
     } finally {
@@ -1078,14 +1081,52 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
             </div>
             
             {/* AI解説エリア (候補手の下) */}
-            {explanation && (
+            {(explanation || explanationJson) && (
                 <div className="flex-none p-3 bg-white rounded-xl border border-purple-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 max-h-[40%] overflow-y-auto">
                     <div className="font-bold text-purple-700 mb-2 flex items-center gap-2 border-b border-purple-100 pb-2 sticky top-0 bg-white z-10">
                         <Sparkles className="w-4 h-4 fill-purple-100"/> 将棋仙人の解説
                     </div>
-                    <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-xs">
-                        {explanation}
-                    </div>
+                    {explanationJson ? (
+                        <div className="text-xs text-slate-700 leading-relaxed font-sans space-y-2">
+                            {explanationJson.headline && (
+                                <div className="font-bold text-slate-800">{explanationJson.headline}</div>
+                            )}
+                            {Array.isArray(explanationJson.why) && explanationJson.why.length > 0 && (
+                                <ul className="list-disc pl-4 space-y-1">
+                                    {explanationJson.why.slice(0, 6).map((s: string, i: number) => (
+                                        <li key={i}>{s}</li>
+                                    ))}
+                                </ul>
+                            )}
+                            {Array.isArray(explanationJson.pvGuide) && explanationJson.pvGuide.length > 0 && (
+                                <details className="rounded border border-slate-200 bg-slate-50 p-2">
+                                    <summary className="cursor-pointer select-none text-slate-600 font-bold">PV（読み筋）</summary>
+                                    <div className="mt-2 space-y-1 font-mono">
+                                        {explanationJson.pvGuide.slice(0, 8).map((x: any, i: number) => (
+                                            <div key={i} className="flex gap-2">
+                                                <span className="text-slate-900">{x.move}</span>
+                                                {x.note ? <span className="text-slate-500">{x.note}</span> : null}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </details>
+                            )}
+                            {Array.isArray(explanationJson.risks) && explanationJson.risks.length > 0 && (
+                                <div className="rounded border border-amber-200 bg-amber-50 p-2">
+                                    <div className="font-bold text-amber-800 mb-1">注意</div>
+                                    <ul className="list-disc pl-4 space-y-1">
+                                        {explanationJson.risks.slice(0, 4).map((s: string, i: number) => (
+                                            <li key={i}>{s}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-xs">
+                            {explanation}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
