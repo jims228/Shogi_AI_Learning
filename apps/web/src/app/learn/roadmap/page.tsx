@@ -102,10 +102,10 @@ export default function RoadmapPage() {
     : (layout.length > 0 ? layout[layout.length - 1].y + 150 : 800);
 
   return (
-    <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] overflow-x-hidden flex flex-col">
+    <div className="min-h-screen bg-transparent text-[color:var(--text)] overflow-x-hidden flex flex-col">
       {/* Header - sticky, not fixed */}
       <header 
-        className="sticky top-0 left-0 right-0 z-50 bg-[#f9f3e5]/95 border-b border-black/10 shadow-sm backdrop-blur-sm"
+        className="sticky top-0 left-0 right-0 z-50 bg-transparent border-b border-black/10 shadow-sm backdrop-blur-md"
         style={{ paddingTop: "var(--safe-area-inset-top, 0px)" }}
       >
         <div className="mx-auto max-w-6xl px-4 h-14 flex items-center">
@@ -113,7 +113,7 @@ export default function RoadmapPage() {
             <ArrowLeft className="w-5 h-5 mr-1" />
             <span className="font-bold">メニューに戻る</span>
           </Link>
-          <h1 className="ml-6 text-xl font-bold text-[#3a2b17]">将棋学習ロードマップ</h1>
+          <h1 className="ml-6 text-xl font-bold text-slate-800">将棋学習ロードマップ</h1>
         </div>
       </header>
 
@@ -257,7 +257,7 @@ export default function RoadmapPage() {
 
       {/* Modal (Dialog) */}
       <Dialog open={!!selectedLesson} onOpenChange={(open) => !open && setSelectedLessonId(null)}>
-        <DialogContent className="fixed z-[99999] left-1/2 top-1/2 w-[80vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-[#cfc3a8] p-6 shadow-2xl border border-black/20 gap-0 text-[#3a2b17] [&>button]:hidden">
+        <DialogContent className="fixed z-[99999] left-1/2 top-1/2 w-[80vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white/85 p-6 shadow-2xl border border-black/20 gap-0 text-[#3a2b17] backdrop-blur-md [&>button]:hidden">
           {selectedLesson && (
             <>
               <div className="flex justify-between items-start mb-4">

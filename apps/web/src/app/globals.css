@@ -6,6 +6,12 @@
 /* ===== あなたのデザイントークン（CSS変数） ===== */
 :root {
   --radius: 0.625rem;
+  /* --- Sakura tokens (light, subtle) --- */
+  --sakura-50: oklch(0.985 0.015 15);
+  --sakura-100: oklch(0.96 0.03 15);
+  --sakura-200: oklch(0.92 0.05 15);
+  --surface: oklch(0.985 0.01 15);
+  --text: oklch(0.18 0.02 285);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -37,6 +43,105 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+}
+
+.sakura-theme {
+  /* Override shadcn tokens only within the themed area */
+  --background: var(--surface);
+  --foreground: var(--text);
+  --card: oklch(0.99 0.01 15);
+  --card-foreground: var(--text);
+  --popover: oklch(0.99 0.01 15);
+  --popover-foreground: var(--text);
+  --primary: oklch(0.62 0.12 20);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.02 15);
+  --secondary-foreground: var(--text);
+  --muted: oklch(0.965 0.01 15);
+  --muted-foreground: oklch(0.45 0.02 285);
+  --accent: oklch(0.965 0.02 15);
+  --accent-foreground: var(--text);
+  --border: oklch(0.9 0.03 15);
+  --input: oklch(0.9 0.03 15);
+  --ring: oklch(0.75 0.08 20);
+}
+
+.sakura-surface {
+  background:
+    radial-gradient(1200px 520px at 50% -12%, rgba(255, 160, 185, 0.30), transparent 62%),
+    radial-gradient(900px 420px at 20% 15%, rgba(255, 205, 220, 0.18), transparent 60%),
+    linear-gradient(180deg, var(--sakura-50) 0%, #ffffff 34%, var(--sakura-100) 100%);
+  border: 1px solid color-mix(in oklab, var(--sakura-200) 55%, transparent);
+  box-shadow: 0 14px 44px rgba(255, 150, 180, 0.14);
+  border-radius: 20px;
+}
+
+/* 画面全体を桜背景で覆う“固定レイヤ”。
+   これで body 背景や竹装飾が視覚的に消える（レイアウトは不変）。 */
+.sakura-backdrop-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1400px 560px at 50% -10%, rgba(255, 160, 185, 0.26), transparent 62%),
+    linear-gradient(180deg, var(--sakura-50) 0%, #ffffff 35%, var(--sakura-100) 100%);
+}
+
+/* 竹っぽい装飾が class/id に含まれていたら桜テーマでは消す（最小差分の安全策） */
+.sakura-theme [class*="bamboo"],
+.sakura-theme [id*="bamboo"],
+.sakura-theme [class*="take"],
+.sakura-theme [id*="take"] {
+  display: none !important;
+}
+
+/* --- Sakura petals animation --- */
+.sakura-petals {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 10; /* 背景より上・UIより下（wrapper側でz=20） */
+}
+
+.sakura-petal {
+  position: absolute;
+  top: -12vh;
+  left: var(--petal-left, 50%);
+
+  width: var(--petal-size, 38px);
+  height: calc(var(--petal-size, 38px) * 0.78);
+
+  /* “イラスト調”の塗り（ハイライト＋淡い縁色） */
+  background:
+    radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.18) 34%, transparent 35%),
+    radial-gradient(circle at 40% 40%, rgba(255, 205, 220, 0.92) 0%, rgba(255, 160, 190, 0.78) 55%, rgba(255, 120, 175, 0.30) 100%);
+
+  border-radius: 88% 12% 88% 12%;
+  outline: 1px solid rgba(255, 150, 175, 0.14);
+  transform: rotate(45deg) scale(var(--petal-scale, 1));
+  opacity: var(--petal-opacity, 0.30); /* 透明度を下げて見えるように */
+
+  filter: blur(0.12px);
+  box-shadow: 0 6px 26px rgba(255, 145, 175, 0.20);
+  will-change: transform;
+  animation: sakura-fall var(--petal-duration, 14s) linear var(--petal-delay, 0s) infinite;
+}
+
+@keyframes sakura-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(45deg) scale(var(--petal-scale, 1));
+  }
+  100% {
+    transform: translate3d(var(--petal-drift, 0px), 120vh, 0) rotate(420deg) scale(var(--petal-scale, 1));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sakura-petals {
+    display: none;
+  }
 }
 
 .dark {
@@ -118,6 +223,13 @@ body {
 
   body::after {
     right: 0;
+  }
+
+  /* Sakura theme: disable bamboo side columns (body pseudo elements) */
+  body:has(.sakura-theme)::before,
+  body:has(.sakura-theme)::after {
+    content: none !important;
+    display: none !important;
   }
 }
 

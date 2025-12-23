@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./home.css";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
+import { SakuraThemeShell } from "@/components/ui/SakuraThemeShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,11 +30,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}>
         <ToastProvider>
           <Toaster />
-          <div className="relative z-[1] h-full flex flex-col px-4 sm:px-6 lg:px-12 xl:px-[220px] 2xl:px-[260px] py-6 gap-6">
-            <main className="flex-1 w-full min-h-0 flex flex-col">
-              {children}
-            </main>
-          </div>
+          <SakuraThemeShell>{children}</SakuraThemeShell>
         </ToastProvider>
       </body>
     </html>
