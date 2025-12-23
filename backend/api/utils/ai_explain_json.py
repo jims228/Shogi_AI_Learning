@@ -5,6 +5,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field, ValidationError
 
 
+class DetectionItem(BaseModel):
+    id: str
+    nameJa: str
+    confidence: float = 0.0
+    reasons: List[str] = Field(default_factory=list)
+
+
 class PvGuideItem(BaseModel):
     move: str
     note: str = ""
@@ -16,6 +23,10 @@ class ExplainJson(BaseModel):
     pvGuide: List[PvGuideItem] = Field(default_factory=list)
     risks: List[str] = Field(default_factory=list)
     confidence: float = 0.5
+    # Optional structured detections (rule-based)
+    style: Optional[DetectionItem] = None
+    opening: Optional[DetectionItem] = None
+    castle: Optional[DetectionItem] = None
 
 
 def _clamp01(x: float) -> float:
@@ -109,6 +120,9 @@ def build_explain_json_from_facts(f: Dict[str, Any]) -> ExplainJson:
         pvGuide=pvGuide,
         risks=risks[:3],
         confidence=conf,
+        style=(f.get("opening_facts") or {}).get("style"),
+        opening=(f.get("opening_facts") or {}).get("opening"),
+        castle=(f.get("castle_facts") or {}).get("castle"),
     )
 
 
@@ -146,6 +160,14 @@ def validate_explain_json(obj: Any, facts: Dict[str, Any]) -> Tuple[Optional[Exp
         # Allow USI coords like 7g7f (digits are OK). Detect "点" style.
         if "点" in text_blob or "cp" in text_blob or "ＣＰ" in text_blob:
             errors.append("contains numeric claim")
+
+    # Detection sanity: if id != unknown, reasons must exist.
+    for k in ("style", "opening", "castle"):
+        item = getattr(parsed, k, None)
+        if item is None:
+            continue
+        if (item.id or "") != "unknown" and not (item.reasons and len(item.reasons) > 0):
+            errors.append(f"{k}.reasons empty")
 
     parsed.confidence = _clamp01(float(parsed.confidence))
     return (parsed if not errors else None), errors

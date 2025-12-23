@@ -495,6 +495,20 @@ def build_explain_facts(req: Dict[str, Any]) -> Dict[str, Any]:
     # 盤面復元
     pos = parse_position_cmd(position_cmd)
     board_before = pos.board
+    pos_moves = pos.moves or []
+
+    # --- 戦型/戦法/囲い（ルールベース） ---
+    try:
+        from backend.ai.opening_detector import detect_opening_bundle
+        from backend.ai.castle_detector import detect_castle_bundle
+
+        # IMPORTANT: use request 'turn' (API contract) as the POV for detection.
+        opening_facts = detect_opening_bundle(board_before, pos_moves, turn)
+        castle_facts = detect_castle_bundle(board_before, turn)
+    except Exception:
+        opening_facts = {"style": {"id": "unknown", "nameJa": "不明（戦型）", "confidence": 0.0, "reasons": []},
+                         "opening": {"id": "unknown", "nameJa": "不明（戦法）", "confidence": 0.0, "reasons": []}}
+        castle_facts = {"castle": {"id": "unknown", "nameJa": "不明（囲い）", "confidence": 0.0, "reasons": []}}
 
     # スコアは「先手視点cp」が来る前提なので、turn視点に直す
     cp_turn = _cp_for_turn(turn, score_cp if isinstance(score_cp, int) else None)
@@ -561,6 +575,8 @@ def build_explain_facts(req: Dict[str, Any]) -> Dict[str, Any]:
             "bestmove_jp": move_to_japanese(bestmove, board_before, turn) if bestmove else "",
             "phase": "序盤" if ply < 24 else "終盤" if ply > 100 else "中盤",
             "strategy_hint": detect_simple_strategy(board_before),
+            "opening_facts": opening_facts,
+            "castle_facts": castle_facts,
             "score_turn": {"cp": cp_turn, "mate": mate_turn},
             "score": {"cp": cp_turn, "mate": mate_turn},
             "score_words": _score_to_words(cp_turn, mate_turn),
@@ -614,6 +630,8 @@ def build_explain_facts(req: Dict[str, Any]) -> Dict[str, Any]:
         "bestmove_jp": move_to_japanese(bestmove, board_before, turn) if bestmove else "",
         "phase": "序盤" if ply < 24 else "終盤" if ply > 100 else "中盤",
         "strategy_hint": detect_simple_strategy(board_before),
+        "opening_facts": opening_facts,
+        "castle_facts": castle_facts,
         "score_turn": {"cp": cp_turn, "mate": mate_turn},
         "score": {"cp": cp_turn, "mate": mate_turn},
         "score_words": _score_to_words(cp_turn, mate_turn),
