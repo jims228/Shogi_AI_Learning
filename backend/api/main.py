@@ -343,24 +343,27 @@ def annotate(payload: Any):
         # 計算量抑制のため、基本はタグが付いた場合や options 指定時のみ生成。
         try:
             if pv_line and (note["tags"] or options):
-                # board_before: startpos + moves[:i]
-                import shogi  # type: ignore
-                b = shogi.Board()
-                for m0 in moves[:i]:
-                    try:
-                        mv0 = shogi.Move.from_usi(m0)
-                        # 安全側: 合法だけ適用
-                        if hasattr(b, "is_legal") and b.is_legal(mv0):
-                            b.push(mv0)
-                        else:
-                            # フォールバック（慎重）
-                            b.push(mv0)
-                    except Exception:
-                        break
-
-                # Build pv_reason
-                from backend.ai.pv_reason import build_pv_reason
-                pv_reason = build_pv_reason(b, mv, " ".join(pv_line), options)
+                # Build pv_reason (prefer python-shogi; fallback to lightweight parser)
+                from backend.ai import pv_reason as pv_reason_mod
+                pv_reason = None
+                if getattr(pv_reason_mod, "HAS_SHOGI", False):
+                    import shogi  # type: ignore
+                    b = shogi.Board()
+                    for m0 in moves[:i]:
+                        try:
+                            mv0 = shogi.Move.from_usi(m0)
+                            if hasattr(b, "is_legal") and b.is_legal(mv0):
+                                b.push(mv0)
+                            else:
+                                b.push(mv0)
+                        except Exception:
+                            break
+                    pv_reason = pv_reason_mod.build_pv_reason(b, mv, " ".join(pv_line), options)
+                else:
+                    # position before current ply
+                    pos_str = "startpos moves " + " ".join(moves[:i]) if moves[:i] else "startpos"
+                    position_cmd = f"position {pos_str}"
+                    pv_reason = pv_reason_mod.build_pv_reason_fallback(position_cmd, " ".join(pv_line), options)
                 if pv_reason:
                     note.setdefault("evidence", {}).setdefault("pv_reason", pv_reason)
                     note["explain"] = pv_reason.get("summary")
@@ -986,7 +989,8 @@ def health(): return {"status": "ok"}
 
 @app.post("/api/explain")
 async def explain_endpoint(req: ExplainRequest, _principal: Principal = Depends(require_api_key)):
-    return {"explanation": await AIService.generate_shogi_explanation(_dump_model(req))}
+    # Backward compatible: still returns "explanation", but may include "explanation_json" + "verify".
+    return await AIService.generate_shogi_explanation_payload(_dump_model(req))
 
 @app.post("/api/explain/digest")
 async def digest_endpoint(req: GameDigestInput, _principal: Principal = Depends(require_api_key)):

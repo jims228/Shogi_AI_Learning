@@ -1,6 +1,6 @@
 import os
 import time
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, cast
 
 import google.generativeai as genai
 from backend.api.utils.shogi_utils import ShogiUtils, StrategyAnalyzer
@@ -8,7 +8,12 @@ from backend.api.utils.shogi_utils import ShogiUtils, StrategyAnalyzer
 from backend.api.utils.shogi_explain_core import (
     build_explain_facts,
     render_rule_based_explanation,
-    rewrite_with_gemini,
+)
+
+from backend.api.utils.ai_explain_json import (
+    ExplainJson,
+    build_explain_json_from_facts,
+    validate_explain_json,
 )
 
 GENAI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -21,6 +26,8 @@ USE_GEMINI_REWRITE = os.getenv("USE_GEMINI_REWRITE", "1") == "1"
 # --- 超軽量キャッシュ（同局面で連打しても課金しない） ---
 _EXPLAIN_CACHE: Dict[str, Tuple[float, str]] = {}
 _EXPLAIN_CACHE_TTL_SEC = int(os.getenv("EXPLAIN_CACHE_TTL_SEC", "600"))
+
+_EXPLAIN_PAYLOAD_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
 
 def _cache_get(key: str) -> Optional[str]:
@@ -40,12 +47,38 @@ def _cache_set(key: str, text: str) -> None:
         _EXPLAIN_CACHE.clear()
     _EXPLAIN_CACHE[key] = (time.time(), text)
 
+def _payload_cache_get(key: str) -> Optional[Dict[str, Any]]:
+    v = _EXPLAIN_PAYLOAD_CACHE.get(key)
+    if not v:
+        return None
+    ts, payload = v
+    if time.time() - ts > _EXPLAIN_CACHE_TTL_SEC:
+        _EXPLAIN_PAYLOAD_CACHE.pop(key, None)
+        return None
+    return payload
+
+def _payload_cache_set(key: str, payload: Dict[str, Any]) -> None:
+    if len(_EXPLAIN_PAYLOAD_CACHE) > 500:
+        _EXPLAIN_PAYLOAD_CACHE.clear()
+    _EXPLAIN_PAYLOAD_CACHE[key] = (time.time(), payload)
+
 
 class AIService:
     @staticmethod
     async def generate_shogi_explanation(data: Dict[str, Any]) -> str:
         """
         既存を壊さず、新方式は feature flag で切り替える
+        """
+        payload = await AIService.generate_shogi_explanation_payload(data)
+        return str(payload.get("explanation") or "")
+
+    @staticmethod
+    async def generate_shogi_explanation_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Backward compatible API payload:
+          - explanation: string (always present)
+          - explanation_json: structured JSON (optional but usually present)
+          - verify: { ok, errors } (debug-friendly)
         """
         cache_key = str(
             {
@@ -69,26 +102,32 @@ class AIService:
                 ][:3],
             }
         )
-        hit = _cache_get(cache_key)
-        if hit:
-            return hit
+        hit_payload = _payload_cache_get(cache_key)
+        if hit_payload:
+            return hit_payload
 
         # v2 OFF なら完全に旧挙動
         if not USE_EXPLAIN_V2:
             text = await AIService._generate_shogi_explanation_legacy(data)
+            payload = AIService._build_structured_payload(data, text=text)
+            _payload_cache_set(cache_key, payload)
             _cache_set(cache_key, text)
-            return text
+            return payload
 
         # v2 ON（失敗したら旧へフォールバック）
         try:
             text = await AIService._generate_shogi_explanation_v2(data)
+            payload = AIService._build_structured_payload(data, text=text)
+            _payload_cache_set(cache_key, payload)
             _cache_set(cache_key, text)
-            return text
+            return payload
         except Exception as e:
             print("[ExplainV2] error -> fallback legacy:", e)
             text = await AIService._generate_shogi_explanation_legacy(data)
+            payload = AIService._build_structured_payload(data, text=text)
+            _payload_cache_set(cache_key, payload)
             _cache_set(cache_key, text)
-            return text
+            return payload
 
     @staticmethod
     async def _generate_shogi_explanation_v2(data: Dict[str, Any]) -> str:
@@ -96,29 +135,33 @@ class AIService:
         facts = build_explain_facts(data)
 
         # 2) まずはルールベース文章（LLMなしで成立）
-        base = render_rule_based_explanation(facts)
+        # NOTE: We intentionally keep v2 explanation deterministic to avoid contradictions.
+        # UI can prefer explanation_json (structured). The text remains a stable fallback.
+        return render_rule_based_explanation(facts)
 
-        # 3) LLMは“必要なときだけ”（コスト削減）
-        use_rewrite = os.getenv("USE_GEMINI_REWRITE", "1") == "1"
-        mate = (
-            (facts.get("score") or {}).get("mate")
-            if isinstance(facts.get("score"), dict)
-            else (facts.get("score_turn") or {}).get("mate")
-        )
+    @staticmethod
+    def _build_structured_payload(data: Dict[str, Any], text: str) -> Dict[str, Any]:
+        """
+        Build explanation_json from facts, validate it, and fallback safely.
+        """
+        facts = build_explain_facts(data)
+        explain_json: Optional[ExplainJson] = None
+        verify_errors: List[str] = []
+        try:
+            candidate = build_explain_json_from_facts(facts)
+            parsed, errs = validate_explain_json(candidate.model_dump(), facts)
+            if parsed is None:
+                verify_errors.extend(errs)
+            else:
+                explain_json = parsed
+        except Exception as e:
+            verify_errors.append(f"exception: {e}")
 
-        need_rewrite = use_rewrite and (
-            (facts.get("level") != "beginner")
-            or (facts.get("user_move") and facts.get("bestmove") and facts["user_move"] != facts.get("bestmove"))
-            or bool(facts.get("candidates"))
-            or (mate not in (None, 0))
-        )
-
-        if GENAI_API_KEY and need_rewrite:
-            rewritten = await rewrite_with_gemini(base, facts)
-            if rewritten:
-                return rewritten
-
-        return base
+        payload: Dict[str, Any] = {"explanation": text}
+        if explain_json is not None:
+            payload["explanation_json"] = explain_json.model_dump()
+        payload["verify"] = {"ok": len(verify_errors) == 0, "errors": verify_errors}
+        return payload
 
     @staticmethod
     async def _generate_shogi_explanation_legacy(data: Dict[str, Any]) -> str:

@@ -1,10 +1,98 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 try:
     import shogi  # type: ignore
     HAS_SHOGI = True
 except Exception:
     HAS_SHOGI = False
+
+
+def build_pv_reason_fallback(position_cmd: str, pv_str: str, options: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Fallback PV reasoning without python-shogi.
+    Uses the lightweight USI/SFEN parser already used for rule-based explanations.
+    """
+    from backend.api.utils.shogi_explain_core import parse_position_cmd, apply_usi_move  # local import
+
+    pv_tokens: List[str] = [t for t in (pv_str or "").split() if t]
+    if not pv_tokens:
+        return None
+
+    max_h = _get_max_horizon(options or {})
+    used_h = 0
+
+    try:
+        pos = parse_position_cmd(position_cmd or "position startpos")
+        board = pos.board
+        turn = pos.turn
+    except Exception:
+        return None
+
+    events: List[Dict[str, Any]] = []
+    threat_event: Optional[Dict[str, Any]] = None
+    initial_side = "black" if turn == "b" else "white"
+
+    def _append(ev: Dict[str, Any]):
+        nonlocal threat_event
+        events.append(ev)
+        if threat_event is None and ev.get("side") != initial_side:
+            threat_event = ev
+
+    for token in pv_tokens:
+        if used_h >= max_h:
+            break
+
+        side = "black" if turn == "b" else "white"
+        early_stop = False
+
+        if "*" in token:
+            _append({"type": "drop", "move": token, "side": side})
+
+        # capture detection (non-strict legality; based on dst occupancy)
+        try:
+            next_board, captured = apply_usi_move(board, token, turn)
+            if captured is not None:
+                _append({"type": "capture", "move": token, "side": side})
+                early_stop = True
+            board = next_board
+        except Exception:
+            break
+
+        used_h += 1
+        if token.endswith("+"):
+            _append({"type": "promotion", "move": token, "side": side})
+            early_stop = True
+
+        # simple check marker: "+" in token (best-effort)
+        if "+" in token:
+            _append({"type": "check", "move": token, "side": side})
+            early_stop = True
+
+        turn = "w" if turn == "b" else "b"
+        if early_stop:
+            break
+
+    level = (options or {}).get("explain_level") or "beginner"
+    threat_line = pv_tokens[:used_h] if used_h > 0 else []
+
+    if level == "beginner":
+        summary = "次の狙い（王手・駒取り）に注意しましょう。"
+    elif level == "intermediate":
+        summary = "相手の狙いと大駒の利きを確認しましょう。"
+    else:
+        summary = f"読み筋: {' '.join(threat_line)}。"
+
+    return {
+        "level": level,
+        "used_horizon": used_h,
+        "threat_line": threat_line,
+        "threat_event": threat_event,
+        "events": events,
+        "bishop_activity_delta": None,
+        "rook_activity_delta": None,
+        "hanging": [],
+        "summary": summary,
+    }
 
 
 LEVEL_DEFAULTS = {
