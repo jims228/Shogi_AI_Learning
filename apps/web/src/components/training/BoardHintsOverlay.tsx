@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useId, useMemo, useEffect, useRef } from "react";
+import React, { useId, useMemo, useEffect, useRef, useState } from "react";
 
 export type HintSquare = { file: number; rank: number };
-export type HintArrow = { from: HintSquare; to: HintSquare };
+export type HintArrow = {
+  to: HintSquare;
+  from?: HintSquare;
+  kind?: "move" | "drop";
+  dir?: "up" | "down" | "left" | "right" | "hand";
+  hand?: "sente" | "gote";
+};
 
 type Props = {
   hintSquares?: HintSquare[];
@@ -26,6 +32,23 @@ export default function BoardHintsOverlay({
   const markerId = useMemo(() => `hintArrow-${rid.replace(/[:]/g, "")}`, [rid]);
   const hasAnything = hintSquares.length > 0 || hintArrows.length > 0;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [handMeasureTick, setHandMeasureTick] = useState(0);
+
+  const needsHand = useMemo(
+    () => hintArrows.some(a => (a.dir === "hand") && (a.kind === "drop" || !a.from)),
+    [hintArrows]
+  );
+
+  useEffect(() => {
+    if (!needsHand) return;
+    let n = 0;
+    const id = window.setInterval(() => {
+      setHandMeasureTick(t => t + 1);
+      n++;
+      if (n >= 12) window.clearInterval(id);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [needsHand]);
 
   useEffect(() => {
     // removed verbose debug logging in production
@@ -63,6 +86,22 @@ export default function BoardHintsOverlay({
     return { cx: r.x + 0.5, cy: r.y + 0.5 };
   };
 
+  const dropStart = (t: { cx: number; cy: number }, dir?: HintArrow["dir"]) => {
+    // viewBox は 0..9。hand は「盤の下」から来るようにする（線は盤外から入ってくるのでOK）
+    // flipped のときは上下逆になるので上側から
+    if (dir === "hand") {
+      return { cx: t.cx, cy: flipped ? -0.8 : 9.8 };
+    }
+    // 既存互換（近い位置から降ってくる）
+    switch (dir) {
+      case "up": return { cx: t.cx, cy: t.cy - 1.2 };
+      case "down": return { cx: t.cx, cy: t.cy + 1.2 };
+      case "left": return { cx: t.cx - 1.2, cy: t.cy };
+      case "right": return { cx: t.cx + 1.2, cy: t.cy };
+      default: return { cx: t.cx, cy: t.cy + 1.2 };
+    }
+  };
+
   return (
     <div
       ref={wrapperRef}
@@ -71,7 +110,10 @@ export default function BoardHintsOverlay({
         "pointer-events-none absolute inset-0",
         className ?? "",
       ].join(" ")}
-      style={boardPxSize ? { width: `${boardPxSize}px`, height: `${boardPxSize}px` } : undefined}
+      style={{
+        ...(boardPxSize ? { width: `${boardPxSize}px`, height: `${boardPxSize}px` } : null as any),
+        overflow: "visible",
+      }}
       aria-hidden="true"
     >
       <svg
@@ -79,6 +121,7 @@ export default function BoardHintsOverlay({
         viewBox="0 0 9 9"
         preserveAspectRatio="none"
         className="absolute inset-0 w-full h-full"
+        overflow="visible"
       >
         <defs>
           <marker
@@ -130,12 +173,52 @@ export default function BoardHintsOverlay({
         })}
 
         {hintArrows.map((a, i) => {
-          const s = squareCenter(a.from);
           const t = squareCenter(a.to);
+
+          const handStartFromDom = () => {
+            void handMeasureTick; // trigger re-eval when tick changes
+            const wrap = wrapperRef.current;
+            if (!wrap) return null;
+            const wrapRect = wrap.getBoundingClientRect();
+            const who = a.hand ?? "sente";
+            const el = document.querySelector(`[data-testid="hand-piece-${who}-P"]`) as HTMLElement | null;
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            const cxPx = r.left + r.width / 2;
+            const cyPx = r.top + r.height / 2;
+            const cx = ((cxPx - wrapRect.left) / wrapRect.width) * 9;
+            const cy = ((cyPx - wrapRect.top) / wrapRect.height) * 9;
+            return { cx, cy };
+          };
+
+          const dropStartFrom = () => {
+            // prefer DOM-derived hand start when dir==='hand' and element exists
+            if ((a.kind === "drop" || !a.from) && a.dir === "hand") {
+              const hs = handStartFromDom();
+              if (hs) return hs;
+              return { cx: t.cx, cy: flipped ? -0.8 : 9.8 };
+            }
+            switch (a.dir) {
+              case "up": return { cx: t.cx, cy: t.cy - 1.2 };
+              case "down": return { cx: t.cx, cy: t.cy + 1.2 };
+              case "left": return { cx: t.cx - 1.2, cy: t.cy };
+              case "right": return { cx: t.cx + 1.2, cy: t.cy };
+              default: return { cx: t.cx, cy: t.cy + 1.2 };
+            }
+          };
+
+          const isDrop = a.kind === "drop" || !a.from;
+          const s = a.from ? squareCenter(a.from) : dropStartFrom();
+
+          if (!s) return null;
+          if (Math.abs(s.cx - t.cx) < 1e-6 && Math.abs(s.cy - t.cy) < 1e-6) return null;
+
+          const keyFrom = a.from ? `${a.from.file}-${a.from.rank}` : "drop";
+
           return (
             <line
               data-testid="hint-arrow"
-              key={`ar-${i}-${a.from.file}-${a.from.rank}-${a.to.file}-${a.to.rank}`}
+              key={`ar-${i}-${keyFrom}-${a.to.file}-${a.to.rank}`}
               x1={s.cx}
               y1={s.cy}
               x2={t.cx}
@@ -148,7 +231,7 @@ export default function BoardHintsOverlay({
               strokeLinecap="round"
               strokeDasharray="0.5 0.4"
               markerEnd={`url(#${markerId})`}
-              opacity={0.85}
+              opacity={0.95}
             />
           );
         })}

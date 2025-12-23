@@ -13,12 +13,43 @@ export type TrainingStep = {
   // 既存：マスを光らせる
   hintSquares?: { file: number; rank: number }[];
 
+  // ★追加：成功しても自動で次のStepに進めない（false に設定すると止める）
+  advanceOnSuccess?: boolean;
+
   // ★追加：矢印を表示する（盤上オーバーレイ用）
-  hintArrows?: { from: { file: number; rank: number }; to: { file: number; rank: number } }[];
+  hintArrows?: {
+    from?: { file: number; rank: number };
+    to: { file: number; rank: number };
+    kind?: "move" | "drop";
+    dir?: "up" | "down" | "left" | "right" | "hand";
+    // when dir is "hand", specify which side the hand belongs to
+    hand?: "sente" | "gote";
+  }[];
+
+  // ★追加：Step 内で自動的に進行するスクリプト（フェーズ）。
+  // 各フェーズは独立した表示用 SFEN と正解判定を持ちます。
+  scriptPhases?: {
+    sfen: string;
+    hintSquares?: { file: number; rank: number }[];
+    hintArrows?: {
+      from?: { file: number; rank: number };
+      to: { file: number; rank: number };
+      kind?: "move" | "drop";
+      dir?: "up" | "down" | "left" | "right" | "hand";
+      hand?: "sente" | "gote";
+    }[];
+    checkMove: TrainingStep["checkMove"];
+    // optional per-phase success message
+    successMessage?: string;
+  }[];
 };
 
 // 安全なダミー SFEN（TODO を埋めるときの一時置換用）
 const SAFE_SFEN = "position sfen 4k4/9/9/9/9/9/9/9/4K4 b - 1";
+
+// Step2: 取り返し後の盤面（飛車が2四にいて、手駒が歩2枚）
+const TSUGIFU_STEP2_SFEN =
+  "position sfen 7kl/6gb1/8p/5ppR1/9/9/9/9/4K4 b 2P 1";
 
 // 使いやすいヘルパー
 type Square = { file: number; rank: number };
@@ -60,6 +91,9 @@ export const PAWN_LESSONS: TrainingStep[] = [
       return move.from.x === 2 && move.from.y === 6 && move.to.x === 2 && move.to.y === 5;
     },
     successMessage: "ナイス！相手の駒を取ると、自分の「持ち駒」になります。"
+    ,
+    // このステップは成功しても自動で次に進まない
+    advanceOnSuccess: false
   }
 ];
 
@@ -680,50 +714,73 @@ const l3_cfg = {
   // ★Step1 用の矢印（2五→2四）
   step1_hint_arrow: { from: sq(2, 5), to: sq(2, 4) },
 
-  // ★ここを 2四 にしたい（以前は 2三）
-  step2_correct_drop_to: sq(2, 4),
+  // Step2: ドロップ先は 2五（継ぎ歩で打つ場所）
+  step2_correct_drop_to: sq(2, 5),
 
   step3_correct_drop_to: sq(8, 4),
 
-  // ★矢印：5二の歩 → 5四 方向（ガイド用。合法手かどうかは気にしなくてOK）
-  step2_hint_arrow: { from: sq(5, 2), to: sq(5, 4) },
+  // Step2: drop 用のヒント（to のみ。Overlay 側で from 無しを drop と解釈）
+  step2_hint_arrow: { to: sq(2, 5), kind: "drop" as const, dir: "hand" as const },
 };
 
+// --- Lesson 3 (scripted single-step with phases) ---
 export const PAWN_LESSON_3_TSUGIFU_STEPS: TrainingStep[] = [
   {
     step: 1,
-    title: "歩交換：継ぎ歩の準備",
+    title: "歩交換：継ぎ歩の練習（段階式）",
     description:
-      "継ぎ歩は『歩を取らせたあと、持ち歩を同じ筋に継ぐ』手筋です。\nまずは歩交換（または歩を取らせる）をして、持ち歩を作る/活かす準備をしよう。",
+      "継ぎ歩を練習をするときじゃな",
+    // デフォルト SFEN はフェーズ0 に合わせる（表示は scriptPhases が優先されます）
     sfen: "position sfen 7kl/6gb1/7pp/5pp2/7P1/9/9/7R1/4K4 b P 1",
-    // 本番データとして Step1 にも矢印を追加
-    hintArrows: [l3_cfg.step1_hint_arrow],
+    // 矢印は各フェーズ側で指定する（ここは空にしておく）
+    hintArrows: [],
     checkMove: l3_pawnMoveTo(l3_cfg.step1_correct_to.file, l3_cfg.step1_correct_to.rank),
-    successMessage: "OK！これで次に『持ち歩を継ぐ』準備ができたね。",
-  },
+    successMessage: "OK！これで継ぎ歩の準備ができました（フェーズ進行）。",
 
-  {
-    step: 2,
-    title: "継ぎ歩：同じ筋に持ち歩を打つ",
-    description:
-      "ここが本題。さっきの筋に『持ち歩』を打って圧力を継続しよう（継ぎ歩）。\n（矢印の方向を意識してね）",
-    sfen: SAFE_SFEN, // あなたがあとでSFEN差し替え
+    // スクリプト化したフェーズ（phase0..phase2）
+    scriptPhases: [
+      // phase0: human: 2五→2四
+      {
+        sfen: "position sfen 7kl/6gb1/7pp/5pp2/7P1/9/9/7R1/4K4 b P 1",
+        hintArrows: [l3_cfg.step1_hint_arrow],
+        checkMove: l3_pawnMoveTo(l3_cfg.step1_correct_to.file, l3_cfg.step1_correct_to.rank),
+      },
 
-    // ★5二→5四 の矢印を点滅表示（Overlayで描画）
-    hintArrows: [l3_cfg.step2_hint_arrow],
+      // phase1: auto snapshot after human move
+      {
+        sfen: "position sfen 7kl/6gb1/7pp/5ppP1/9/9/9/7R1/4K4 w P 1",
+        hintArrows: [],
+        checkMove: (_m) => true,
+      },
 
-    checkMove: l3_pawnDropTo(l3_cfg.step2_correct_drop_to.file, l3_cfg.step2_correct_drop_to.rank),
-    successMessage: "ナイス！これが継ぎ歩。『歩を切らさず圧力を継続』できるのが強い。",
-  },
+      // phase2: auto-response snapshot (後手 has 2P in hand)
+      {
+        sfen: "position sfen 7kl/6gb1/8p/5ppp1/9/9/9/7R1/4K4 b 2P 1",
+        hintArrows: [l3_cfg.step2_hint_arrow],
+        checkMove: l3_pawnDropTo(l3_cfg.step2_correct_drop_to.file, l3_cfg.step2_correct_drop_to.rank),
+      },
 
-  {
-    step: 3,
-    title: "クイズ：継ぎ歩を見つけよう",
-    description:
-      "別の局面でも同じ考え方。『同じ筋に持ち歩を継ぐ』一手を指そう。",
-    sfen: SAFE_SFEN,
-    // hintSquares removed; no square highlight for step3
-    checkMove: l3_pawnDropTo(l3_cfg.step3_correct_drop_to.file, l3_cfg.step3_correct_drop_to.rank),
-    successMessage: "正解！『歩交換 → 持ち歩を継ぐ』がパターン化できたね。",
+      // phase3: auto snapshot after human drop
+      {
+        sfen: "position sfen 7kl/6gb1/8p/5ppp1/7P1/9/9/7R1/4K4 w P 1",
+        hintArrows: [],
+        checkMove: (_m) => true,
+      },
+
+      // phase4: auto-response snapshot where 2五 becomes opponent pawn (手番 b, 持ち駒 Pp)
+      {
+        sfen: "position sfen 7kl/6gb1/8p/5pp2/7p1/9/9/7R1/4K4 b Pp 1",
+        hintArrows: [{ to: sq(2, 4), kind: "drop" as const, dir: "hand" as const }],
+        checkMove: l3_pawnDropTo(l3_cfg.step1_correct_to.file, l3_cfg.step1_correct_to.rank),
+      },
+
+      // phase5: final snapshot (post auto-response)
+      {
+        sfen: "position sfen 7kl/6gb1/8p/5ppP1/7p1/9/9/7R1/4K4 w p 1",
+        hintArrows: [],
+        checkMove: (_m) => true,
+        successMessage: "これで君も継ぎ歩マスターじゃ",
+      },
+    ],
   },
 ];

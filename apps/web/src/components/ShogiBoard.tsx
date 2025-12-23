@@ -395,7 +395,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       />
 
         {/* 9x9 マス領域のコンテナ（明示的に幅高を持たせる） */}
-        <div ref={containerRef} className="relative" style={{ width: boardSize, height: boardSize }}>
+        <div ref={containerRef} className="relative overflow-visible" style={{ width: boardSize, height: boardSize }}>
           <BoardHintsOverlay
             hintSquares={hintSquares ?? []}
             hintArrows={hintArrows ?? []}
@@ -745,6 +745,7 @@ const HandArea: React.FC<HandAreaProps> = ({
       <div
         key={`${side}-${base}`}
         className={`relative transition-all rounded-md ${canEdit && isSelected ? "bg-amber-300 shadow-md scale-110" : ""}`}
+        data-testid={base === "P" ? `hand-piece-${owner}-P` : undefined}
         style={{
           width: HAND_CELL_SIZE,
           height: HAND_CELL_SIZE,

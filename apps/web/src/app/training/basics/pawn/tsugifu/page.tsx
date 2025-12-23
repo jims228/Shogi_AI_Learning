@@ -30,6 +30,7 @@ export default function TsugifuTrainingPage() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [board, setBoard] = useState<any[][]>([]);
   const [hands, setHands] = useState<any>({ b: {}, w: {} });
+  const [phaseIndex, setPhaseIndex] = useState(0);
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctSignal, setCorrectSignal] = useState(0);
 
@@ -41,37 +42,89 @@ export default function TsugifuTrainingPage() {
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
 
+  // reset phaseIndex when step changes
+  useEffect(() => {
+    setPhaseIndex(0);
+  }, [currentLesson]);
+
+  // When step or phase changes, load the appropriate SFEN
   useEffect(() => {
     if (!currentLesson) return;
+    const currentPhase = currentLesson.scriptPhases?.[phaseIndex];
+    const sfenToLoad = currentPhase?.sfen ?? currentLesson.sfen;
     try {
-      const initial = buildPositionFromUsi(normalizeUsiPosition(currentLesson.sfen));
+      const initial = buildPositionFromUsi(normalizeUsiPosition(sfenToLoad));
       setBoard(initial.board);
       setHands((initial as any).hands ?? { b: {}, w: {} });
     } catch (e) {
       console.error("SFEN Parse Error", e);
     }
     setIsCorrect(false);
-  }, [currentLesson]);
+  }, [currentLesson, phaseIndex]);
+
+  // Auto-advance phases (1,3,5) as snapshots: advance shortly after entering
+  useEffect(() => {
+    if (!currentLesson?.scriptPhases) return;
+    const autoPhases = [1, 3, 5];
+    const lastIndex = currentLesson.scriptPhases.length - 1;
+    if (autoPhases.includes(phaseIndex) && phaseIndex < lastIndex) {
+      const t = setTimeout(() => setPhaseIndex((p) => p + 1), 150);
+      return () => clearTimeout(t);
+    }
+  }, [phaseIndex, currentLesson]);
+
+  // Show per-phase successMessage when entering a phase that defines it
+  useEffect(() => {
+    if (!currentLesson?.scriptPhases) return;
+    const phase = currentLesson.scriptPhases[phaseIndex];
+    if (phase?.successMessage) {
+      // mark correct to show mascot overlay only; avoid global toasts/duplicate displays
+      setIsCorrect(true);
+    }
+  }, [phaseIndex, currentLesson]);
 
   const handleMove = useCallback(
     (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => {
-      const correct = currentLesson.checkMove(move);
+      // If this lesson has scripted phases, use the current phase's checkMove
+      const currentPhase = currentLesson.scriptPhases?.[phaseIndex];
+      const checker = currentPhase?.checkMove ?? currentLesson.checkMove;
+      const correct = checker(move);
 
       if (correct) {
         setIsCorrect(true);
         setCorrectSignal((v) => v + 1);
-        showToast({ title: "正解！", description: currentLesson.successMessage });
+
+        if (currentLesson.scriptPhases) {
+          const lastIndex = currentLesson.scriptPhases.length - 1;
+          if (phaseIndex < lastIndex) {
+            // advance phase
+            setPhaseIndex((p) => p + 1);
+          } else {
+            // final phase reached: do not advance stepIndex (stay on Step1)
+            // final phase's successMessage (if any) is handled by effect on phaseIndex
+          }
+        } else {
+          // non-scripted lesson: show immediate success toast
+          showToast({ title: "正解！", description: currentLesson.successMessage });
+        }
       } else {
         showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
 
         setTimeout(() => {
-          const initial = buildPositionFromUsi(normalizeUsiPosition(currentLesson.sfen));
-          setBoard(initial.board);
-          setHands((initial as any).hands ?? { b: {}, w: {} });
+          // reload current phase (or step) SFEN
+          const reloadPhase = currentLesson.scriptPhases?.[phaseIndex];
+          const sfenToLoad = reloadPhase?.sfen ?? currentLesson.sfen;
+          try {
+            const initial = buildPositionFromUsi(normalizeUsiPosition(sfenToLoad));
+            setBoard(initial.board);
+            setHands((initial as any).hands ?? { b: {}, w: {} });
+          } catch (e) {
+            console.error("SFEN Parse Error", e);
+          }
         }, 900);
       }
     },
-    [currentLesson],
+    [currentLesson, phaseIndex],
   );
 
   const handleNext = () => {
@@ -113,8 +166,8 @@ export default function TsugifuTrainingPage() {
                 onBoardChange={setBoard}
                 onHandsChange={setHands}
                 orientation="sente"
-                hintSquares={currentLesson.hintSquares ?? []}
-                hintArrows={currentLesson?.hintArrows ?? []}
+                hintSquares={currentLesson.scriptPhases?.[phaseIndex]?.hintSquares ?? currentLesson.hintSquares ?? []}
+                hintArrows={currentLesson.scriptPhases?.[phaseIndex]?.hintArrows ?? currentLesson?.hintArrows ?? []}
               />
 
               {/* Overlay is rendered inside ShogiBoard component now. */}
@@ -145,7 +198,27 @@ export default function TsugifuTrainingPage() {
 
         <div className="mt-3 flex items-start gap-3 bg-amber-50/80 p-3 rounded-2xl text-amber-900 border border-amber-200/50">
           <Lightbulb className="w-5 h-5 shrink-0 mt-0.5" />
-          <p className="leading-relaxed font-medium text-sm">{currentLesson.description}</p>
+          <p className="leading-relaxed font-medium text-sm">{
+            // Dynamic explanation per interactive phase
+            (() => {
+              const phases = currentLesson.scriptPhases;
+              if (!phases) return currentLesson.description;
+              const phase = phases[phaseIndex];
+              // If this phase has a final success message and we've just marked correct, show it
+              if (isCorrect && phase?.successMessage) return phase.successMessage;
+              // Map interactive phases to short hints for the user
+              switch (phaseIndex) {
+                case 0:
+                  return "まずは、突き捨て";
+                case 2:
+                  return "そして継ぎ歩！！";
+                case 4:
+                  return "最後に垂れ歩";
+                default:
+                  return currentLesson.description;
+              }
+            })()
+          }</p>
         </div>
 
         {isCorrect && (
@@ -155,7 +228,7 @@ export default function TsugifuTrainingPage() {
                 <CheckCircle className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-emerald-800 mb-1">Excellent!</h3>
-              <p className="text-emerald-700 text-sm">{currentLesson.successMessage}</p>
+              {/* Success text intentionally shown only on mascot overlay; keep this box concise */}
             </div>
           </div>
         )}
@@ -179,12 +252,8 @@ export default function TsugifuTrainingPage() {
     </div>
   );
 
-  const mascotOverlay = isCorrect ? (
-    <div className="bg-white/95 border border-emerald-100 rounded-2xl p-3 shadow-md w-56">
-      <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
-      <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
-    </div>
-  ) : null;
+  // remove mascot overlay text; final success message shown in explanation area instead
+  const mascotOverlay = null;
 
   return (
     <LessonScaffold

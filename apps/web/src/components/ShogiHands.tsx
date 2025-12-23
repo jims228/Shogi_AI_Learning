@@ -97,7 +97,12 @@ function HandRow({
     const piece = (side === "b" ? base : base.toLowerCase()) as PieceCode;
 
     return (
-      <div key={`${side}-${base}`} className="relative" style={{ width: HAND_CELL_SIZE, height: HAND_CELL_SIZE }}>
+      <div
+        key={`${side}-${base}`}
+        className="relative"
+        style={{ width: HAND_CELL_SIZE, height: HAND_CELL_SIZE }}
+        data-testid={base === "P" ? `hand-piece-${owner}-P` : undefined}
+      >
         <PieceSprite
           piece={piece}
           x={0}
