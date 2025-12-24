@@ -33,9 +33,11 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 px-1 pb-2 flex flex-col">
-        <div className="flex-1 min-h-0 w-full flex items-center justify-center">{board}</div>
-        {actions ? <div className="shrink-0 px-2 pt-2">{actions}</div> : null}
+      <div className="flex-1 min-h-0 px-1 pb-4 flex flex-col">
+        {/* Raise the board a bit to avoid the bottom UI being cut off in WebView. */}
+        <div className="flex-1 min-h-0 w-full flex items-center justify-center -mt-5">{board}</div>
+        {/* Keep actions directly under the board, with extra bottom padding for tap safety. */}
+        {actions ? <div className="shrink-0 px-2 pt-2 pb-2">{actions}</div> : null}
       </div>
     </div>
   );

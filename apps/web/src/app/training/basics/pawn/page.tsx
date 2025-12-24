@@ -235,7 +235,7 @@ export default function PawnTrainingPage() {
           isCorrect ? (
             <button
               onClick={handleNext}
-              className="w-full py-4 rounded-2xl bg-[#58cc02] text-white font-extrabold text-lg shadow-[0_10px_20px_rgba(0,0,0,0.22)] border-b-4 border-[#3da700] active:translate-y-[1px] active:border-b-2"
+              className="w-full py-6 min-h-[72px] rounded-2xl bg-[#58cc02] text-white font-extrabold text-xl shadow-[0_10px_20px_rgba(0,0,0,0.22)] border-b-4 border-[#3da700] active:translate-y-[1px] active:border-b-2"
             >
               次へ
             </button>
