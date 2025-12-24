@@ -1,6 +1,8 @@
 import roadmapJson from "./roadmap.json";
 
 export type RoadmapLesson = {
+  /** Original order in apps/web/src/constants.ts (LESSONS array). */
+  index: number;
   id: string;
   title: string;
   description: string;

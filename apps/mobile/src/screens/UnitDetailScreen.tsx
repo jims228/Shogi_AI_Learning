@@ -22,25 +22,26 @@ export function UnitDetailScreen({ navigation, route }: Props) {
   const { progress } = useProgress();
   const completed = useMemo(() => new Set(progress.completedLessonIds), [progress.completedLessonIds]);
 
-  const allLessonsSorted = useMemo(() => ROADMAP.lessons.slice().sort((a, b) => a.order - b.order), []);
+  const allLessonsSorted = useMemo(() => ROADMAP.lessons.slice().sort((a, b) => a.index - b.index), []);
   const allLessonIds = useMemo(() => new Set(ROADMAP.lessons.map((l) => l.id)), []);
   const UNLOCK_UNTIL_ID = useMemo(() => findUnlockUntilLessonId(allLessonsSorted), [allLessonsSorted]);
   const unlockUntilOrder = useMemo(() => {
     const t = allLessonsSorted.find((l) => l.id === UNLOCK_UNTIL_ID);
-    return typeof t?.order === "number" ? t.order : 0;
+    return typeof t?.index === "number" ? t.index : 0;
   }, [UNLOCK_UNTIL_ID, allLessonsSorted]);
 
   const lessons = useMemo(() => {
     return ROADMAP.lessons
       .filter((l) => l.category === category)
       .slice()
-      .sort((a, b) => a.order - b.order);
+      // Preserve original ordering (web LESSONS array order)
+      .sort((a, b) => a.index - b.index);
   }, [category]);
 
   const isUnlocked = useCallback(
     (lesson: RoadmapLesson, idx: number) => {
       // force-unlock until "tarefu" (inclusive)
-      if (unlockUntilOrder && lesson.order <= unlockUntilOrder) return true;
+      if (unlockUntilOrder && lesson.index <= unlockUntilOrder) return true;
       // always unlock the first lesson in the list
       if (idx === 0) return true;
       // completed is always playable
@@ -76,13 +77,21 @@ export function UnitDetailScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.root}>
-      <Text style={styles.h1}>{category}</Text>
+      <View style={styles.unitHeaderWrap}>
+        <View style={styles.unitHeaderPill}>
+          <Text style={styles.unitHeaderText} numberOfLines={1}>
+            {category}
+          </Text>
+        </View>
+      </View>
 
       <FlatList
         data={lessons}
         keyExtractor={(l) => l.id}
-        contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
+        contentContainerStyle={{ paddingBottom: 56, paddingTop: 12 }}
         renderItem={renderItem}
+        // Rough but stable layout (reduces VirtualizedList warnings).
+        getItemLayout={(_, index) => ({ length: 120, offset: 120 * index, index })}
       />
     </View>
   );
@@ -103,46 +112,80 @@ const LessonNode = memo(function LessonNode({
   disabled: boolean;
   onPress: () => void;
 }) {
-  const sideOffset = index % 2 === 0 ? 28 : -28;
-  const fill = locked ? "#e5e7eb" : done ? "#22c55e" : "#f472b6";
-  const text = locked ? "🔒" : done ? "✓" : "▶";
+  const offsets = [0, 18, -14, 22, -18, 10, 0, -10, 16, -6, 12, -20];
+  const sideOffset = offsets[index % offsets.length] ?? 0;
+
+  const fill = locked ? "#e5e7eb" : done ? "#22c55e" : "#58cc02";
+  const ring = locked ? "#cbd5e1" : done ? "#16a34a" : "#15803d";
+  const icon = locked ? "🔒" : done ? "✓" : disabled ? "⏳" : "▶";
+  const ringW = done ? 6 : 3;
 
   return (
-    <View style={[styles.nodeRow, { paddingLeft: Math.max(0, sideOffset), paddingRight: Math.max(0, -sideOffset) }]}>
-      <Pressable
-        disabled={disabled}
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.nodeButton,
-          { backgroundColor: fill },
-          disabled && { opacity: 0.5 },
-          pressed && !disabled && { opacity: 0.9 },
-        ]}
-      >
-        <Text style={styles.nodeIcon}>{text}</Text>
-      </Pressable>
-      <Text style={styles.nodeTitle} numberOfLines={1}>
-        {title}
-      </Text>
+    <View style={styles.nodeRow}>
+      {/* Path */}
+      <View style={styles.pathLine} />
+
+      <View style={[styles.nodeWrap, { transform: [{ translateX: sideOffset }] }]}>
+        <Pressable
+          disabled={disabled}
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.nodeButton,
+            { backgroundColor: fill, borderColor: ring, borderWidth: ringW },
+            disabled && { opacity: 0.55 },
+            pressed && !disabled && { opacity: 0.9, transform: [{ scale: 0.98 }] },
+          ]}
+        >
+          <Text style={styles.nodeIcon}>{icon}</Text>
+        </Pressable>
+        <Text style={styles.nodeTitle} numberOfLines={1}>
+          {title}
+        </Text>
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#fff", paddingTop: 8 },
-  h1: { fontSize: 16, fontWeight: "900", color: "#111827", paddingHorizontal: 16, paddingVertical: 8 },
-  nodeRow: { alignItems: "center", justifyContent: "center", marginVertical: 10, gap: 8 },
+  root: { flex: 1, backgroundColor: "#fff" },
+
+  unitHeaderWrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
+  unitHeaderPill: {
+    alignSelf: "flex-start",
+    backgroundColor: "#58cc02",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  unitHeaderText: { color: "#ffffff", fontWeight: "900", letterSpacing: 0.2 },
+
+  nodeRow: { alignItems: "center", justifyContent: "center", height: 120 },
+  pathLine: {
+    position: "absolute",
+    left: "50%",
+    top: 0,
+    bottom: 0,
+    width: 6,
+    marginLeft: -3,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 999,
+    opacity: 0.55,
+  },
+  nodeWrap: { alignItems: "center", justifyContent: "center" },
   nodeButton: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 72,
+    height: 72,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#11182710",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   nodeIcon: { fontSize: 22, fontWeight: "900", color: "#111827" },
-  nodeTitle: { marginTop: 2, fontSize: 12, fontWeight: "800", color: "#111827", maxWidth: 280 },
+  nodeTitle: { marginTop: 6, fontSize: 12, fontWeight: "900", color: "#111827", maxWidth: 280 },
 });
 
 

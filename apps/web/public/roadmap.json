@@ -2,6 +2,163 @@
   "version": 1,
   "lessons": [
     {
+      "index": 0,
+      "id": "pawn",
+      "title": "基本の駒の動き（歩）",
+      "description": "まずは歩の動きを覚えましょう。将棋の基本となる駒です。",
+      "category": "basics",
+      "status": "available",
+      "order": 1,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 1,
+      "id": "lance",
+      "title": "基本の駒の動き（香車）",
+      "description": "前にどこまでも進める「槍」のような駒です。バックはできません。",
+      "category": "basics",
+      "status": "available",
+      "order": 2,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 2,
+      "id": "knight",
+      "title": "基本の駒の動き（桂馬）",
+      "description": "唯一、駒を飛び越えられるトリッキーな駒です。",
+      "category": "basics",
+      "status": "available",
+      "order": 3,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 3,
+      "id": "silver",
+      "title": "基本の駒の動き（銀）",
+      "description": "攻めの要となる駒。斜め後ろに下がれるのがポイントです。",
+      "category": "basics",
+      "status": "available",
+      "order": 4,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 4,
+      "id": "gold",
+      "title": "基本の駒の動き（金）",
+      "description": "守りの要。斜め後ろ以外、すべての方向に進めます。",
+      "category": "basics",
+      "status": "available",
+      "order": 5,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 5,
+      "id": "bishop",
+      "title": "基本の駒の動き（角）",
+      "description": "斜めにどこまでも進めます。成ると「馬」になります。",
+      "category": "basics",
+      "status": "available",
+      "order": 6,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 6,
+      "id": "rook",
+      "title": "基本の駒の動き（飛車）",
+      "description": "縦横にどこまでも進めます。成ると最強の「龍」に。",
+      "category": "basics",
+      "status": "available",
+      "order": 7,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 7,
+      "id": "king",
+      "title": "基本の駒の動き（王）",
+      "description": "取られたら負け。全方向に1マスずつ動けます。",
+      "category": "basics",
+      "status": "available",
+      "order": 8,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 8,
+      "id": "tsume1-001",
+      "title": "1手詰：第1問",
+      "description": "王手をかけて相手の玉を詰ませる「詰将棋」の基本です。",
+      "category": "tsume-1",
+      "status": "available",
+      "order": 9,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 9,
+      "id": "tsume2-001",
+      "title": "1手詰・中盤：第1問",
+      "description": "盤上の駒を連携させて詰ませる練習です。",
+      "category": "tsume-2",
+      "status": "available",
+      "order": 10,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 10,
+      "id": "tsume3-001",
+      "title": "1手詰・中盤：第1問",
+      "description": "盤上の駒を連携させて詰ませる練習です。",
+      "category": "tsume-3",
+      "status": "available",
+      "order": 11,
+      "href": null,
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 11,
+      "id": "uki-capture",
+      "title": "駒の効き：浮き駒を取る（60秒）",
+      "description": "浮き駒（守られていない駒）を素早く見つけて取る60秒タイムアタック。",
+      "category": "basics",
+      "status": "available",
+      "order": 999,
+      "href": "/training/uki-capture",
+      "prerequisites": [],
+      "stars": 1
+    },
+    {
+      "index": 12,
+      "id": "basics_pawn_0",
+      "title": "歩の動きと成り（復習）",
+      "description": "歩は前に1マス。敵陣で成る/不成、成りのタイミングを確認します。",
+      "category": "basics",
+      "status": "available",
+      "order": 12,
+      "href": "/training/basics/pawn",
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": 13,
       "id": "basics_pawn_1_role",
       "title": "歩の役割（壁・道を開ける・捨て駒・と金）",
       "description": "歩は守りでは壁、攻めでは道を開ける。歩交換や捨て歩、と金の強さまで体験します。",
@@ -15,6 +172,7 @@
       "stars": 0
     },
     {
+      "index": 14,
       "id": "basics_pawn_2_tarefu",
       "title": "垂れ歩",
       "description": "相手の1つ手前に歩を打ち、『次に成る』プレッシャーを作る手筋を体験します。",
@@ -28,6 +186,7 @@
       "stars": 0
     },
     {
+      "index": 15,
       "id": "basics_pawn_3_tsugifu",
       "title": "継ぎ歩",
       "description": "歩を取らせたあと、持ち歩を同じ筋に継いで圧力を続ける手筋を体験します。",
@@ -41,6 +200,7 @@
       "stars": 0
     },
     {
+      "index": 16,
       "id": "tesuji_pawn_tataki_l1",
       "title": "叩きの歩（Lv1）",
       "description": "歩を叩いて反応を引き出し、狙いを通す形を覚えます。",
@@ -54,6 +214,7 @@
       "stars": 0
     },
     {
+      "index": 17,
       "id": "tesuji_pawn_renda_l1",
       "title": "歩の連打（Lv1）",
       "description": "取られても同じ地点にもう一枚。圧力を続ける形を覚えます。",
@@ -67,6 +228,7 @@
       "stars": 0
     },
     {
+      "index": 18,
       "id": "tesuji_pawn_hikae_l1",
       "title": "控えの歩（Lv1）",
       "description": "いきなり突かず、1つ後ろに歩を置いて土台を作る形を覚えます。",
@@ -80,6 +242,7 @@
       "stars": 0
     },
     {
+      "index": 19,
       "id": "tesuji_pawn_sokobu_l1",
       "title": "底歩（Lv1）",
       "description": "玉の近くに歩を打って、飛車や香の筋を止める形を覚えます。",
@@ -93,6 +256,7 @@
       "stars": 0
     },
     {
+      "index": 20,
       "id": "tesuji_silver_keitogin_l1",
       "title": "桂頭の銀（Lv1）",
       "description": "桂の頭に銀を置いて、桂の動きを止める形を覚えます。",
@@ -106,6 +270,7 @@
       "stars": 0
     },
     {
+      "index": 21,
       "id": "tesuji_silver_haragin_l1",
       "title": "腹銀（Lv1）",
       "description": "玉の斜め下（腹）に銀を置き、逃げ道を絞る形を覚えます。",
@@ -119,6 +284,7 @@
       "stars": 0
     },
     {
+      "index": 22,
       "id": "tesuji_gold_atamakin_l1",
       "title": "頭金（Lv1）",
       "description": "玉の前に金を打って、動きを止める形を覚えます。",
@@ -132,17 +298,7 @@
       "stars": 0
     },
     {
-      "id": "basics_pawn_0",
-      "title": "歩の動きと成り（復習）",
-      "description": "歩は前に1マス。敵陣で成る/不成、成りのタイミングを確認します。",
-      "category": "basics",
-      "status": "available",
-      "order": 12,
-      "href": "/training/basics/pawn",
-      "prerequisites": [],
-      "stars": 0
-    },
-    {
+      "index": 23,
       "id": "tesuji_gold_shirikin_l1",
       "title": "尻金（Lv1）",
       "description": "玉の後ろに金を打って、退路を断つ形を覚えます。",
@@ -156,6 +312,7 @@
       "stars": 0
     },
     {
+      "index": 24,
       "id": "tesuji_pawn_tarefu_l1",
       "title": "垂れ歩（Lv1）",
       "description": "相手の1つ手前に歩を打つ形（Lv1）。",
@@ -169,6 +326,7 @@
       "stars": 0
     },
     {
+      "index": 25,
       "id": "tesuji_pawn_tsugifu_l1",
       "title": "継ぎ歩（Lv1）",
       "description": "取らせた地点にもう一枚。継ぐ形（Lv1）。",
@@ -182,6 +340,7 @@
       "stars": 0
     },
     {
+      "index": 26,
       "id": "tesuji_silver_warigin_l1",
       "title": "割打ちの銀（Lv1）",
       "description": "割って入る銀で二枚を見る形（Lv1）。",
@@ -195,6 +354,7 @@
       "stars": 0
     },
     {
+      "index": 27,
       "id": "tesuji_lance_dengaku-sashi_l1",
       "title": "田楽刺し（Lv1）",
       "description": "田楽刺し（Lv1）。",
@@ -208,6 +368,7 @@
       "stars": 0
     },
     {
+      "index": 28,
       "id": "tesuji_lance_2dan-rocket_l1",
       "title": "2段ロケット（Lv1）",
       "description": "2段ロケット（Lv1）。",
@@ -221,6 +382,7 @@
       "stars": 0
     },
     {
+      "index": 29,
       "id": "tesuji_lance_sokokyo_l1",
       "title": "底香（Lv1）",
       "description": "底香（Lv1）。",
@@ -234,6 +396,7 @@
       "stars": 0
     },
     {
+      "index": 30,
       "id": "tesuji_knight_fundoshi-kei_l1",
       "title": "ふんどしの桂（Lv1）",
       "description": "ふんどしの桂（Lv1）。",
@@ -247,6 +410,7 @@
       "stars": 0
     },
     {
+      "index": 31,
       "id": "tesuji_knight_futo-no-kei_l1",
       "title": "歩頭の桂（Lv1）",
       "description": "歩頭の桂（Lv1）。",
@@ -260,6 +424,7 @@
       "stars": 0
     },
     {
+      "index": 32,
       "id": "tesuji_knight_tsurushi-kei_l1",
       "title": "つるし桂（Lv1）",
       "description": "つるし桂（Lv1）。",
@@ -273,6 +438,7 @@
       "stars": 0
     },
     {
+      "index": 33,
       "id": "tesuji_knight_hikae-kei_l1",
       "title": "控えの桂（Lv1）",
       "description": "控えの桂（Lv1）。",
@@ -286,6 +452,7 @@
       "stars": 0
     },
     {
+      "index": 34,
       "id": "tesuji_knight_tsugikei_l1",
       "title": "継ぎ桂（Lv1）",
       "description": "継ぎ桂（Lv1）。",
@@ -299,6 +466,7 @@
       "stars": 0
     },
     {
+      "index": 35,
       "id": "tesuji_bishop_kaku-ryotori_l1",
       "title": "角での両取り（Lv1）",
       "description": "角での両取り（Lv1）。",
@@ -312,6 +480,7 @@
       "stars": 0
     },
     {
+      "index": 36,
       "id": "tesuji_bishop_suji-chigai_l1",
       "title": "筋違いの角打ち（Lv1）",
       "description": "筋違いの角打ち（Lv1）。",
@@ -325,6 +494,7 @@
       "stars": 0
     },
     {
+      "index": 37,
       "id": "tesuji_bishop_kaku-kei_l1",
       "title": "角桂連携（Lv1）",
       "description": "角桂連携（Lv1）。",
@@ -338,6 +508,7 @@
       "stars": 0
     },
     {
+      "index": 38,
       "id": "tesuji_bishop_kobo-kaku_l1",
       "title": "攻防の角（Lv1）",
       "description": "攻防の角（Lv1）。",
@@ -351,6 +522,7 @@
       "stars": 0
     },
     {
+      "index": 39,
       "id": "tesuji_rook_juji-hisha_l1",
       "title": "十字飛車（Lv1）",
       "description": "十字飛車（Lv1）。",
@@ -364,6 +536,7 @@
       "stars": 0
     },
     {
+      "index": 40,
       "id": "tesuji_rook_home-rook-drop_l1",
       "title": "自陣への飛車打ち（Lv1）",
       "description": "自陣への飛車打ち（Lv1）。",
@@ -377,6 +550,7 @@
       "stars": 0
     },
     {
+      "index": 41,
       "id": "tesuji_rook_ikken-ryu_l1",
       "title": "一間龍（Lv1）",
       "description": "一間龍（Lv1）。",
@@ -390,6 +564,7 @@
       "stars": 0
     },
     {
+      "index": 42,
       "id": "tesuji_rook_okuri_l1",
       "title": "送りの手筋（Lv1）",
       "description": "送りの手筋（Lv1）。",
@@ -403,6 +578,7 @@
       "stars": 0
     },
     {
+      "index": 43,
       "id": "castle_yagura_l1",
       "title": "矢倉（囲い Lv1）",
       "description": "金銀を寄せて守りの形を作る入口。",
@@ -416,6 +592,7 @@
       "stars": 0
     },
     {
+      "index": 44,
       "id": "castle_funagakoi_l1",
       "title": "舟囲い（囲い Lv1）",
       "description": "守りの基本形を作る練習。",
@@ -429,6 +606,7 @@
       "stars": 0
     },
     {
+      "index": 45,
       "id": "castle_mino_l1",
       "title": "美濃囲い（囲い Lv1）",
       "description": "守りの形を作る練習（Lv1）。",
@@ -442,6 +620,7 @@
       "stars": 0
     },
     {
+      "index": 46,
       "id": "castle_hidari_mino_l1",
       "title": "左美濃（囲い Lv1）",
       "description": "形を変えて守る感覚を掴む（Lv1）。",
@@ -455,6 +634,7 @@
       "stars": 0
     },
     {
+      "index": 47,
       "id": "castle_anaguma_l1",
       "title": "穴熊（囲い Lv1）",
       "description": "玉を奥へ寄せる“発想”の入口（Lv1）。",
@@ -468,6 +648,7 @@
       "stars": 0
     },
     {
+      "index": 48,
       "id": "castle_kinmusou_l1",
       "title": "金無双（囲い Lv1）",
       "description": "金の位置関係を覚える（Lv1）。",
@@ -481,6 +662,7 @@
       "stars": 0
     },
     {
+      "index": 49,
       "id": "castle_nakazumai_l1",
       "title": "中住まい（囲い Lv1）",
       "description": "中央で守る形の入口（Lv1）。",
@@ -494,6 +676,7 @@
       "stars": 0
     },
     {
+      "index": 50,
       "id": "opening_yagura_opening_l1",
       "title": "矢倉（戦法 Lv1）",
       "description": "歩を進め、角道・ラインを意識する入口。",
@@ -507,6 +690,7 @@
       "stars": 0
     },
     {
+      "index": 51,
       "id": "opening_kaku_gawari_l1",
       "title": "角換わり（戦法 Lv1）",
       "description": "序盤の“形”を練習（Lv1）。",
@@ -520,6 +704,7 @@
       "stars": 0
     },
     {
+      "index": 52,
       "id": "opening_yokofudori_l1",
       "title": "横歩取り（戦法 Lv1）",
       "description": "ラインの意識を育てる（Lv1）。",
@@ -533,6 +718,7 @@
       "stars": 0
     },
     {
+      "index": 53,
       "id": "opening_aigakari_l1",
       "title": "相掛かり（戦法 Lv1）",
       "description": "歩を進めて形を作る練習（Lv1）。",
@@ -546,6 +732,7 @@
       "stars": 0
     },
     {
+      "index": 54,
       "id": "opening_shikenbisha_l1",
       "title": "四間飛車（戦法 Lv1）",
       "description": "飛車を横に動かす“振る”入口（Lv1）。",
@@ -559,6 +746,7 @@
       "stars": 0
     },
     {
+      "index": 55,
       "id": "opening_sankenbisha_l1",
       "title": "三間飛車（戦法 Lv1）",
       "description": "飛車の位置で作る形（Lv1）。",
@@ -572,6 +760,7 @@
       "stars": 0
     },
     {
+      "index": 56,
       "id": "opening_mukai_bisha_l1",
       "title": "向かい飛車（戦法 Lv1）",
       "description": "飛車の横移動で形を作る（Lv1）。",
@@ -585,6 +774,7 @@
       "stars": 0
     },
     {
+      "index": 57,
       "id": "opening_nakabisha_l1",
       "title": "中飛車（戦法 Lv1）",
       "description": "中央へ飛車を振る入口（Lv1）。",
@@ -596,17 +786,6 @@
         "opening_mukai_bisha_l1"
       ],
       "stars": 0
-    },
-    {
-      "id": "uki-capture",
-      "title": "駒の効き：浮き駒を取る（60秒）",
-      "description": "浮き駒（守られていない駒）を素早く見つけて取る60秒タイムアタック。",
-      "category": "basics",
-      "status": "available",
-      "order": 999,
-      "href": "/training/uki-capture",
-      "prerequisites": [],
-      "stars": 1
     }
   ]
 }

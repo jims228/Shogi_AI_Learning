@@ -23,7 +23,8 @@ function main() {
   const repoRoot = path.resolve(__dirname, "..");
   const lessons = (LESSONS || [])
     .filter((l) => l && typeof l === "object")
-    .map((l) => ({
+    .map((l, idx) => ({
+      index: idx,
       id: l.id,
       title: l.title,
       description: l.description || "",
@@ -34,9 +35,10 @@ function main() {
       prerequisites: Array.isArray(l.prerequisites) ? l.prerequisites : [],
       stars: typeof l.stars === "number" ? l.stars : 0,
     }))
-    // Mobile MVP only supports launching lessons with href.
-    .filter((l) => typeof l.href === "string" && l.href.length > 0)
-    .sort((a, b) => a.order - b.order);
+    // IMPORTANT: do not filter out href-less lessons.
+    // Mobile should show them as "COMING SOON" (disabled), but they must not disappear.
+    // Also preserve original order (index) to match the web roadmap ordering.
+    .sort((a, b) => a.index - b.index);
 
   const out = { version: 1, lessons };
 
