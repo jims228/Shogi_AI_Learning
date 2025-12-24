@@ -36,6 +36,54 @@ pnpm -C apps/mobile start
 pnpm -C apps/mobile start -- --localhost
 ```
 
+## Android実機（USB + adb reverse）で安定起動する手順（WSL2推奨フロー）
+
+狙い: 端末から **`http://127.0.0.1:3000`** で Web を開ける状態にして、モバイルアプリの `WEB_BASE_URL` も同じに揃えます。
+
+### 1) WSL側（Web / Metro）
+
+Web（Next.js）:
+
+```bash
+pnpm --filter web dev
+```
+
+Mobile（Expo Metro）:
+
+```bash
+pnpm -C apps/mobile start -- --localhost --port 8081
+```
+
+### 2) Windows側（PowerShell: adb reverse）
+
+```powershell
+adb reverse --remove-all
+adb reverse tcp:3000 tcp:3000
+adb reverse tcp:8081 tcp:8081
+adb reverse --list
+```
+
+（任意・推奨）一発で貼り直すスクリプト:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\\scripts\\android-usb-dev.ps1
+```
+
+### 3) 端末側
+
+- 開発者オプション → USBデバッグ ON
+- USB接続時の許可ダイアログで「許可」（OS更新後などで戻ることがあります）
+- Android Chrome: `http://127.0.0.1:3000` を開けることを確認
+- アプリ Settings: `WEB_BASE_URL = http://127.0.0.1:3000`
+
+### 4) トラブルシュート（よくある）
+
+- `adb devices` が `unauthorized`:
+  - 端末側の USBデバッグ許可を入れ直し → `adb kill-server; adb start-server`
+- `http://127.0.0.1:3000` が表示されない:
+  - reverse が入っているか `adb reverse --list` を確認
+  - Windows 側で `http://127.0.0.1:3000` が見える必要があります（WSLの3000に到達できない場合は portproxy が必要）
+
 ## テスト配布（EAS Build）
 
 前提:

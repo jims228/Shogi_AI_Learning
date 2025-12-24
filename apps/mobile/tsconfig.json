@@ -1,6 +1,15 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    /**
+     * Expo base tsconfig should already set these, but we keep them explicit so that:
+     * - VSCode TS Server doesn't "forget" defaults when it fails to resolve the base temporarily
+     * - `pnpm -C apps/mobile typecheck` and editor diagnostics stay consistent
+     */
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
   }
 }
