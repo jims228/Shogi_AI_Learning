@@ -23,6 +23,58 @@ Mobile を起動:
 pnpm -C apps/mobile start
 ```
 
+## テスト配布（EAS Build）
+
+前提:
+- Expo アカウントが必要（`eas login`）
+- iOS の TestFlight 配布は Apple Developer アカウントが必要（Macなしでも **EASのクラウドビルド** で可能）
+
+### 1) 初回セットアップ
+
+`apps/mobile` ディレクトリで実行します:
+
+```bash
+pnpm -C apps/mobile dlx eas-cli login
+pnpm -C apps/mobile dlx eas-cli whoami
+pnpm -C apps/mobile dlx eas-cli init
+```
+
+`eas init` が `extra.eas.projectId` を設定する場合があります（自動追記）。
+
+### 2) Android（最短：preview build / internal）
+
+```bash
+pnpm -C apps/mobile dlx eas-cli build --platform android --profile preview
+```
+
+ビルド完了後、EASのリンクからAPK/AABをインストールして動作確認します。
+
+### 3) iOS（Macなし：EASクラウド → TestFlight or internal）
+
+```bash
+pnpm -C apps/mobile dlx eas-cli build --platform ios --profile preview
+```
+
+### 4) Development build（Expo Go ではなく Dev Client）
+
+ネイティブ依存を含む状態で開発/検証したい場合:
+
+```bash
+pnpm -C apps/mobile dlx eas-cli build --platform android --profile development
+pnpm -C apps/mobile dlx eas-cli build --platform ios --profile development
+```
+
+## 端末向け設定（重要）
+
+`apps/mobile/app.config.ts` で管理しています:
+- `name / slug / scheme`
+- `ios.bundleIdentifier`
+- `android.package`
+
+注意:
+- 現状は **WebViewで `http://...` を開ける** ように、Android `usesCleartextTraffic=true` / iOS ATS を緩めています。
+  本番配布では HTTPS を推奨します。
+
 ## 実機/エミュで確実に開くための WebBaseURL 設定（localhost問題）
 
 モバイルは WebView で以下を開きます（固定）:
@@ -64,5 +116,11 @@ node scripts/export_roadmap_json.js
 生成先:
 - `apps/web/public/roadmap.json`
 - `apps/mobile/src/data/roadmap.json`
+
+## チェック（最低限）
+
+```bash
+pnpm -C apps/mobile typecheck
+```
 
 
