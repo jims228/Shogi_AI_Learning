@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint \"src/lessons/**/*.{ts,tsx}\" \"src/lib/training/**/*.{ts,tsx}\" \"src/components/training/lesson/**/*.{ts,tsx}\" \"src/app/training/tesuji/**/*.{ts,tsx}\" \"src/app/training/castle/**/*.{ts,tsx}\" \"src/app/training/opening/**/*.{ts,tsx}\"",
