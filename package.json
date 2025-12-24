@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "dev:android": "concurrently -n web,expo -c cyan,magenta \"pnpm --filter web dev -- --hostname 0.0.0.0 --port 3000\" \"pnpm -C apps/mobile start -- --localhost --port 8081 --clear\""
+  },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "@tanstack/react-query": "^5.90.5",
@@ -19,7 +22,8 @@
     "@types/howler": "^2.2.12",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1"
   },
   "packageManager": "pnpm@10.22.0"
 }

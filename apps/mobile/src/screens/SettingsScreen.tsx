@@ -22,8 +22,11 @@ export function SettingsScreen() {
           style={styles.input}
         />
         <View style={styles.row}>
+          <Pressable style={styles.presetBtn} onPress={() => setWebBaseUrl("http://127.0.0.1:3000")}>
+            <Text style={styles.presetText}>USB (127.0.0.1)</Text>
+          </Pressable>
           <Pressable style={styles.presetBtn} onPress={() => setWebBaseUrl("http://10.0.2.2:3000")}>
-            <Text style={styles.presetText}>Androidエミュ</Text>
+            <Text style={styles.presetText}>Android Emulator (10.0.2.2)</Text>
           </Pressable>
           <Pressable style={styles.presetBtn} onPress={() => setWebBaseUrl("http://localhost:3000")}>
             <Text style={styles.presetText}>localhost</Text>

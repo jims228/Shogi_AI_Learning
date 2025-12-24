@@ -23,6 +23,40 @@ Mobile を起動:
 pnpm -C apps/mobile start
 ```
 
+## Android実機（WSL2 + Windows + USB + adb reverse）最短手順（毎回これ）
+
+### 1) WSL側：ワンコマンドで起動
+
+リポジトリルートで:
+
+```bash
+pnpm dev:android
+```
+
+起動するもの:
+- Web（Next.js）: `http://0.0.0.0:3000`
+- Expo Metro: `http://localhost:8081`（`--localhost --port 8081 --clear`）
+
+### 2) Windows側（PowerShell）：reverse を貼り直す
+
+リポジトリルート（Windows側）で:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\\scripts\\android-usb-dev.ps1
+```
+
+### 3) 端末側
+
+- Expo Go で以下を開く:
+  - `exp://127.0.0.1:8081`
+- アプリ（Shogi Roadmap）を開く → Settings → **「USB (127.0.0.1)」** を押す
+  - `WEB_BASE_URL = http://127.0.0.1:3000` がワンタップで設定されます
+
+### 4) よくある落とし穴
+
+- 端末OS更新後などで USBデバッグ許可が外れることがあります
+- `adb devices` が `unauthorized` の場合、端末側で許可 → もう一度 `android-usb-dev.ps1` を実行
+
 ## pnpm 前提（重要）
 
 このモノレポは **pnpm workspace** です。`apps/mobile` も pnpm 前提で運用します。
@@ -35,54 +69,6 @@ pnpm -C apps/mobile start
 ```bash
 pnpm -C apps/mobile start -- --localhost
 ```
-
-## Android実機（USB + adb reverse）で安定起動する手順（WSL2推奨フロー）
-
-狙い: 端末から **`http://127.0.0.1:3000`** で Web を開ける状態にして、モバイルアプリの `WEB_BASE_URL` も同じに揃えます。
-
-### 1) WSL側（Web / Metro）
-
-Web（Next.js）:
-
-```bash
-pnpm --filter web dev
-```
-
-Mobile（Expo Metro）:
-
-```bash
-pnpm -C apps/mobile start -- --localhost --port 8081
-```
-
-### 2) Windows側（PowerShell: adb reverse）
-
-```powershell
-adb reverse --remove-all
-adb reverse tcp:3000 tcp:3000
-adb reverse tcp:8081 tcp:8081
-adb reverse --list
-```
-
-（任意・推奨）一発で貼り直すスクリプト:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\\scripts\\android-usb-dev.ps1
-```
-
-### 3) 端末側
-
-- 開発者オプション → USBデバッグ ON
-- USB接続時の許可ダイアログで「許可」（OS更新後などで戻ることがあります）
-- Android Chrome: `http://127.0.0.1:3000` を開けることを確認
-- アプリ Settings: `WEB_BASE_URL = http://127.0.0.1:3000`
-
-### 4) トラブルシュート（よくある）
-
-- `adb devices` が `unauthorized`:
-  - 端末側の USBデバッグ許可を入れ直し → `adb kill-server; adb start-server`
-- `http://127.0.0.1:3000` が表示されない:
-  - reverse が入っているか `adb reverse --list` を確認
-  - Windows 側で `http://127.0.0.1:3000` が見える必要があります（WSLの3000に到達できない場合は portproxy が必要）
 
 ## テスト配布（EAS Build）
 
