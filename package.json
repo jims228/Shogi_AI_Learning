@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "dev:android": "concurrently -k -n web,expo -c cyan,magenta \"pnpm --filter web dev\" \"pnpm -C apps/mobile start -- --localhost --port 8081 --clear\""
+    "dev:android": "bash ./scripts/dev_android_wsl.sh"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

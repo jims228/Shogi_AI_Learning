@@ -37,6 +37,10 @@ pnpm dev:android
 - Web（Next.js）: `http://0.0.0.0:3000`
 - Expo Metro: `http://localhost:8081`（`--localhost --port 8081 --clear`）
 
+注意:
+- `pnpm dev:android` は **3000/8081 を固定**で使います（`adb reverse` と合わせるため）
+- もし既に 3000/8081 を掴んでいるプロセスがいた場合、**自動で停止してから起動**します（Expo が 8082 に逃げて壊れるのを防ぐため）
+
 ### 2) Windows側（PowerShell）：reverse を貼り直す
 
 リポジトリルート（Windows側）で:
@@ -63,6 +67,9 @@ powershell -ExecutionPolicy Bypass -File "\\wsl$\\Ubuntu-22.04\\home\\jimjace\\S
 
 - 端末OS更新後などで USBデバッグ許可が外れることがあります
 - `adb devices` が `unauthorized` の場合、端末側で許可 → もう一度 `android-usb-dev.ps1` を実行
+- `pnpm dev:android` 実行中は **別で `expo start` を立ち上げない**（Metro が二重起動します）
+  - 8081 が埋まると Metro が 8082 等に逃げることがあり、`adb reverse tcp:8081 tcp:8081` とズレて端末側が繋がらなくなります
+  - 必ず `pnpm dev:android` の Metro（8081固定）だけを使ってください
 
 ## pnpm 前提（重要）
 
