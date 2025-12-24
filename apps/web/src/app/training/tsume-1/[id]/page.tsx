@@ -7,6 +7,7 @@ import { Board } from "@/components/Board";
 import { ManRive } from "@/components/ManRive";
 import { Placed } from "@/lib/sfen";
 import { ArrowLeft, CheckCircle, XCircle, ChevronRight, RefreshCw } from "lucide-react";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 // Simple Tsume data
 const TSUME_DATA: Record<string, {
@@ -102,6 +103,7 @@ export default function TsumeLessonPage() {
   };
 
   const handleFinish = () => {
+    postMobileLessonCompleteOnce();
     router.push("/learn");
   };
 

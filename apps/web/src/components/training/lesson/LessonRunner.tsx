@@ -15,20 +15,7 @@ import { showToast } from "@/components/ui/toast";
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
 import { buildPositionFromUsi } from "@/lib/board";
-
-const postMobileLessonCompleteIfNeeded = () => {
-  try {
-    if (typeof window === "undefined") return;
-    const sp = new URLSearchParams(window.location.search);
-    if (sp.get("mobile") !== "1") return;
-    const lessonId = sp.get("lid") ?? undefined;
-    const w = window as any;
-    if (!w.ReactNativeWebView || typeof w.ReactNativeWebView.postMessage !== "function") return;
-    w.ReactNativeWebView.postMessage(JSON.stringify({ type: "lessonComplete", lessonId }));
-  } catch {
-    // ignore
-  }
-};
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -269,7 +256,7 @@ export function LessonRunner({
         return;
       }
       // lesson finished
-      postMobileLessonCompleteIfNeeded();
+      postMobileLessonCompleteOnce();
       router.push(onFinishHref ?? backHref);
       return;
     }

@@ -12,6 +12,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { BISHOP_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 export default function BishopTrainingPage() {
   const router = useRouter();
@@ -62,6 +63,7 @@ export default function BishopTrainingPage() {
     if (currentStepIndex < BISHOP_LESSONS.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
     } else {
+      postMobileLessonCompleteOnce();
       router.push("/learn");
     }
   };

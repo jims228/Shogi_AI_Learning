@@ -12,6 +12,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ROOK_LESSONS } from "@/constants/rulesData"; 
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 export default function RookTrainingPage() {
   const router = useRouter();
@@ -60,6 +61,7 @@ export default function RookTrainingPage() {
     if (currentStepIndex < ROOK_LESSONS.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
     } else {
+      postMobileLessonCompleteOnce();
       router.push("/learn");
     }
   };

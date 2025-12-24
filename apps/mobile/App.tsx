@@ -5,16 +5,19 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { ProgressProvider } from "./src/state/progress";
+import { SettingsProvider } from "./src/state/settings";
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ProgressProvider>
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
-        <StatusBar style="dark" />
-      </ProgressProvider>
+      <SettingsProvider>
+        <ProgressProvider>
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+          <StatusBar style="dark" />
+        </ProgressProvider>
+      </SettingsProvider>
     </SafeAreaProvider>
   );
 }

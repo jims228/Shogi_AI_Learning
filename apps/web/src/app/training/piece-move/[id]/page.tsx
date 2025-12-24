@@ -7,6 +7,7 @@ import { Board } from "@/components/Board";
 import { ManRive } from "@/components/ManRive";
 import { Placed } from "@/lib/sfen";
 import { ArrowLeft, CheckCircle, ChevronRight } from "lucide-react";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 // Simple lesson data (hardcoded for now as requested)
 const LESSON_DATA: Record<string, {
@@ -89,6 +90,7 @@ export default function PieceMoveLessonPage() {
   const handleFinish = () => {
     // Mark as completed (mock)
     // In a real app, call API or update global state
+    postMobileLessonCompleteOnce();
     router.push("/learn/roadmap");
   };
 

@@ -12,6 +12,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LANCE_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 export default function LanceTrainingPage() {
   const router = useRouter();
@@ -65,6 +66,7 @@ export default function LanceTrainingPage() {
     if (currentStepIndex < LANCE_LESSONS.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
     } else {
+      postMobileLessonCompleteOnce();
       router.push("/learn"); // 全クリしたら学習マップへ戻る
     }
   };

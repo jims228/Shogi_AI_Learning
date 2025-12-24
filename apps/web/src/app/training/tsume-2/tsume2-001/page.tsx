@@ -9,6 +9,7 @@ import { ManRive } from "@/components/ManRive";
 import { TSUME_2_LESSONS } from "@/constants/rulesData"; // ★ここを変更
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 export default function Tsume2TrainingPage() {
   const router = useRouter();
@@ -55,6 +56,7 @@ export default function Tsume2TrainingPage() {
     if (currentStepIndex < TSUME_2_LESSONS.length - 1) {
       setCurrentStepIndex(prev => prev + 1);
     } else {
+      postMobileLessonCompleteOnce();
       router.push("/learn");
     }
   };

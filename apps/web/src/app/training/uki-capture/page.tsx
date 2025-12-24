@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Lightbulb } from "lucide-react";
 
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
@@ -10,9 +10,11 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 import { UkiCaptureShogiGame, type UkiCaptureResult } from "@/components/training/minigames/UkiCaptureShogiGame";
+import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 export default function UkiCapturePage() {
   const isDesktop = useMediaQuery("(min-width: 820px)");
+  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
 
   const [correctSignal, setCorrectSignal] = useState(0);
   const [secLeft, setSecLeft] = useState(60);
@@ -95,6 +97,16 @@ export default function UkiCapturePage() {
           <li>相手の利きの中に置くと「取られる扱い（駒損）」で減点＆初期位置に戻ります</li>
         </ul>
       </div>
+
+      {/* Mobile MVP: provide an explicit "complete" button when the timer ends */}
+      {isMobileWebView && secLeft <= 0 ? (
+        <button
+          onClick={() => postMobileLessonCompleteOnce()}
+          className="mt-4 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+        >
+          完了して戻る
+        </button>
+      ) : null}
     </div>
   );
 
