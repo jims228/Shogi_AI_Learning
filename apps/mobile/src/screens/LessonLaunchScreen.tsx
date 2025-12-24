@@ -5,24 +5,23 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import { ROADMAP } from "../data/roadmap";
-import { getWebBaseUrl } from "../lib/env";
 import { useProgress } from "../state/progress";
+import { useSettings } from "../state/settings";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
 
 export function LessonLaunchScreen({ navigation, route }: Props) {
   const { lessonId } = route.params;
   const { markCompleted, setLastPlayed } = useProgress();
+  const { settings } = useSettings();
   const completedOnceRef = useRef(false);
 
   const lesson = useMemo(() => ROADMAP.lessons.find((l) => l.id === lessonId) ?? null, [lessonId]);
   const url = useMemo(() => {
-    const base = getWebBaseUrl();
-    const href = lesson?.href;
-    if (!href) return null;
-    const join = href.includes("?") ? "&" : "?";
-    return `${base}${href}${join}mobile=1&noai=1&lid=${encodeURIComponent(lessonId)}`;
-  }, [lesson?.href, lessonId]);
+    const base = settings.webBaseUrl;
+    // Mobile uses a stable, AI-free entry route.
+    return `${base}/m/lesson/${encodeURIComponent(lessonId)}?mobile=1&noai=1&lid=${encodeURIComponent(lessonId)}`;
+  }, [lessonId, settings.webBaseUrl]);
 
   if (!lesson || !url) {
     return (
@@ -49,7 +48,7 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
           // Fallback: treat "returned to roadmap" as completion.
           // This keeps the MVP resilient even if postMessage isn't available for some pages.
           try {
-            const base = getWebBaseUrl();
+            const base = settings.webBaseUrl;
             const nextUrl = (nav?.url || "").replace(base, "");
             if (completedOnceRef.current) return;
             if (nextUrl.startsWith("/learn/roadmap")) {

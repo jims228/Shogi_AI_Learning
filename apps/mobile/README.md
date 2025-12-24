@@ -23,6 +23,31 @@ Mobile を起動:
 pnpm -C apps/mobile start
 ```
 
+## 実機/エミュで確実に開くための WebBaseURL 設定（localhost問題）
+
+モバイルは WebView で以下を開きます（固定）:
+
+- `/m/lesson/<lessonId>?mobile=1&noai=1&lid=<lessonId>`
+
+つまり **端末側から Web dev server に到達できる URL** が必要です。
+
+- **Android Emulator**:
+  - `WEB_BASE_URL = http://10.0.2.2:3000`
+- **iOS Simulator**:
+  - `WEB_BASE_URL = http://localhost:3000`（多くの環境でOK）
+- **実機（iOS/Android）**:
+  - Web を LAN 公開で起動:
+
+```bash
+pnpm --filter web dev -- --hostname 0.0.0.0 --port 3000
+```
+
+  - モバイルの Settings で:
+    - `WEB_BASE_URL = http://<PCのLAN IP>:3000`
+
+Tips:
+- Settings の「LAN推定」ボタンは Expo の hostUri から LAN IP を推定して `http://<ip>:3000` を設定します（best-effort）。
+
 ## レッスン完了の反映
 
 - WebView は `?mobile=1&lid=<lessonId>` を付与してレッスンを開きます。

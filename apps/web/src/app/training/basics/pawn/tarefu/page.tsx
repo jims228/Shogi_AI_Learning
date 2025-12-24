@@ -14,6 +14,7 @@ import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { PAWN_LESSON_2_TAREFU_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -73,7 +74,10 @@ export default function TarefuTrainingPage() {
 
   const handleNext = () => {
     if (currentStepIndex < PAWN_LESSON_2_TAREFU_STEPS.length - 1) setCurrentStepIndex((p) => p + 1);
-    else router.push("/learn/roadmap");
+    else {
+      postMobileLessonCompleteOnce();
+      router.push("/learn/roadmap");
+    }
   };
 
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;

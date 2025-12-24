@@ -247,6 +247,27 @@ Start Mobile:
 pnpm -C apps/mobile start
 ```
 
+### Real device / emulator URL notes (localhost problem)
+
+Mobile opens lessons at:
+- `/m/lesson/<lessonId>?mobile=1&noai=1&lid=<lessonId>`
+
+So **the device must be able to reach your Web dev server**.
+
+- Android Emulator:
+  - WebBaseURL: `http://10.0.2.2:3000`
+- iOS Simulator:
+  - WebBaseURL: `http://localhost:3000` (usually works)
+- Real device (iOS/Android):
+  - Start web with LAN bind (example):
+
+```bash
+pnpm --filter web dev -- --hostname 0.0.0.0 --port 3000
+```
+
+  - WebBaseURL in the mobile app Settings:
+    - `http://<YOUR_PC_LAN_IP>:3000` (same Wi‑Fi/LAN)
+
 ### Env vars (mobile)
 
 - `EXPO_PUBLIC_WEB_BASE_URL` (default `http://localhost:3000`)
