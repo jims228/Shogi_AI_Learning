@@ -23,6 +23,19 @@ Mobile を起動:
 pnpm -C apps/mobile start
 ```
 
+## pnpm 前提（重要）
+
+このモノレポは **pnpm workspace** です。`apps/mobile` も pnpm 前提で運用します。
+
+- `package.json` の `"packageManager"` は `pnpm@10.22.0`
+- yarn 用の `yarn.lock` / `.yarnrc.yml` は置きません
+
+引数付きで起動する場合は `--` を使います:
+
+```bash
+pnpm -C apps/mobile start -- --localhost
+```
+
 ## テスト配布（EAS Build）
 
 前提:
