@@ -11,6 +11,7 @@ out/
 coverage/
 .vercel/
 *.tsbuildinfo
+**/package-lock.json
 
 ### Python / FastAPI / Engine
 __pycache__/
