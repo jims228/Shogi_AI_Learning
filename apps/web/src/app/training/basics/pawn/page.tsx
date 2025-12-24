@@ -219,8 +219,8 @@ export default function PawnTrainingPage() {
           />
         }
         explanation={
-          <div className="text-[16px] leading-snug font-semibold text-amber-50">
-            <div className="text-[13px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
+          <div className="text-[28px] leading-snug font-semibold text-amber-50">
+            <div className="text-[18px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
             <div className="mt-1 line-clamp-2 whitespace-pre-wrap">{currentLesson.description}</div>
           </div>
         }
