@@ -62,7 +62,9 @@ export default function PawnTrainingPage() {
       if (correct) {
         setIsCorrect(true);
         setCorrectSignal((v) => v + 1);
-        showToast({ title: "正解！", description: currentLesson.successMessage });
+        if (!isMobileWebView) {
+          showToast({ title: "正解！", description: currentLesson.successMessage });
+        }
       } else {
         showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
 
@@ -73,7 +75,7 @@ export default function PawnTrainingPage() {
         }, 900);
       }
     },
-    [currentLesson],
+    [currentLesson, isMobileWebView],
   );
 
   const handleNext = () => {
@@ -215,20 +217,25 @@ export default function PawnTrainingPage() {
           <ManRive
             correctSignal={correctSignal}
             className="bg-transparent [&>canvas]:bg-transparent"
-            style={{ width: 140, height: 140 }}
+            style={{ width: 210, height: 210 }}
           />
         }
         explanation={
-          <div className="text-[28px] leading-snug font-semibold text-amber-50">
-            <div className="text-[18px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
-            <div className="mt-1 line-clamp-2 whitespace-pre-wrap">{currentLesson.description}</div>
+          <div className="text-[22px] leading-snug font-semibold text-amber-50">
+            <div className="text-[15px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
+            <div className="mt-1 whitespace-pre-wrap">{currentLesson.description}</div>
+            {isCorrect ? (
+              <div className="mt-2 rounded-xl bg-emerald-600/25 border border-emerald-200/20 px-3 py-2 text-[16px] font-extrabold">
+                正解！次へ進もう。
+              </div>
+            ) : null}
           </div>
         }
         actions={
           isCorrect ? (
             <button
               onClick={handleNext}
-              className="px-3 py-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow active:scale-95"
+              className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg shadow active:scale-[0.99]"
             >
               次へ
             </button>

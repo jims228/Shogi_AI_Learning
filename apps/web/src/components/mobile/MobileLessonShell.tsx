@@ -26,15 +26,18 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
     >
       <div className="shrink-0 px-3 pt-2">
         <div className="flex items-start gap-3">
-          <div className="shrink-0 w-[140px] h-[140px] flex items-start justify-start">{mascot}</div>
-          <div className="min-w-0 flex-1 pt-1">{explanation}</div>
+          <div className="shrink-0 w-[210px] h-[210px] flex items-start justify-start">{mascot}</div>
+          <div className="min-w-0 flex-1 pt-1">
+            <div className="max-h-[210px] overflow-auto pr-1">{explanation}</div>
+          </div>
         </div>
-        {actions ? <div className="mt-2">{actions}</div> : null}
       </div>
 
       <div className="flex-1 min-h-0 px-1 pb-2">
         <div className="w-full h-full min-h-0 flex items-end justify-center">{board}</div>
       </div>
+
+      {actions ? <div className="shrink-0 px-3 pb-3 pt-2">{actions}</div> : null}
     </div>
   );
 }

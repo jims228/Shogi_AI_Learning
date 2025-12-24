@@ -287,7 +287,10 @@ export function LessonRunner({
           }, 200);
         } else {
           // nextButton: wait user
-          showToast({ title: "正解！", description: "次へ進もう。" });
+          // Mobile WebView: show inline success banner under the explanation (avoid overlay/toast on mascot).
+          if (!isMobileWebView) {
+            showToast({ title: "正解！", description: "次へ進もう。" });
+          }
         }
         return;
       }
@@ -303,7 +306,7 @@ export function LessonRunner({
       showToast({ title: "惜しい！", description: wrongHint ?? "その手ではありません。もう一度考えてみましょう。" });
       window.setTimeout(() => resetCurrentPosition(), 650);
     },
-    [expectedMoves, goNext, guidedSubIndex, isCorrect, markMistakeIfNeeded, resetCurrentPosition, step],
+    [expectedMoves, goNext, guidedSubIndex, isCorrect, isMobileWebView, markMistakeIfNeeded, resetCurrentPosition, step],
   );
 
   const canShowNextButton = useMemo(() => {
@@ -438,41 +441,48 @@ export function LessonRunner({
       <ManRive
         correctSignal={correctSignal}
         className="bg-transparent [&>canvas]:bg-transparent"
-        style={{ width: 140, height: 140 }}
+        style={{ width: 210, height: 210 }}
       />
     );
 
     const explanation = (
-      <div className="text-[28px] leading-snug font-semibold text-amber-50">
-        <div className="text-[18px] font-extrabold tracking-wide text-amber-200/80">{stepLabel}</div>
-        <div className="mt-1 line-clamp-2 whitespace-pre-wrap">{currentPrompt}</div>
+      <div className="text-[22px] leading-snug font-semibold text-amber-50">
+        <div className="text-[15px] font-extrabold tracking-wide text-amber-200/80">{stepLabel}</div>
+        <div className="mt-1 whitespace-pre-wrap">{currentPrompt}</div>
+        {isCorrect ? (
+          <div className="mt-2 rounded-xl bg-emerald-600/25 border border-emerald-200/20 px-3 py-2 text-[16px] font-extrabold">
+            正解！次へ進もう。
+          </div>
+        ) : null}
       </div>
     );
 
     const actions = (
-      <div className="flex items-center gap-2">
-        {canHint ? (
-          <button
-            onClick={() => setHintEnabled((v) => !v)}
-            className="px-3 py-2 rounded-xl bg-amber-200 text-amber-900 font-extrabold text-xs border border-amber-300 active:scale-95"
-          >
-            {hintEnabled ? "ヒントOFF" : "ヒント"}
-          </button>
-        ) : null}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          {canHint ? (
+            <button
+              onClick={() => setHintEnabled((v) => !v)}
+              className="px-3 py-2 rounded-xl bg-amber-200 text-amber-900 font-extrabold text-xs border border-amber-300 active:scale-95"
+            >
+              {hintEnabled ? "ヒントOFF" : "ヒント"}
+            </button>
+          ) : null}
 
-        {canReset ? (
-          <button
-            onClick={resetCurrentPosition}
-            className="px-3 py-2 rounded-xl bg-white text-slate-700 font-extrabold text-xs border border-black/10 active:scale-95"
-          >
-            戻す
-          </button>
-        ) : null}
+          {canReset ? (
+            <button
+              onClick={resetCurrentPosition}
+              className="px-3 py-2 rounded-xl bg-white text-slate-700 font-extrabold text-xs border border-black/10 active:scale-95"
+            >
+              戻す
+            </button>
+          ) : null}
+        </div>
 
         {canShowNextButton ? (
           <button
             onClick={goNext}
-            className="ml-auto px-3 py-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow active:scale-95"
+            className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg shadow active:scale-[0.99]"
           >
             次へ
           </button>
