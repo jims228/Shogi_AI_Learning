@@ -35,6 +35,8 @@ export interface ShogiBoardProps {
   autoPromote?: boolean;
   showPromotionZone?: boolean;
   showHands?: boolean;
+  /** Show coordinate labels (files/ranks). Default: true */
+  showCoordinates?: boolean;
   selectedHand?: SelectedHand;
   onHandClick?: (base: PieceBase, side: "b" | "w") => void;
   onSelectedHandChange?: (hand: SelectedHand) => void;
@@ -91,6 +93,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   autoPromote = false,
   showPromotionZone = false,
   showHands = true,
+  showCoordinates = true,
   selectedHand: propSelectedHand,
   onSelectedHandChange,
 
@@ -590,37 +593,42 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   const topFileLabels = viewerOrientation === "sente" ? FILE_LABELS_SENTE : FILE_LABELS_GOTE;
   const rightRankLabels = viewerOrientation === "sente" ? RANK_LABELS_SENTE : RANK_LABELS_GOTE;
+  const labelGap = showCoordinates ? LABEL_GAP : 0;
 
   const boardWithLabels = (
     <div
       className="grid select-none"
       style={{
-        gridTemplateColumns: `repeat(9, ${CELL_SIZE}px) ${LABEL_GAP}px`,
-        gridTemplateRows: `${LABEL_GAP}px repeat(9, ${CELL_SIZE}px)`,
+        gridTemplateColumns: `repeat(9, ${CELL_SIZE}px) ${labelGap}px`,
+        gridTemplateRows: `${labelGap}px repeat(9, ${CELL_SIZE}px)`,
         gap: 0,
       }}
     >
       <div style={{ gridColumn: "1 / span 9", gridRow: "2 / span 9" }}>{boardElement}</div>
 
-      {topFileLabels.map((label, index) => (
-        <div
-          key={`file-top-${label}-${index}`}
-          className="flex items-center justify-center text-xs font-bold text-[#5d4037]"
-          style={{ gridColumn: index + 1, gridRow: 1 }}
-        >
-          {label}
-        </div>
-      ))}
+      {showCoordinates
+        ? topFileLabels.map((label, index) => (
+            <div
+              key={`file-top-${label}-${index}`}
+              className="flex items-center justify-center text-xs font-bold text-[#5d4037]"
+              style={{ gridColumn: index + 1, gridRow: 1 }}
+            >
+              {label}
+            </div>
+          ))
+        : null}
 
-      {rightRankLabels.map((label, index) => (
-        <div
-          key={`rank-right-${label}-${index}`}
-          className="flex items-center justify-center text-xs font-bold text-[#5d4037]"
-          style={{ gridColumn: 10, gridRow: index + 2 }}
-        >
-          {label}
-        </div>
-      ))}
+      {showCoordinates
+        ? rightRankLabels.map((label, index) => (
+            <div
+              key={`rank-right-${label}-${index}`}
+              className="flex items-center justify-center text-xs font-bold text-[#5d4037]"
+              style={{ gridColumn: 10, gridRow: index + 2 }}
+            >
+              {label}
+            </div>
+          ))
+        : null}
     </div>
   );
 
@@ -641,7 +649,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           className="absolute z-[160] pointer-events-auto"
           style={{
             left: 6,
-            top: LABEL_GAP + 6,
+            top: labelGap + 6,
           }}
         >
           <HandArea
@@ -660,7 +668,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         <div
           className="absolute z-[160] pointer-events-auto"
           style={{
-            right: LABEL_GAP + 6,
+            right: labelGap + 6,
             bottom: 6,
           }}
         >

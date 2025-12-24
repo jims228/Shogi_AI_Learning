@@ -401,9 +401,9 @@ export function LessonRunner({
 
   const boardElementMobile = (
     <div className="w-full h-full min-h-0 flex items-end justify-center">
-      <div className="w-full h-full max-w-[560px] aspect-square">
-        <AutoScaleToFit minScale={0.55} maxScale={2.0} className="w-full h-full">
-          <WoodBoardFrame paddingClassName="p-2" className="inline-block">
+      <div className="w-full h-full aspect-square">
+        <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
+          <WoodBoardFrame paddingClassName="p-1" className="inline-block">
             <div className="relative inline-block">
               <ShogiBoard
                 board={board}
@@ -414,6 +414,7 @@ export function LessonRunner({
                 onHandsChange={setHands}
                 orientation={orientation}
                 handsPlacement="corners"
+                showCoordinates={false}
                 hintSquares={hintSquares}
                 hintArrows={hintArrows as any}
               />
@@ -437,13 +438,13 @@ export function LessonRunner({
       <ManRive
         correctSignal={correctSignal}
         className="bg-transparent [&>canvas]:bg-transparent"
-        style={{ width: 96, height: 96 }}
+        style={{ width: 140, height: 140 }}
       />
     );
 
     const explanation = (
-      <div className="text-[13px] leading-snug font-semibold text-slate-900">
-        <div className="text-[11px] font-extrabold tracking-wide text-slate-500">{stepLabel}</div>
+      <div className="text-[13px] leading-snug font-semibold text-amber-50">
+        <div className="text-[11px] font-extrabold tracking-wide text-amber-200/80">{stepLabel}</div>
         <div className="mt-1 line-clamp-3 whitespace-pre-wrap">{currentPrompt}</div>
       </div>
     );
