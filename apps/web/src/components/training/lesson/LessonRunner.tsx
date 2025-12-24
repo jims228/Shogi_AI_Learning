@@ -16,6 +16,20 @@ import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
 import { buildPositionFromUsi } from "@/lib/board";
 
+const postMobileLessonCompleteIfNeeded = () => {
+  try {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("mobile") !== "1") return;
+    const lessonId = sp.get("lid") ?? undefined;
+    const w = window as any;
+    if (!w.ReactNativeWebView || typeof w.ReactNativeWebView.postMessage !== "function") return;
+    w.ReactNativeWebView.postMessage(JSON.stringify({ type: "lessonComplete", lessonId }));
+  } catch {
+    // ignore
+  }
+};
+
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
   if (!t) return "position startpos";
@@ -186,7 +200,6 @@ export function LessonRunner({
       setBoard(initial.board);
       setHands((initial as any).hands ?? { b: {}, w: {} });
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("SFEN Parse Error", e);
     }
   }, [effectiveSfen, step]);
@@ -212,7 +225,6 @@ export function LessonRunner({
       setBoard(initial.board);
       setHands((initial as any).hands ?? { b: {}, w: {} });
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("SFEN Parse Error", e);
     }
   }, [effectiveSfen]);
@@ -257,6 +269,7 @@ export function LessonRunner({
         return;
       }
       // lesson finished
+      postMobileLessonCompleteIfNeeded();
       router.push(onFinishHref ?? backHref);
       return;
     }

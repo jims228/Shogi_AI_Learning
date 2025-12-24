@@ -226,6 +226,40 @@ curl -u "$BASIC_AUTH_USER:your-password" -fsS https://$DOMAIN/annotate \
 	- `pnpm --filter backend test` (if backend adds JS tooling later)
 - Add shared packages under `packages/*` and reference via `workspace:*`.
 
+## Mobile (Roadmap-only MVP)
+
+`apps/mobile` is an Expo (TypeScript) app that renders the **roadmap natively** and launches lessons in a **WebView**.
+
+- No AI/engine/analysis UI is included in the mobile app.
+- Lesson completion is reported back to the app via `postMessage`, and progress is stored locally in `AsyncStorage`.
+
+### Run locally
+
+Start Web:
+
+```bash
+pnpm --filter web dev
+```
+
+Start Mobile:
+
+```bash
+pnpm -C apps/mobile start
+```
+
+### Env vars (mobile)
+
+- `EXPO_PUBLIC_WEB_BASE_URL` (default `http://localhost:3000`)
+- `EXPO_PUBLIC_API_BASE_URL` (default `http://localhost:8787`, MVP unused; future sync)
+
+### Update roadmap JSON (mobile + web/public)
+
+`apps/web/src/constants.ts` is the source. Export to JSON:
+
+```bash
+node scripts/export_roadmap_json.js
+```
+
 ## Branching & Release Strategy
 - `main` – stable, protected branch; release tags cut from here.
 - `develop` – integration branch receiving reviewed feature branches.
