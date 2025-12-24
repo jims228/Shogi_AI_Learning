@@ -1,22 +1,16 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { LESSONS } from "@/constants";
 
-export default function MobileLessonEntryPage({
+export default async function MobileLessonEntryPage({
   params,
 }: {
-  params: { lessonId: string };
+  // Next.js 16 (App Router) may provide params as a Promise in some configurations.
+  params: Promise<{ lessonId: string }> | { lessonId: string };
 }) {
-  const lessonId = params.lessonId;
+  const { lessonId } = await Promise.resolve(params);
   const lesson = LESSONS.find((l) => l.id === lessonId);
 
-  if (!lesson || !lesson.href) {
-    return (
-      <div className="min-h-[100svh] bg-white text-slate-900 p-6">
-        <h1 className="text-xl font-bold">Lesson not found</h1>
-        <p className="mt-2 text-slate-700">lessonId: {lessonId}</p>
-      </div>
-    );
-  }
+  if (!lesson || !lesson.href) notFound();
 
   const baseHref = lesson.href;
   const join = baseHref.includes("?") ? "&" : "?";
