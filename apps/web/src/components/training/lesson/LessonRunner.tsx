@@ -463,7 +463,7 @@ export function LessonRunner({
           {canHint ? (
             <button
               onClick={() => setHintEnabled((v) => !v)}
-              className="px-3 py-2 rounded-xl bg-amber-200 text-amber-900 font-extrabold text-xs border border-amber-300 active:scale-95"
+              className="px-4 py-2 rounded-full bg-white/15 text-amber-50 font-extrabold text-xs border border-white/20 active:scale-[0.99]"
             >
               {hintEnabled ? "ヒントOFF" : "ヒント"}
             </button>
@@ -472,7 +472,7 @@ export function LessonRunner({
           {canReset ? (
             <button
               onClick={resetCurrentPosition}
-              className="px-3 py-2 rounded-xl bg-white text-slate-700 font-extrabold text-xs border border-black/10 active:scale-95"
+              className="px-4 py-2 rounded-full bg-white/15 text-amber-50 font-extrabold text-xs border border-white/20 active:scale-[0.99]"
             >
               戻す
             </button>
@@ -482,7 +482,7 @@ export function LessonRunner({
         {canShowNextButton ? (
           <button
             onClick={goNext}
-            className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg shadow active:scale-[0.99]"
+            className="w-full py-4 rounded-2xl bg-[#58cc02] text-white font-extrabold text-lg shadow-[0_10px_20px_rgba(0,0,0,0.22)] border-b-4 border-[#3da700] active:translate-y-[1px] active:border-b-2"
           >
             次へ
           </button>

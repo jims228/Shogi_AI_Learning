@@ -33,11 +33,10 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 px-1 pb-2">
-        <div className="w-full h-full min-h-0 flex items-end justify-center">{board}</div>
+      <div className="flex-1 min-h-0 px-1 pb-2 flex flex-col">
+        <div className="flex-1 min-h-0 w-full flex items-center justify-center">{board}</div>
+        {actions ? <div className="shrink-0 px-2 pt-2">{actions}</div> : null}
       </div>
-
-      {actions ? <div className="shrink-0 px-3 pb-3 pt-2">{actions}</div> : null}
     </div>
   );
 }
