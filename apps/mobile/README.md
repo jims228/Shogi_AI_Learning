@@ -45,6 +45,13 @@ pnpm dev:android
 powershell -ExecutionPolicy Bypass -File .\\scripts\\android-usb-dev.ps1
 ```
 
+WSL の UNC パスから直接実行する場合（例: distro が `Ubuntu-22.04`）:
+
+```powershell
+dir "\\wsl$\\Ubuntu-22.04\\home\\jimjace\\Shogi_AI_Learning\\scripts\\"
+powershell -ExecutionPolicy Bypass -File "\\wsl$\\Ubuntu-22.04\\home\\jimjace\\Shogi_AI_Learning\\scripts\\android-usb-dev.ps1"
+```
+
 ### 3) 端末側
 
 - Expo Go で以下を開く:
