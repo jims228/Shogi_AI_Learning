@@ -10,11 +10,12 @@ import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 
 import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -27,6 +28,7 @@ const normalizeUsiPosition = (s: string) => {
 
 export default function PawnTrainingPage() {
   const router = useRouter();
+  const isMobileWebView = React.useMemo(() => getMobileParamsFromUrl().mobile, []);
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [board, setBoard] = useState<any[][]>([]);
@@ -120,6 +122,27 @@ export default function PawnTrainingPage() {
     </div>
   );
 
+  const boardElementMobile = (
+    <div className="w-full h-full min-h-0 flex items-end justify-center">
+      <div className="w-full h-full max-w-[560px] aspect-square">
+        <AutoScaleToFit minScale={0.55} maxScale={2.0} className="w-full h-full">
+          <WoodBoardFrame paddingClassName="p-2" className="inline-block">
+            <ShogiBoard
+              board={board}
+              hands={hands}
+              mode="edit"
+              onMove={handleMove}
+              onBoardChange={setBoard}
+              onHandsChange={setHands}
+              orientation="sente"
+              handsPlacement="corners"
+            />
+          </WoodBoardFrame>
+        </AutoScaleToFit>
+      </div>
+    </div>
+  );
+
 
   // ===== 解説（右上）=====
   const explanationElement = (
@@ -180,6 +203,37 @@ export default function PawnTrainingPage() {
       <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
     </div>
   ) : null;
+
+  if (isMobileWebView) {
+    return (
+      <MobileLessonShell
+        mascot={
+          <ManRive
+            correctSignal={correctSignal}
+            className="bg-transparent [&>canvas]:bg-transparent"
+            style={{ width: 96, height: 96 }}
+          />
+        }
+        explanation={
+          <div className="text-[13px] leading-snug font-semibold text-slate-900">
+            <div className="text-[11px] font-extrabold tracking-wide text-slate-500">PAWN</div>
+            <div className="mt-1 line-clamp-3 whitespace-pre-wrap">{currentLesson.description}</div>
+          </div>
+        }
+        actions={
+          isCorrect ? (
+            <button
+              onClick={handleNext}
+              className="px-3 py-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow active:scale-95"
+            >
+              次へ
+            </button>
+          ) : null
+        }
+        board={boardElementMobile}
+      />
+    );
+  }
 
   return (
     <LessonScaffold

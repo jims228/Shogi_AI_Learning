@@ -11,11 +11,12 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { ShogiBoard } from "@/components/ShogiBoard";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { showToast } from "@/components/ui/toast";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
 import { buildPositionFromUsi } from "@/lib/board";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -51,6 +52,8 @@ export function LessonRunner({
 }: Props) {
   const router = useRouter();
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
+  const mobileParams = useMemo(() => getMobileParamsFromUrl(), []);
+  const isMobileWebView = mobileParams.mobile;
 
   const [stepIndex, setStepIndex] = useState(0);
   const [guidedSubIndex, setGuidedSubIndex] = useState(0);
@@ -364,7 +367,7 @@ export function LessonRunner({
 
   if (!step) return <div className="p-10">読み込み中...</div>;
 
-  const boardElement = (
+  const boardElementDesktop = (
     <div className="w-full h-full flex items-start justify-center overflow-auto">
       <div
         className="w-full pb-10"
@@ -396,11 +399,88 @@ export function LessonRunner({
     </div>
   );
 
+  const boardElementMobile = (
+    <div className="w-full h-full min-h-0 flex items-end justify-center">
+      <div className="w-full h-full max-w-[560px] aspect-square">
+        <AutoScaleToFit minScale={0.55} maxScale={2.0} className="w-full h-full">
+          <WoodBoardFrame paddingClassName="p-2" className="inline-block">
+            <div className="relative inline-block">
+              <ShogiBoard
+                board={board}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation={orientation}
+                handsPlacement="corners"
+                hintSquares={hintSquares}
+                hintArrows={hintArrows as any}
+              />
+            </div>
+          </WoodBoardFrame>
+        </AutoScaleToFit>
+      </div>
+    </div>
+  );
+
   const stepLabel = (() => {
     if (step.type === "guided") return "GUIDE";
     if (step.type === "practice") return "PRACTICE";
     return "REVIEW";
   })();
+
+  if (isMobileWebView) {
+    const canHint = step.type === "practice" || step.type === "review";
+    const canReset = step.type === "practice" || step.type === "review";
+    const mascot = (
+      <ManRive
+        correctSignal={correctSignal}
+        className="bg-transparent [&>canvas]:bg-transparent"
+        style={{ width: 96, height: 96 }}
+      />
+    );
+
+    const explanation = (
+      <div className="text-[13px] leading-snug font-semibold text-slate-900">
+        <div className="text-[11px] font-extrabold tracking-wide text-slate-500">{stepLabel}</div>
+        <div className="mt-1 line-clamp-3 whitespace-pre-wrap">{currentPrompt}</div>
+      </div>
+    );
+
+    const actions = (
+      <div className="flex items-center gap-2">
+        {canHint ? (
+          <button
+            onClick={() => setHintEnabled((v) => !v)}
+            className="px-3 py-2 rounded-xl bg-amber-200 text-amber-900 font-extrabold text-xs border border-amber-300 active:scale-95"
+          >
+            {hintEnabled ? "ヒントOFF" : "ヒント"}
+          </button>
+        ) : null}
+
+        {canReset ? (
+          <button
+            onClick={resetCurrentPosition}
+            className="px-3 py-2 rounded-xl bg-white text-slate-700 font-extrabold text-xs border border-black/10 active:scale-95"
+          >
+            戻す
+          </button>
+        ) : null}
+
+        {canShowNextButton ? (
+          <button
+            onClick={goNext}
+            className="ml-auto px-3 py-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow active:scale-95"
+          >
+            次へ
+          </button>
+        ) : null}
+      </div>
+    );
+
+    return <MobileLessonShell mascot={mascot} explanation={explanation} actions={actions} board={boardElementMobile} />;
+  }
 
   const explanationElement = (
     <div className="bg-white/80 backdrop-blur rounded-2xl shadow border border-black/10 p-4">
@@ -455,7 +535,7 @@ export function LessonRunner({
     <LessonScaffold
       title={title}
       backHref={backHref}
-      board={boardElement}
+      board={boardElementDesktop}
       explanation={explanationElement}
       mascot={mascotElement}
       mascotOverlay={null}
