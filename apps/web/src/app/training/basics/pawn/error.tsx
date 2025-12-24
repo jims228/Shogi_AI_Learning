@@ -12,10 +12,18 @@ export default function PawnBasicsError({
 }) {
   const isMobile = React.useMemo(() => getMobileParamsFromUrl().mobile, []);
 
+  React.useEffect(() => {
+    if (isMobile) {
+      // Keep UI minimal for WebView, but log full error for root-cause investigation.
+      // eslint-disable-next-line no-console
+      console.error("[pawn/mobile] error boundary:", error);
+    }
+  }, [error, isMobile]);
+
   if (isMobile) {
     return (
       <div className="h-[100dvh] overflow-hidden flex flex-col items-center justify-center px-5 text-center text-amber-50"
-        style={{ background: "linear-gradient(180deg, #2b1b13 0%, #22160f 100%)" }}
+        style={{ background: "linear-gradient(180deg, #3a261c 0%, #241710 100%)" }}
       >
         <div className="text-lg font-extrabold">読み込みに失敗しました</div>
         <div className="mt-2 text-sm opacity-90">一度リロードしてもう一度お試しください。</div>

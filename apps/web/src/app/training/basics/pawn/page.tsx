@@ -16,6 +16,7 @@ import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
 import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { createEmptyBoard } from "@/lib/board";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -31,7 +32,8 @@ export default function PawnTrainingPage() {
   const isMobileWebView = React.useMemo(() => getMobileParamsFromUrl().mobile, []);
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [board, setBoard] = useState<any[][]>([]);
+  // Important: always start with a valid 9x9 board to avoid WebView/hydration crashes.
+  const [board, setBoard] = useState<any[][]>(() => createEmptyBoard());
   const [hands, setHands] = useState<any>({ b: {}, w: {} });
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctSignal, setCorrectSignal] = useState(0);
@@ -83,6 +85,7 @@ export default function PawnTrainingPage() {
   };
 
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
+  const isBoardReady = Array.isArray(board) && board.length === 9 && Array.isArray(board[0]) && board[0].length === 9;
 
   const nextButton = isCorrect ? (
     <button
@@ -108,7 +111,7 @@ export default function PawnTrainingPage() {
         <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-3" className="inline-block">
             <ShogiBoard
-              board={board}
+              board={isBoardReady ? board : createEmptyBoard()}
               hands={hands}
               mode="edit"
               onMove={handleMove}
@@ -128,7 +131,7 @@ export default function PawnTrainingPage() {
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-1" className="inline-block">
             <ShogiBoard
-              board={board}
+              board={isBoardReady ? board : createEmptyBoard()}
               hands={hands}
               mode="edit"
               onMove={handleMove}
@@ -216,9 +219,9 @@ export default function PawnTrainingPage() {
           />
         }
         explanation={
-          <div className="text-[13px] leading-snug font-semibold text-amber-50">
-            <div className="text-[11px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
-            <div className="mt-1 line-clamp-3 whitespace-pre-wrap">{currentLesson.description}</div>
+          <div className="text-[16px] leading-snug font-semibold text-amber-50">
+            <div className="text-[13px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
+            <div className="mt-1 line-clamp-2 whitespace-pre-wrap">{currentLesson.description}</div>
           </div>
         }
         actions={

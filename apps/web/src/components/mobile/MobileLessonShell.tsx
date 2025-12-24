@@ -21,7 +21,7 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
       data-mobile-lesson-shell
       className="h-[100dvh] overflow-hidden flex flex-col text-amber-50"
       style={{
-        background: "linear-gradient(180deg, #2b1b13 0%, #22160f 55%, #1d130e 100%)",
+        background: "linear-gradient(180deg, #3a261c 0%, #2d1f16 55%, #241710 100%)",
       }}
     >
       <div className="shrink-0 px-3 pt-2">
