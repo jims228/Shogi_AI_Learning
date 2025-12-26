@@ -128,10 +128,10 @@ export default function PawnTrainingPage() {
   );
 
   const boardElementMobile = (
-    <div className="w-full h-full min-h-0 flex items-end justify-center">
-      <div className="w-full h-full aspect-square">
+    <div className="w-full h-full min-h-0 flex items-center justify-center">
+      <div className="w-full h-full aspect-square -translate-y-2">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
-          <WoodBoardFrame paddingClassName="p-1" className="inline-block">
+          <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
             <ShogiBoard
               board={isBoardReady ? board : createEmptyBoard()}
               hands={hands}
@@ -221,11 +221,11 @@ export default function PawnTrainingPage() {
           />
         }
         explanation={
-          <div className="text-[22px] leading-snug font-semibold text-amber-50">
-            <div className="text-[15px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
+          <div className="text-[23px] leading-snug font-semibold text-amber-50">
+            <div className="text-[16px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
             <div className="mt-1 whitespace-pre-wrap">{currentLesson.description}</div>
             {isCorrect ? (
-              <div className="mt-2 rounded-xl bg-emerald-600/25 border border-emerald-200/20 px-3 py-2 text-[16px] font-extrabold">
+              <div className="mt-2 rounded-xl bg-emerald-600/25 border border-emerald-200/20 px-3 py-2 text-[17px] font-extrabold">
                 正解！次へ進もう。
               </div>
             ) : null}

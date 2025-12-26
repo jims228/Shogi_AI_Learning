@@ -21,7 +21,8 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
       data-mobile-lesson-shell
       className="h-[100dvh] overflow-hidden flex flex-col text-amber-50"
       style={{
-        background: "linear-gradient(180deg, #3a261c 0%, #2d1f16 55%, #241710 100%)",
+        // Slightly brighter "dark wood" for mobile-only WebView.
+        background: "linear-gradient(180deg, #3f2a20 0%, #322218 55%, #281a12 100%)",
       }}
     >
       <div className="shrink-0 px-3 pt-2">
@@ -34,10 +35,16 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
       </div>
 
       <div className="flex-1 min-h-0 px-1 pb-4 flex flex-col">
-        {/* Raise the board a bit to avoid the bottom UI being cut off in WebView. */}
-        <div className="flex-1 min-h-0 w-full flex items-center justify-center -mt-5">{board}</div>
+        <div className="flex-1 min-h-0 w-full flex items-center justify-center">{board}</div>
         {/* Keep actions directly under the board, with extra bottom padding for tap safety. */}
-        {actions ? <div className="shrink-0 px-2 pt-2 pb-2">{actions}</div> : null}
+        {actions ? (
+          <div
+            className="shrink-0 px-2 pt-2"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
+          >
+            {actions}
+          </div>
+        ) : null}
       </div>
     </div>
   );

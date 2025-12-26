@@ -61,7 +61,7 @@ export function AutoScaleToFit({
     };
   }, []);
 
-  const { scale, scaledSize } = useMemo(() => {
+  const { scale, scaledSize, bypassScale } = useMemo(() => {
     const availableW = containerSize.width;
     const availableH = containerSize.height;
     const contentW = contentSize.width;
@@ -69,20 +69,17 @@ export function AutoScaleToFit({
 
     // 親サイズ或いは子サイズが 0 の場合の処理
     const parentSizeZero = availableW <= 0 || availableH <= 0;
+    const parentAllZero = availableW <= 0 && availableH <= 0;
     const contentSizeZero = contentW <= 0 || contentH <= 0;
 
-    if (contentSizeZero) {
-      console.log("[DEBUG-AutoScaleToFit] Content size is 0 - returning lastValidScale:", {
-        contentW,
-        contentH,
-        lastValidScale: lastValidScaleRef.current,
-      });
-      return { 
-        scale: lastValidScaleRef.current, 
-        scaledSize: { 
-          width: contentW * lastValidScaleRef.current, 
-          height: contentH * lastValidScaleRef.current 
-        } 
+    // 0サイズ対策:
+    // - content が 0 → まだ計測できていないのでスケール適用をバイパス（素で描画）
+    // - 親が完全に 0 → absolute の shrink-to-fit が 0 に固定されやすいので同様にバイパス
+    if (contentSizeZero || parentAllZero) {
+      return {
+        bypassScale: true,
+        scale: 1,
+        scaledSize: { width: 0, height: 0 },
       };
     }
 
@@ -94,32 +91,20 @@ export function AutoScaleToFit({
         const nextScale = clamp(scaleW, minScale, maxScale);
         lastValidScaleRef.current = nextScale;
 
-        console.log("[DEBUG-AutoScaleToFit] Width-only mode (height=0):", {
-          availableW,
-          contentW,
-          scaleW,
-          nextScale,
-        });
-
         return {
           scale: nextScale,
           scaledSize: { width: contentW * nextScale, height: contentH * nextScale },
+          bypassScale: false,
         };
       } else if (fitMode === "both" || availableW <= 0) {
         // parent が完全に 0 → 前回のスケール値を使う
-        console.log("[DEBUG-AutoScaleToFit] Parent size is 0 - using lastValidScale:", {
-          availableW,
-          availableH,
-          contentW,
-          contentH,
-          lastValidScale: lastValidScaleRef.current,
-        });
         return { 
           scale: lastValidScaleRef.current, 
           scaledSize: { 
             width: contentW * lastValidScaleRef.current, 
             height: contentH * lastValidScaleRef.current 
-          } 
+          },
+          bypassScale: false,
         };
       }
     }
@@ -132,21 +117,10 @@ export function AutoScaleToFit({
     const nextScale = clamp(raw, minScale, maxScale);
     lastValidScaleRef.current = nextScale;
 
-    console.log("[DEBUG-AutoScaleToFit] Scale calculated:", {
-      containerSize: { width: availableW, height: availableH },
-      contentSize: { width: contentW, height: contentH },
-      scaleW,
-      scaleH,
-      raw,
-      nextScale,
-      minScale,
-      maxScale,
-      scaledSize: { width: contentW * nextScale, height: contentH * nextScale },
-    });
-
     return {
       scale: nextScale,
       scaledSize: { width: contentW * nextScale, height: contentH * nextScale },
+      bypassScale: false,
     };
   }, [containerSize, contentSize, minScale, maxScale, fitMode]);
 
@@ -156,13 +130,13 @@ export function AutoScaleToFit({
         <div
           className="relative"
           style={{
-            width: scaledSize.width > 0 ? `${scaledSize.width}px` : undefined,
-            height: scaledSize.height > 0 ? `${scaledSize.height}px` : undefined,
+            width: !bypassScale && scaledSize.width > 0 ? `${scaledSize.width}px` : undefined,
+            height: !bypassScale && scaledSize.height > 0 ? `${scaledSize.height}px` : undefined,
           }}
         >
           <div
-            className="absolute left-0 top-0"
-            style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
+            className={cn("left-0 top-0", bypassScale ? "relative" : "absolute")}
+            style={bypassScale ? undefined : { transform: `scale(${scale})`, transformOrigin: "top left" }}
           >
             <div ref={contentRef} className="inline-block">
               {children}

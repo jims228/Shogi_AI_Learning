@@ -23,7 +23,7 @@ export default function PawnBasicsError({
   if (isMobile) {
     return (
       <div className="h-[100dvh] overflow-hidden flex flex-col items-center justify-center px-5 text-center text-amber-50"
-        style={{ background: "linear-gradient(180deg, #3a261c 0%, #241710 100%)" }}
+        style={{ background: "linear-gradient(180deg, #3f2a20 0%, #281a12 100%)" }}
       >
         <div className="text-lg font-extrabold">読み込みに失敗しました</div>
         <div className="mt-2 text-sm opacity-90">一度リロードしてもう一度お試しください。</div>
