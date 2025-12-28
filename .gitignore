@@ -97,3 +97,8 @@ temp/
 *.patch
 backend/api/user_book1.db
 backend/api/standard_book.db:Zone.Identifier
+
+### Local tools (do not track in git)
+tools/sfx-gen/stable-audio-tools/
+tools/sfx-gen/out/
+tools/sfx-gen/**/*.wav
