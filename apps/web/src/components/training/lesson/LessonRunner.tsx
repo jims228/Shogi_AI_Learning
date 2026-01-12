@@ -229,6 +229,13 @@ export function LessonRunner({
   const goNext = useCallback(() => {
     if (!step) return;
 
+    const finishLesson = () => {
+      // Guarantee: mobile completion should fire regardless of whether a "review" step exists.
+      // postMobileLessonCompleteOnce is single-shot and no-ops outside mobile WebView.
+      postMobileLessonCompleteOnce();
+      router.push(onFinishHref ?? backHref);
+    };
+
     if (step.type === "guided") {
       const lastSub = step.substeps.length - 1;
       if (guidedSubIndex < lastSub) {
@@ -236,6 +243,10 @@ export function LessonRunner({
         return;
       }
       // guided step finished
+      if (stepIndex >= steps.length - 1) {
+        finishLesson();
+        return;
+      }
       setGuidedSubIndex(0);
       setStepIndex((p) => Math.min(p + 1, steps.length - 1));
       return;
@@ -245,6 +256,10 @@ export function LessonRunner({
       const last = step.problems.length - 1;
       if (practiceIndex < last) {
         setPracticeIndex((p) => p + 1);
+        return;
+      }
+      if (stepIndex >= steps.length - 1) {
+        finishLesson();
         return;
       }
       setPracticeIndex(0);
@@ -259,8 +274,7 @@ export function LessonRunner({
         return;
       }
       // lesson finished
-      postMobileLessonCompleteOnce();
-      router.push(onFinishHref ?? backHref);
+      finishLesson();
       return;
     }
   }, [backHref, guidedSubIndex, onFinishHref, practiceIndex, reviewIndex, reviewQueue.length, router, step, steps.length]);
