@@ -11,6 +11,7 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
 
 import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
@@ -233,12 +234,7 @@ export default function PawnTrainingPage() {
         }
         actions={
           isCorrect ? (
-            <button
-              onClick={handleNext}
-              className="w-full py-6 min-h-[72px] rounded-2xl bg-[#58cc02] text-white font-extrabold text-xl shadow-[0_10px_20px_rgba(0,0,0,0.22)] border-b-4 border-[#3da700] active:translate-y-[1px] active:border-b-2"
-            >
-              次へ
-            </button>
+            <MobilePrimaryCTA onClick={handleNext} />
           ) : null
         }
         board={boardElementMobile}

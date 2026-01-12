@@ -12,6 +12,7 @@ import { ShogiBoard } from "@/components/ShogiBoard";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { showToast } from "@/components/ui/toast";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
 
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
@@ -494,12 +495,7 @@ export function LessonRunner({
         </div>
 
         {canShowNextButton ? (
-          <button
-            onClick={goNext}
-            className="w-full py-6 min-h-[72px] rounded-2xl bg-[#58cc02] text-white font-extrabold text-xl shadow-[0_10px_20px_rgba(0,0,0,0.22)] border-b-4 border-[#3da700] active:translate-y-[1px] active:border-b-2"
-          >
-            次へ
-          </button>
+          <MobilePrimaryCTA onClick={goNext} />
         ) : null}
       </div>
     );

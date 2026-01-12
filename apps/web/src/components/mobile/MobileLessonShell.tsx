@@ -33,11 +33,11 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
 
       <div className="flex-1 min-h-0 px-1 pb-4 flex flex-col">
         <div className="flex-1 min-h-0 w-full flex items-center justify-center">{board}</div>
-        {/* Keep actions directly under the board, with extra bottom padding for tap safety. */}
+        {/* CTA area: pinned with safe area padding for consistent reachability (Duolingo-ish). */}
         {actions ? (
           <div
             className="shrink-0 px-2 pt-2"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
           >
             {actions}
           </div>
