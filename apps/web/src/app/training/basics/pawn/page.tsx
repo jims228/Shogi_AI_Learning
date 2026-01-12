@@ -221,11 +221,11 @@ export default function PawnTrainingPage() {
           />
         }
         explanation={
-          <div className="text-[23px] leading-snug font-semibold text-amber-50">
-            <div className="text-[16px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
-            <div className="mt-1 whitespace-pre-wrap">{currentLesson.description}</div>
+          <div className="text-[22px] leading-snug font-semibold text-slate-900">
+            <div className="text-[13px] font-extrabold tracking-wide text-rose-600/90">PAWN</div>
+            <div className="mt-1 whitespace-pre-wrap text-slate-900">{currentLesson.description}</div>
             {isCorrect ? (
-              <div className="mt-2 rounded-xl bg-emerald-600/25 border border-emerald-200/20 px-3 py-2 text-[17px] font-extrabold">
+              <div className="mt-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-[16px] font-extrabold text-emerald-800">
                 正解！次へ進もう。
               </div>
             ) : null}

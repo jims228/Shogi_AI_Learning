@@ -28,10 +28,12 @@ export function SakuraThemeShell({ children }: { children: React.ReactNode }) {
   }, [enabled, mobile]);
 
   const contentClass = useMemo(() => {
-    const base =
-      "relative z-[20] h-full flex flex-col px-4 sm:px-6 lg:px-12 xl:px-[220px] 2xl:px-[260px] py-6 gap-6";
-    return base;
-  }, []);
+    if (mobile) {
+      // Mobile WebView: allow full-bleed mobile lesson shell (100dvh) without extra padding.
+      return "relative z-[20] h-full flex flex-col";
+    }
+    return "relative z-[20] h-full flex flex-col px-4 sm:px-6 lg:px-12 xl:px-[220px] 2xl:px-[260px] py-6 gap-6";
+  }, [mobile]);
 
   return (
     <div className={outerClass}>
