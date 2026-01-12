@@ -50,7 +50,7 @@
 
 /* When opened from the mobile app WebView: enlarge pieces/board and make training screens readable. */
 html[data-mobile="1"] {
-  --piece-scale: 1.25;
+  --piece-scale: 1.35;
 }
 
 html[data-mobile="1"] body {

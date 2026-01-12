@@ -99,13 +99,15 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   handsPlacement = "default",
 }) => {
-  // Mobile WebView scaling: driven by html[data-mobile="1"] and --piece-scale.
-  // We intentionally mirror the CSS var default from globals.css to keep behavior predictable.
+  // Scaling single-source-of-truth:
+  // - globals.css defines `--piece-scale` (defaults 1, mobile=1 sets >1)
+  // - We read it here to scale board/piece/hands sizes consistently (no fixed JS multiplier).
   const uiScale = useMemo(() => {
     try {
       if (typeof document === "undefined") return 1;
-      if (document.documentElement?.dataset?.mobile === "1") return 1.25;
-      return 1;
+      const raw = getComputedStyle(document.documentElement).getPropertyValue("--piece-scale").trim();
+      const v = Number.parseFloat(raw);
+      return Number.isFinite(v) && v > 0 ? v : 1;
     } catch {
       return 1;
     }
