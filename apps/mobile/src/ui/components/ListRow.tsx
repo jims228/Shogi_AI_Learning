@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 999,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: theme.colors.surfaceTint,
     borderWidth: 1,
     borderColor: theme.colors.border,
     alignItems: "center",
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 14, fontWeight: "900", color: theme.colors.text },
   subtitle: { marginTop: 2, fontSize: 12, fontWeight: "700", color: theme.colors.textMuted },
   right: { flexDirection: "row", alignItems: "center", gap: 8 },
-  rightText: { fontSize: 12, fontWeight: "900", color: theme.colors.textMuted },
+  rightText: { fontSize: 12, fontWeight: "900", color: theme.colors.brandDark },
   chev: { fontSize: 26, lineHeight: 26, fontWeight: "900", color: "#9ca3af" },
 });
 

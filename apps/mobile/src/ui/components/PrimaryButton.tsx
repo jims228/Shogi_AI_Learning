@@ -37,9 +37,9 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   btn: {
-    minHeight: 48,
+    minHeight: 56,
     paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.pill,
     backgroundColor: theme.colors.brand,
     borderBottomWidth: 4,
     borderBottomColor: theme.colors.brandDark,
@@ -49,6 +49,6 @@ const styles = StyleSheet.create({
   },
   pressed: { transform: [{ translateY: 1 }], borderBottomWidth: 2 },
   disabled: { opacity: 0.55 },
-  text: { color: "#fff", fontWeight: "900", fontSize: 16, letterSpacing: 0.2 },
+  text: { color: "#fff", fontWeight: "900", fontSize: 17, letterSpacing: 0.25 },
 });
 

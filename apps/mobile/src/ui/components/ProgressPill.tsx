@@ -6,8 +6,8 @@ import { theme } from "../theme";
 export function ProgressPill({ completed, total }: { completed: number; total: number }) {
   const pct = total ? Math.round((completed / total) * 100) : 0;
   const isDone = total > 0 && completed >= total;
-  const bg = isDone ? "#dcfce7" : "#ecfccb";
-  const fg = isDone ? "#166534" : "#365314";
+  const bg = isDone ? "#dcfce7" : theme.colors.surfaceTint;
+  const fg = isDone ? "#166534" : theme.colors.brandDark;
   const label = total ? `${completed}/${total} • ${pct}%` : "0%";
   return (
     <View style={[styles.pill, { backgroundColor: bg }]}>

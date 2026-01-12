@@ -1,16 +1,22 @@
 export const theme = {
   colors: {
-    bg: "#ffffff",
+    // Sakura / "almost white" background
+    bg: "#fff7fb",
     surface: "#ffffff",
+    // very subtle tint for sections / icon bubbles
+    surfaceTint: "#fff0f6",
     text: "#111827",
     textMuted: "#6b7280",
-    border: "#e5e7eb",
-    brand: "#58cc02",
-    brandDark: "#3da700",
+    border: "#efe1e8",
+    // Primary (sakura pink)
+    brand: "#E65A8D",
+    brandDark: "#C84474",
     success: "#22c55e",
     danger: "#ef4444",
     warning: "#f59e0b",
     ink: "#0f172a",
+    sakuraPetal: "#f7a7c0",
+    sakuraPetalDeep: "#e96e9a",
   },
   spacing: {
     xs: 6,
@@ -22,7 +28,7 @@ export const theme = {
   radius: {
     sm: 10,
     md: 14,
-    lg: 18,
+    lg: 20,
     pill: 999,
   },
   typography: {
@@ -34,16 +40,16 @@ export const theme = {
   shadow: {
     card: {
       shadowColor: "#000",
-      shadowOpacity: 0.08,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
       elevation: 2,
     },
     button: {
       shadowColor: "#000",
-      shadowOpacity: 0.12,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.10,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
       elevation: 3,
     },
   },

@@ -38,6 +38,6 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     ...theme.shadow.card,
   },
-  pressed: { transform: [{ scale: 0.995 }], opacity: 0.95 },
+  pressed: { transform: [{ scale: 0.995 }], opacity: 0.96 },
 });
 
