@@ -1,13 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Board } from "@/components/Board";
 import { ManRive } from "@/components/ManRive";
 import { Placed } from "@/lib/sfen";
 import { ArrowLeft, CheckCircle, XCircle, ChevronRight, RefreshCw } from "lucide-react";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 // Simple Tsume data
 const TSUME_DATA: Record<string, {
@@ -32,6 +35,7 @@ export default function TsumeLessonPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
+  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
   
   const lesson = TSUME_DATA[id];
   
@@ -106,6 +110,43 @@ export default function TsumeLessonPage() {
     postMobileLessonCompleteOnce();
     router.push("/learn");
   };
+
+  if (isMobileWebView) {
+    const boardElementMobile = (
+      <div className="w-full h-full min-h-0 flex items-center justify-center">
+        <div
+          className="w-full h-full aspect-square flex items-center justify-center"
+          // Legacy `Board` scales via CSS transform only; we keep a single scaling source (`--piece-scale`).
+          style={{ transform: "scale(var(--piece-scale))", transformOrigin: "center" }}
+        >
+          <Board pieces={pieces} highlightSquares={selectedSquare ? [selectedSquare] : []} onSquareClick={handleSquareClick} />
+        </div>
+      </div>
+    );
+
+    const correct = status === "correct";
+    const text =
+      status === "playing"
+        ? lesson.description
+        : status === "correct"
+          ? "正解！詰みです。"
+          : "不正解です。もう一度考えてみましょう。";
+
+    return (
+      <MobileLessonShell
+        mascot={<ManRive correctSignal={correctSignal} style={{ width: 210, height: 210 }} />}
+        explanation={
+          <MobileCoachText tag="TSUME" text={text} isCorrect={correct} correctText="正解！完了して戻ろう。" />
+        }
+        actions={
+          correct ? <MobilePrimaryCTA label="完了" onClick={handleFinish} /> : status === "incorrect" ? (
+            <MobilePrimaryCTA label="もう一度" onClick={handleRetry} />
+          ) : null
+        }
+        board={boardElementMobile}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] font-sans flex flex-col">

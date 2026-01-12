@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
@@ -9,10 +9,16 @@ import { ManRive } from "@/components/ManRive";
 import { TSUME_2_LESSONS } from "@/constants/rulesData"; // ★ここを変更
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
+import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 export default function Tsume2TrainingPage() {
   const router = useRouter();
+  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
   
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [board, setBoard] = useState<any[][]>([]); 
@@ -62,6 +68,54 @@ export default function Tsume2TrainingPage() {
   };
 
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
+
+  if (isMobileWebView) {
+    const boardElementMobile = (
+      <div className="w-full h-full min-h-0 flex items-center justify-center">
+        <div className="w-full h-full aspect-square -translate-y-2">
+          <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
+            <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+              <div className="relative w-full h-full">
+                <ShogiBoard
+                  board={board}
+                  hands={hands}
+                  mode="edit"
+                  onMove={handleMove}
+                  onBoardChange={setBoard}
+                  onHandsChange={setHands}
+                  orientation="sente"
+                  handsPlacement="corners"
+                  showCoordinates={false}
+                />
+              </div>
+            </WoodBoardFrame>
+          </AutoScaleToFit>
+        </div>
+      </div>
+    );
+
+    return (
+      <MobileLessonShell
+        mascot={
+          <ManRive
+            correctSignal={correctSignal}
+            className="bg-transparent [&>canvas]:bg-transparent"
+            style={{ width: 210, height: 210 }}
+          />
+        }
+        explanation={
+          <MobileCoachText
+            tag={`TSUME ${currentStepIndex + 1}/${TSUME_2_LESSONS.length}`}
+            text={currentLesson.description}
+            isCorrect={isCorrect}
+            correctText="正解！次へ進もう。"
+          />
+        }
+        actions={isCorrect ? <MobilePrimaryCTA onClick={handleNext} /> : null}
+        board={boardElementMobile}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] flex flex-col">

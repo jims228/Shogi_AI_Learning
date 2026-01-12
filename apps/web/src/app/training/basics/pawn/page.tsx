@@ -12,6 +12,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
@@ -222,15 +223,7 @@ export default function PawnTrainingPage() {
           />
         }
         explanation={
-          <div className="text-[22px] leading-snug font-semibold text-slate-900">
-            <div className="text-[13px] font-extrabold tracking-wide text-rose-600/90">PAWN</div>
-            <div className="mt-1 whitespace-pre-wrap text-slate-900">{currentLesson.description}</div>
-            {isCorrect ? (
-              <div className="mt-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-[16px] font-extrabold text-emerald-800">
-                正解！次へ進もう。
-              </div>
-            ) : null}
-          </div>
+          <MobileCoachText tag="PAWN" text={currentLesson.description} isCorrect={isCorrect} correctText="正解！次へ進もう。" />
         }
         actions={
           isCorrect ? (

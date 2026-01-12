@@ -1,13 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Board } from "@/components/Board";
 import { ManRive } from "@/components/ManRive";
 import { Placed } from "@/lib/sfen";
 import { ArrowLeft, CheckCircle, ChevronRight } from "lucide-react";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 // Simple lesson data (hardcoded for now as requested)
 const LESSON_DATA: Record<string, {
@@ -46,6 +49,7 @@ export default function PieceMoveLessonPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
+  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
   
   const lesson = LESSON_DATA[id];
   
@@ -93,6 +97,36 @@ export default function PieceMoveLessonPage() {
     postMobileLessonCompleteOnce();
     router.push("/learn/roadmap");
   };
+
+  if (isMobileWebView) {
+    const boardElementMobile = (
+      <div className="w-full h-full min-h-0 flex items-center justify-center">
+        <div
+          className="w-full h-full aspect-square flex items-center justify-center"
+          // Legacy `Board` scales via CSS transform only; keep scaling single-source (`--piece-scale`).
+          style={{ transform: "scale(var(--piece-scale))", transformOrigin: "center" }}
+        >
+          <Board pieces={pieces} highlightSquares={[lesson.targetSquare]} onSquareClick={handleSquareClick} />
+        </div>
+      </div>
+    );
+
+    return (
+      <MobileLessonShell
+        mascot={<ManRive correctSignal={correctSignal} style={{ width: 210, height: 210 }} />}
+        explanation={
+          <MobileCoachText
+            tag="PIECE MOVE"
+            text={message || "動かしてみよう。"}
+            isCorrect={isCompleted}
+            correctText="正解！完了して戻ろう。"
+          />
+        }
+        actions={isCompleted ? <MobilePrimaryCTA label="完了" onClick={handleFinish} /> : null}
+        board={boardElementMobile}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f1e6] text-[#2b2b2b] font-sans flex flex-col">

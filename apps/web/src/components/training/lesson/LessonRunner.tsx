@@ -13,6 +13,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { showToast } from "@/components/ui/toast";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
@@ -461,15 +462,7 @@ export function LessonRunner({
     );
 
     const explanation = (
-      <div className="text-[22px] leading-snug font-semibold text-slate-900">
-        <div className="text-[13px] font-extrabold tracking-wide text-rose-600/90">{stepLabel}</div>
-        <div className="mt-1 whitespace-pre-wrap text-slate-900">{currentPrompt}</div>
-        {isCorrect ? (
-          <div className="mt-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-[16px] font-extrabold text-emerald-800">
-            正解！次へ進もう。
-          </div>
-        ) : null}
-      </div>
+      <MobileCoachText tag={stepLabel} text={currentPrompt} isCorrect={isCorrect} correctText="正解！次へ進もう。" />
     );
 
     const actions = (
