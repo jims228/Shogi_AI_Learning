@@ -4,7 +4,7 @@ import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import type { RootStackParamList } from "../navigation/RootNavigator";
-import { ROADMAP } from "../data/roadmap";
+import { getRoadmapLessons } from "../data/roadmap";
 import { useProgress } from "../state/progress";
 import { useSettings } from "../state/settings";
 
@@ -16,7 +16,7 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
   const { settings } = useSettings();
   const completedOnceRef = useRef(false);
 
-  const lesson = useMemo(() => ROADMAP.lessons.find((l) => l.id === lessonId) ?? null, [lessonId]);
+  const lesson = useMemo(() => getRoadmapLessons().find((l) => l.id === lessonId) ?? null, [lessonId]);
   const url = useMemo(() => {
     const base = settings.webBaseUrl;
     // Mobile uses a stable, AI-free entry route.

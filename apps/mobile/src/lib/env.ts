@@ -6,4 +6,15 @@ export function getApiBaseUrl() {
   return (process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:8787").replace(/\/$/, "");
 }
 
+export function isMvpMode() {
+  // MVP mode: show only the pinned set of "guaranteed" lessons (mvp_lessons.json).
+  // Defaults:
+  // - explicit env wins
+  // - otherwise enabled in __DEV__ to keep local testing focused
+  const raw = (process.env.EXPO_PUBLIC_MVP_MODE || "").trim();
+  if (raw === "1" || raw.toLowerCase() === "true") return true;
+  if (raw === "0" || raw.toLowerCase() === "false") return false;
+  return typeof __DEV__ !== "undefined" ? __DEV__ : false;
+}
+
 

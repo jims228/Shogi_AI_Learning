@@ -2,7 +2,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { ROADMAP, type RoadmapLesson } from "../data/roadmap";
+import { getRoadmapLessons, type RoadmapLesson } from "../data/roadmap";
 import { useProgress } from "../state/progress";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -22,8 +22,8 @@ export function UnitDetailScreen({ navigation, route }: Props) {
   const { progress } = useProgress();
   const completed = useMemo(() => new Set(progress.completedLessonIds), [progress.completedLessonIds]);
 
-  const allLessonsSorted = useMemo(() => ROADMAP.lessons.slice().sort((a, b) => a.index - b.index), []);
-  const allLessonIds = useMemo(() => new Set(ROADMAP.lessons.map((l) => l.id)), []);
+  const allLessonsSorted = useMemo(() => getRoadmapLessons().slice().sort((a, b) => a.index - b.index), []);
+  const allLessonIds = useMemo(() => new Set(getRoadmapLessons().map((l) => l.id)), []);
   const UNLOCK_UNTIL_ID = useMemo(() => findUnlockUntilLessonId(allLessonsSorted), [allLessonsSorted]);
   const unlockUntilOrder = useMemo(() => {
     const t = allLessonsSorted.find((l) => l.id === UNLOCK_UNTIL_ID);
@@ -31,7 +31,7 @@ export function UnitDetailScreen({ navigation, route }: Props) {
   }, [UNLOCK_UNTIL_ID, allLessonsSorted]);
 
   const lessons = useMemo(() => {
-    return ROADMAP.lessons
+    return getRoadmapLessons()
       .filter((l) => l.category === category)
       .slice()
       // Preserve original ordering (web LESSONS array order)

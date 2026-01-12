@@ -2,7 +2,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { ROADMAP } from "../data/roadmap";
+import { getRoadmapLessons } from "../data/roadmap";
 import { useProgress } from "../state/progress";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
@@ -28,8 +28,9 @@ export function RoadmapHomeScreen({ navigation }: Props) {
   const { progress, isLoaded } = useProgress();
 
   const units = useMemo<UnitRow[]>(() => {
+    const lessons = getRoadmapLessons();
     const byCat = new Map<string, { total: number; completed: number; firstIndex: number }>();
-    for (const l of ROADMAP.lessons) {
+    for (const l of lessons) {
       const cat = l.category || "unknown";
       const curr = byCat.get(cat) ?? { total: 0, completed: 0, firstIndex: l.index ?? 999999 };
       curr.total += 1;
