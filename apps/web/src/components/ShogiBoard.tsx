@@ -45,11 +45,11 @@ export interface ShogiBoardProps {
   handsPlacement?: HandsPlacement;
 }
 
-const CELL_SIZE = 50;
-const PIECE_SIZE = 49;
+const BASE_CELL_SIZE = 50;
+const BASE_PIECE_SIZE = 49;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
-const HAND_CELL_SIZE = 40;
-const HAND_PIECE_SIZE = 39;
+const BASE_HAND_CELL_SIZE = 40;
+const BASE_HAND_PIECE_SIZE = 39;
 
 const HOSHI_POINTS = [
   { file: 2, rank: 2 }, { file: 5, rank: 2 }, { file: 8, rank: 2 },
@@ -70,7 +70,7 @@ const FILE_LABELS_SENTE = ["9", "8", "7", "6", "5", "4", "3", "2", "1"];
 const FILE_LABELS_GOTE = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const RANK_LABELS_SENTE = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const RANK_LABELS_GOTE = ["九", "八", "七", "六", "五", "四", "三", "二", "一"];
-const LABEL_GAP = 26;
+const BASE_LABEL_GAP = 26;
 
 const TOUCH_DOUBLE_TAP_MS = 320;
 
@@ -99,6 +99,24 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   handsPlacement = "default",
 }) => {
+  // Mobile WebView scaling: driven by html[data-mobile="1"] and --piece-scale.
+  // We intentionally mirror the CSS var default from globals.css to keep behavior predictable.
+  const uiScale = useMemo(() => {
+    try {
+      if (typeof document === "undefined") return 1;
+      if (document.documentElement?.dataset?.mobile === "1") return 1.25;
+      return 1;
+    } catch {
+      return 1;
+    }
+  }, []);
+
+  const CELL_SIZE = Math.round(BASE_CELL_SIZE * uiScale);
+  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale);
+  const HAND_CELL_SIZE = Math.round(BASE_HAND_CELL_SIZE * uiScale);
+  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale);
+  const LABEL_GAP = Math.round(BASE_LABEL_GAP * uiScale);
+
   const boardSize = CELL_SIZE * 9;
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -407,17 +425,6 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             boardPxSize={boardSize}
             flipped={flipped}
           />
-          {(() => {
-            // === DEBUG: boardElement size をログ ===
-            if (typeof window !== "undefined") {
-              console.log("[DEBUG-ShogiBoard] boardElement size:", {
-                boardSize,
-                CELL_SIZE,
-                placedPieces: placedPieces.length,
-              });
-            }
-            return null;
-          })()}
           <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-0">
           {[...Array(10)].map((_, i) => (
             <line
@@ -657,6 +664,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             hands={hands[topHandSide]}
             orientationMode={orientationMode}
             viewerSide={viewerOrientation}
+            cellSize={HAND_CELL_SIZE}
+            pieceSize={HAND_PIECE_SIZE}
             canEdit={canEdit}
             selectedHand={selectedHand}
             onHandClick={handleHandClick}
@@ -677,6 +686,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             hands={hands[bottomHandSide]}
             orientationMode={orientationMode}
             viewerSide={viewerOrientation}
+            cellSize={HAND_CELL_SIZE}
+            pieceSize={HAND_PIECE_SIZE}
             canEdit={canEdit}
             selectedHand={selectedHand}
             onHandClick={handleHandClick}
@@ -695,6 +706,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         hands={hands[topHandSide]}
         orientationMode={orientationMode}
         viewerSide={viewerOrientation}
+        cellSize={HAND_CELL_SIZE}
+        pieceSize={HAND_PIECE_SIZE}
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
@@ -705,6 +718,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         hands={hands[bottomHandSide]}
         orientationMode={orientationMode}
         viewerSide={viewerOrientation}
+        cellSize={HAND_CELL_SIZE}
+        pieceSize={HAND_PIECE_SIZE}
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
@@ -721,6 +736,8 @@ type HandAreaProps = {
   hands?: Partial<Record<PieceBase, number>>;
   orientationMode: OrientationMode;
   viewerSide: "sente" | "gote";
+  cellSize: number;
+  pieceSize: number;
   canEdit?: boolean;
   selectedHand?: SelectedHand;
   onHandClick?: (base: PieceBase, side: "b" | "w") => void;
@@ -734,6 +751,8 @@ const HandArea: React.FC<HandAreaProps> = ({
   hands,
   orientationMode,
   viewerSide,
+  cellSize,
+  pieceSize,
   canEdit,
   selectedHand,
   onHandClick,
@@ -755,8 +774,8 @@ const HandArea: React.FC<HandAreaProps> = ({
         className={`relative transition-all rounded-md ${canEdit && isSelected ? "bg-amber-300 shadow-md scale-110" : ""}`}
         data-testid={base === "P" ? `hand-piece-${owner}-P` : undefined}
         style={{
-          width: HAND_CELL_SIZE,
-          height: HAND_CELL_SIZE,
+          width: cellSize,
+          height: cellSize,
           cursor: canEdit ? "pointer" : "default",
         }}
         onClick={() => canEdit && onHandClick?.(base, side)}
@@ -765,8 +784,8 @@ const HandArea: React.FC<HandAreaProps> = ({
           piece={piece}
           x={0}
           y={0}
-          size={HAND_PIECE_SIZE}
-          cellSize={HAND_CELL_SIZE}
+          size={pieceSize}
+          cellSize={cellSize}
           orientationMode={orientationMode}
           owner={owner}
           viewerSide={viewerSide}
