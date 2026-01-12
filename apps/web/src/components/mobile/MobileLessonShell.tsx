@@ -19,11 +19,7 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
   return (
     <div
       data-mobile-lesson-shell
-      className="h-[100dvh] overflow-hidden flex flex-col text-amber-50"
-      style={{
-        // Slightly brighter "dark wood" for mobile-only WebView.
-        background: "linear-gradient(180deg, #3f2a20 0%, #322218 55%, #281a12 100%)",
-      }}
+      className="h-[100dvh] overflow-hidden flex flex-col bg-white text-slate-900"
     >
       <div className="shrink-0 px-3 pt-2">
         <div className="flex items-start gap-3">

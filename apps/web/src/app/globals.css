@@ -43,6 +43,37 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Mobile (WebView) board/piece scaling hook (defaults to desktop). */
+  --piece-scale: 1;
+}
+
+/* When opened from the mobile app WebView: enlarge pieces/board and make training screens readable. */
+html[data-mobile="1"] {
+  --piece-scale: 1.25;
+}
+
+html[data-mobile="1"] body {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  background-image: none !important;
+}
+
+html[data-mobile="1"] body::before,
+html[data-mobile="1"] body::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Mobile WebView lesson shell: force readable text colors (some lesson pages used amber-on-dark). */
+html[data-mobile="1"] [data-mobile-lesson-shell] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+html[data-mobile="1"] [data-mobile-lesson-shell] .text-amber-50,
+html[data-mobile="1"] [data-mobile-lesson-shell] .text-amber-200\/80,
+html[data-mobile="1"] [data-mobile-lesson-shell] .text-amber-50\/80 {
+  color: #0f172a !important;
 }
 
 .sakura-theme {

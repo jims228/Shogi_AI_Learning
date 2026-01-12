@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { SakuraPetals } from "@/components/ui/SakuraPetals";
+import { isMobileWebView, syncMobileRootDataAttributes } from "@/lib/mobileBridge";
 
 function isSakuraRoute(pathname: string | null) {
   if (!pathname) return false;
@@ -12,11 +13,19 @@ function isSakuraRoute(pathname: string | null) {
 export function SakuraThemeShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const enabled = isSakuraRoute(pathname);
+  const mobile = useMemo(() => isMobileWebView(), []);
+
+  useEffect(() => {
+    // data-mobile="1" is used by CSS to apply mobile-only styling (WebView).
+    syncMobileRootDataAttributes();
+  }, []);
 
   const outerClass = useMemo(() => {
     const base = "relative h-full min-h-screen";
-    return enabled ? `${base} sakura-theme sakura-surface` : base;
-  }, [enabled]);
+    if (!enabled) return base;
+    // For mobile WebView lessons we want a plain, readable surface (white background).
+    return mobile ? `${base} sakura-theme` : `${base} sakura-theme sakura-surface`;
+  }, [enabled, mobile]);
 
   const contentClass = useMemo(() => {
     const base =
