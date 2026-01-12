@@ -17,7 +17,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator initialRouteName="RoadmapHome">
       <Stack.Screen
         name="RoadmapHome"
         component={RoadmapHomeScreen}
