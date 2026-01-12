@@ -2,81 +2,91 @@ import React, { useCallback, useMemo } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { getRoadmapLessons } from "../data/roadmap";
+import { getFlatRoadmapItems, type FlatRoadmapItem } from "../data/roadmap";
 import { useProgress } from "../state/progress";
 import type { RootStackParamList } from "../navigation/RootNavigator";
-import { Card, ListRow, PrimaryButton, ProgressPill, Screen } from "../ui/components";
+import { Card, PrimaryButton, Screen } from "../ui/components";
 import { theme } from "../ui/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoadmapHome">;
 
-type UnitRow = {
-  category: string;
-  title: string;
-  total: number;
-  completed: number;
-  firstIndex: number;
-};
-
-function categoryTitle(category: string) {
-  if (category === "basics") return "基本";
-  if (category === "tsume-1") return "詰将棋（1手詰）";
-  if (category === "tsume-2") return "詰将棋（中盤）";
-  if (category === "tsume-3") return "詰将棋（終盤）";
-  return category;
+function shortenTitle(s: string) {
+  const t = (s || "").trim();
+  if (!t) return "レッスン";
+  // drop bracketed suffixes like （Lv1）, （復習）, etc.
+  const noParen = t.replace(/（.*?）/g, "").trim();
+  // shorten common prefix
+  const noPrefix = noParen.replace(/^基本の駒の動き/, "").trim();
+  return noPrefix || noParen || t;
 }
 
 export function RoadmapHomeScreen({ navigation }: Props) {
   const { progress, isLoaded } = useProgress();
-  const lessons = useMemo(() => getRoadmapLessons().slice().sort((a, b) => a.index - b.index), []);
+  const items = useMemo(() => getFlatRoadmapItems(), []);
   const completedSet = useMemo(() => new Set(progress.completedLessonIds), [progress.completedLessonIds]);
-
-  const units = useMemo<UnitRow[]>(() => {
-    const byCat = new Map<string, { total: number; completed: number; firstIndex: number }>();
-    for (const l of lessons) {
-      const cat = l.category || "unknown";
-      const curr = byCat.get(cat) ?? { total: 0, completed: 0, firstIndex: l.index ?? 999999 };
-      curr.total += 1;
-      if (completedSet.has(l.id)) curr.completed += 1;
-      curr.firstIndex = Math.min(curr.firstIndex, l.index ?? 999999);
-      byCat.set(cat, curr);
-    }
-    return Array.from(byCat.entries())
-      .map(([category, v]) => ({
-        category,
-        title: categoryTitle(category),
-        total: v.total,
-        completed: v.completed,
-        firstIndex: v.firstIndex,
-      }))
-      // Preserve original ordering (by first appearance in the web LESSONS array)
-      .sort((a, b) => a.firstIndex - b.firstIndex);
-  }, [completedSet, lessons]);
 
   const continueLessonId = useMemo(() => {
     const last = progress.lastPlayedLessonId;
-    if (last && lessons.some((l) => l.id === last && l.href)) return last;
-    const next = lessons.find((l) => l.href && !completedSet.has(l.id));
-    return next?.id ?? null;
-  }, [completedSet, lessons, progress.lastPlayedLessonId]);
+    if (last && items.some((l) => l.lessonId === last && !l.locked)) return last;
+    const next = items.find((l) => !l.locked && !completedSet.has(l.lessonId));
+    return next?.lessonId ?? null;
+  }, [completedSet, items, progress.lastPlayedLessonId]);
 
   const continueLesson = useMemo(() => {
     if (!continueLessonId) return null;
-    return lessons.find((l) => l.id === continueLessonId) ?? null;
-  }, [continueLessonId, lessons]);
+    return items.find((l) => l.lessonId === continueLessonId) ?? null;
+  }, [continueLessonId, items]);
+
+  const nextLessonId = useMemo(() => {
+    const next = items.find((l) => !l.locked && !completedSet.has(l.lessonId));
+    return next?.lessonId ?? null;
+  }, [completedSet, items]);
+
+  const offsets = useMemo(() => [-30, 0, 30, 0, -18, 18, 0], []);
 
   const renderItem = useCallback(
-    ({ item }: { item: UnitRow }) => {
+    ({ item, index }: { item: FlatRoadmapItem; index: number }) => {
+      const done = completedSet.has(item.lessonId);
+      const isNext = !item.locked && item.lessonId === nextLessonId;
+      const dx = offsets[index % offsets.length] ?? 0;
+
+      const fill = item.locked ? "#f3f4f6" : isNext ? theme.colors.brand : done ? theme.colors.surface : theme.colors.surface;
+      const ring = item.locked ? "#d1d5db" : isNext ? theme.colors.brandDark : done ? theme.colors.brandDark : theme.colors.border;
+      const ringW = isNext ? 4 : done ? 3 : 2;
+      const icon = item.locked ? "🔒" : done ? "✓" : "▶";
+      const iconColor = item.locked ? "#6b7280" : isNext ? "#fff" : theme.colors.brandDark;
+
       return (
-        <Card style={styles.unitCard} onPress={() => navigation.navigate("UnitDetail", { category: item.category })}>
-          <ListRow title={item.title} subtitle="レッスン一覧" leftIcon="📚" rightText={`${item.completed}/${item.total}`} onPress={() => navigation.navigate("UnitDetail", { category: item.category })} />
-          <View style={{ marginTop: theme.spacing.sm, alignSelf: "flex-start" }}>
-            <ProgressPill completed={item.completed} total={item.total} />
-          </View>
-        </Card>
+        <View style={[styles.nodeRow, { transform: [{ translateX: dx }] }]}>
+          {isNext ? (
+            <View style={styles.startTag}>
+              <Text style={styles.startTagText}>START</Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            disabled={item.locked}
+            onPress={() => navigation.navigate("LessonLaunch", { lessonId: item.lessonId })}
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.bubble,
+              { backgroundColor: fill, borderColor: ring, borderWidth: ringW },
+              isNext && styles.bubbleNext,
+              done && !isNext && !item.locked && styles.bubbleDone,
+              pressed && !item.locked && { opacity: 0.92, transform: [{ scale: 0.99 }] },
+              item.locked && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={[styles.bubbleIcon, { color: iconColor }]}>{icon}</Text>
+          </Pressable>
+
+          <Text style={[styles.nodeTitle, item.locked && { color: theme.colors.textMuted }]} numberOfLines={2}>
+            {shortenTitle(item.title)}
+          </Text>
+        </View>
       );
     },
-    [navigation],
+    [completedSet, navigation, nextLessonId, offsets],
   );
 
   return (
@@ -96,28 +106,26 @@ export function RoadmapHomeScreen({ navigation }: Props) {
       {continueLesson ? (
         <Card style={styles.continueCard}>
           <Text style={styles.cardEyebrow}>つづきから</Text>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {continueLesson.title}
-          </Text>
+          <Text style={styles.cardTitle} numberOfLines={2}>{continueLesson.title}</Text>
           <Text style={styles.cardSub} numberOfLines={2}>
-            {continueLesson.description || "次のレッスンを始めましょう。"}
+            {continueLesson.subtitle || "次のレッスンを始めましょう。"}
           </Text>
           <View style={{ marginTop: theme.spacing.md }}>
-            <PrimaryButton title="レッスンを開く" onPress={() => navigation.navigate("LessonLaunch", { lessonId: continueLesson.id })} />
+            <PrimaryButton title="レッスンを開く" onPress={() => navigation.navigate("LessonLaunch", { lessonId: continueLesson.lessonId })} />
           </View>
         </Card>
       ) : null}
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.h2}>ユニット</Text>
+      <View style={styles.roadmapWrap}>
+        <View pointerEvents="none" style={styles.pathLine} />
+        <FlatList
+          data={items}
+          keyExtractor={(l) => l.lessonId}
+          contentContainerStyle={{ paddingTop: theme.spacing.lg, paddingBottom: 72 }}
+          renderItem={renderItem}
+          ItemSeparatorComponent={() => <View style={{ height: 22 }} />}
+        />
       </View>
-
-      <FlatList
-        data={units}
-        keyExtractor={(u) => u.category}
-        contentContainerStyle={{ paddingBottom: 64, gap: 12 }}
-        renderItem={renderItem}
-      />
     </Screen>
   );
 }
@@ -125,7 +133,6 @@ export function RoadmapHomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: theme.spacing.md },
   h1: { ...theme.typography.h1, color: theme.colors.text },
-  h2: { ...theme.typography.h2, color: theme.colors.text },
   subtle: { marginTop: 6, color: theme.colors.textMuted, fontWeight: "700" },
   linkBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, backgroundColor: "#f3f4f6", minHeight: 44, justifyContent: "center" },
   linkText: { fontWeight: "900", color: "#374151" },
@@ -135,8 +142,49 @@ const styles = StyleSheet.create({
   cardTitle: { marginTop: 6, fontSize: 18, fontWeight: "900", color: theme.colors.text, letterSpacing: 0.2 },
   cardSub: { marginTop: 8, color: theme.colors.textMuted, fontWeight: "700", lineHeight: 18 },
 
-  sectionHeader: { marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm, flexDirection: "row", alignItems: "center" },
-  unitCard: { padding: theme.spacing.md },
+  roadmapWrap: { flex: 1, marginTop: theme.spacing.lg },
+  pathLine: {
+    position: "absolute",
+    left: "50%",
+    top: 0,
+    bottom: 0,
+    width: 6,
+    marginLeft: -3,
+    backgroundColor: theme.colors.surfaceTint,
+    borderRadius: 999,
+    opacity: 0.7,
+  },
+
+  nodeRow: { alignItems: "center", justifyContent: "center" },
+  bubble: {
+    width: 72,
+    height: 72,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.card,
+  },
+  bubbleDone: { backgroundColor: theme.colors.surfaceTint },
+  bubbleNext: {
+    shadowColor: theme.colors.brand,
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
+  },
+  bubbleIcon: { fontSize: 22, fontWeight: "900" },
+  nodeTitle: { marginTop: 8, maxWidth: 220, textAlign: "center", fontSize: 13, fontWeight: "900", color: theme.colors.text },
+
+  startTag: {
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: theme.colors.surfaceTint,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  startTagText: { fontSize: 11, fontWeight: "900", color: theme.colors.brandDark, letterSpacing: 0.4 },
 });
 
 

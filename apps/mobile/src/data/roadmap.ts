@@ -32,4 +32,27 @@ export function getRoadmapLessons(): RoadmapLesson[] {
   return all.filter((l) => set.has(l.id));
 }
 
+export type FlatRoadmapItem = {
+  lessonId: string;
+  title: string;
+  subtitle?: string;
+  href?: string;
+  locked: boolean;
+  index: number;
+};
+
+export function getFlatRoadmapItems(): FlatRoadmapItem[] {
+  return getRoadmapLessons()
+    .slice()
+    .sort((a, b) => a.index - b.index)
+    .map((l) => ({
+      lessonId: l.id,
+      title: l.title,
+      subtitle: l.description || undefined,
+      href: l.href || undefined,
+      locked: !l.href,
+      index: l.index,
+    }));
+}
+
 
