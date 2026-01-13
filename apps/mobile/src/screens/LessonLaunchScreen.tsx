@@ -42,6 +42,10 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
             head.appendChild(meta);
           }
           meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+          // Some Android WebViews apply a non-1 zoom internally; force it back to 1.
+          // We do NOT use zoom/transform in the web app itself (hit-testing safety).
+          document.documentElement.style.zoom = '1';
+          document.body && (document.body.style.zoom = '1');
           document.documentElement.style.webkitTextSizeAdjust = '100%';
           document.documentElement.style.textSizeAdjust = '100%';
           document.body && (document.body.style.webkitTextSizeAdjust = '100%');
