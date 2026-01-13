@@ -10,6 +10,10 @@ type SakuraBurstApi = {
 const SakuraBurstContext = createContext<SakuraBurstApi | null>(null);
 
 export function SakuraBurstProvider({ children }: { children: React.ReactNode }) {
+  // Feature flag: keep the implementation in place, but disable rendering/side-effects for now.
+  // Flip to `true` when we want the effect back.
+  const enabled = false;
+
   const ref = useRef<SakuraTapBurstHandle>(null);
 
   const spawn = useCallback((pageX: number, pageY: number) => {
@@ -17,6 +21,8 @@ export function SakuraBurstProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const value = useMemo(() => ({ spawn }), [spawn]);
+
+  if (!enabled) return <>{children}</>;
 
   return (
     <SakuraBurstContext.Provider value={value}>
@@ -31,7 +37,10 @@ export function SakuraBurstProvider({ children }: { children: React.ReactNode })
 
 export function useSakuraBurst() {
   const ctx = useContext(SakuraBurstContext);
-  if (!ctx) throw new Error("useSakuraBurst must be used within SakuraBurstProvider");
+  if (!ctx) {
+    // When disabled, we intentionally provide a no-op implementation.
+    return { spawn: () => {} };
+  }
   return ctx;
 }
 
