@@ -502,9 +502,17 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           <div className="absolute inset-0 z-10 pointer-events-none">
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
+            const isMovingPiece =
+              Boolean(selectedSquare) && selectedSquare!.x === piece.x && selectedSquare!.y === piece.y && canEdit;
+            const stableKey = `sq:${piece.x}:${piece.y}:${piece.piece}`;
             return (
-              <div key={`${idx}-${piece.x}-${piece.y}`} className="contents">
+              <div
+                key={stableKey}
+                className="contents"
+                style={isMovingPiece ? { opacity: 0.18 } : undefined}
+              >
                 <PieceSprite
+                  dataShogiPiece="1"
                   piece={piece.piece}
                   x={display.x}
                   y={display.y}

@@ -75,6 +75,13 @@
   outline: none;
 }
 
+/* Mobile WebView flicker hardening for pieces (GPU hint). */
+[data-mobile="1"] [data-shogi-board-root="1"] [data-shogi-piece="1"] {
+  backface-visibility: hidden;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
 .sakura-theme {
   /* Override shadcn tokens only within the themed area */
   --background: var(--surface);

@@ -50,6 +50,8 @@ interface PieceSpriteProps {
   viewerSide?: "sente" | "gote";
   className?: string;
   style?: React.CSSProperties;
+  /** mobile-only flicker hardening hook (data attribute) */
+  dataShogiPiece?: string;
 }
 
 export const PieceSprite: React.FC<PieceSpriteProps> = ({
@@ -65,6 +67,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   viewerSide = "sente",
   className,
   style,
+  dataShogiPiece,
 }) => {
   const pieceSize = size ?? 46;
   const cell = cellSize ?? pieceSize;
@@ -97,6 +100,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
 
   return (
     <motion.div
+      data-shogi-piece={dataShogiPiece}
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.2 }}
