@@ -36,6 +36,7 @@ export const Board: React.FC<BoardProps> = ({ initialPieces = [], onMove }) => {
   const [pieces, setPieces] = useState<BoardPiece[]>(initialPieces);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  const scale = "var(--piece-scale, 1)";
 
   // 座標変換: 筋・段 -> ピクセル座標 (left, top)
   const squareToPixel = (file: number, rank: number) => {
@@ -43,8 +44,8 @@ export const Board: React.FC<BoardProps> = ({ initialPieces = [], onMove }) => {
     const colIndex = 9 - file;
     const rowIndex = rank - 1;
     return {
-      x: colIndex * PIECE_WIDTH,
-      y: rowIndex * PIECE_HEIGHT,
+      x: `calc(${colIndex * PIECE_WIDTH}px * ${scale})`,
+      y: `calc(${rowIndex * PIECE_HEIGHT}px * ${scale})`,
     };
   };
 
@@ -221,10 +222,10 @@ export const Board: React.FC<BoardProps> = ({ initialPieces = [], onMove }) => {
       ref={boardRef}
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${COLS}, ${PIECE_WIDTH}px)`,
-        gridTemplateRows: `repeat(${ROWS}, ${PIECE_HEIGHT}px)`,
-        width: `${COLS * PIECE_WIDTH}px`,
-        height: `${ROWS * PIECE_HEIGHT}px`,
+        gridTemplateColumns: `repeat(${COLS}, calc(${PIECE_WIDTH}px * ${scale}))`,
+        gridTemplateRows: `repeat(${ROWS}, calc(${PIECE_HEIGHT}px * ${scale}))`,
+        width: `calc(${COLS * PIECE_WIDTH}px * ${scale})`,
+        height: `calc(${ROWS * PIECE_HEIGHT}px * ${scale})`,
         border: "2px solid #5d4037",
         position: "relative",
         userSelect: "none",
@@ -245,9 +246,9 @@ export const Board: React.FC<BoardProps> = ({ initialPieces = [], onMove }) => {
               position: "absolute",
               left: 0,
               top: 0,
-              transform: `translate(${x}px, ${y}px)`,
-              width: PIECE_WIDTH,
-              height: PIECE_HEIGHT,
+              transform: `translate(${x}, ${y})`,
+              width: `calc(${PIECE_WIDTH}px * ${scale})`,
+              height: `calc(${PIECE_HEIGHT}px * ${scale})`,
               zIndex: isSelected ? 20 : 10,
               pointerEvents: "none", // コンテナはイベントを通す
               transition: "transform 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)",

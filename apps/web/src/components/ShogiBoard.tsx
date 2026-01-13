@@ -45,11 +45,11 @@ export interface ShogiBoardProps {
   handsPlacement?: HandsPlacement;
 }
 
-const CELL_SIZE = 50;
-const PIECE_SIZE = 49;
+const BASE_CELL_SIZE = 50;
+const BASE_PIECE_SIZE = 49;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
-const HAND_CELL_SIZE = 40;
-const HAND_PIECE_SIZE = 39;
+const BASE_HAND_CELL_SIZE = 40;
+const BASE_HAND_PIECE_SIZE = 39;
 
 const HOSHI_POINTS = [
   { file: 2, rank: 2 }, { file: 5, rank: 2 }, { file: 8, rank: 2 },
@@ -70,7 +70,7 @@ const FILE_LABELS_SENTE = ["9", "8", "7", "6", "5", "4", "3", "2", "1"];
 const FILE_LABELS_GOTE = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const RANK_LABELS_SENTE = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const RANK_LABELS_GOTE = ["九", "八", "七", "六", "五", "四", "三", "二", "一"];
-const LABEL_GAP = 26;
+const BASE_LABEL_GAP = 26;
 
 const TOUCH_DOUBLE_TAP_MS = 320;
 
@@ -99,10 +99,27 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   handsPlacement = "default",
 }) => {
-  const boardSize = CELL_SIZE * 9;
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
   const touchTapRef = useRef<{ square: Square; timestamp: number } | null>(null);
+
+  // Mobile sizing: scale via CSS variable only (no `zoom` on wrappers).
+  const [uiScale, setUiScale] = useState(1);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const v = window.getComputedStyle(el).getPropertyValue("--piece-scale");
+    const n = parseFloat(v);
+    if (!Number.isFinite(n) || n <= 0) return;
+    setUiScale(n);
+  }, []);
+
+  const CELL_SIZE = Math.round(BASE_CELL_SIZE * uiScale);
+  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale);
+  const HAND_CELL_SIZE = Math.round(BASE_HAND_CELL_SIZE * uiScale);
+  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale);
+  const LABEL_GAP = Math.round(BASE_LABEL_GAP * uiScale);
+  const boardSize = CELL_SIZE * 9;
 
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [internalSelectedHand, setInternalSelectedHand] = useState<SelectedHand>(null);
@@ -551,48 +568,48 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   style={{ left, top, width: popW }}
                 >
                   <div className="flex gap-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        executeMove(
-                          pendingMove.sourceSquare,
-                          pendingMove.targetSquare,
-                          promotePiece(pendingMove.piece) as PieceCode,
-                          false
-                        );
-                      }}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    executeMove(
+                      pendingMove.sourceSquare,
+                      pendingMove.targetSquare,
+                      promotePiece(pendingMove.piece) as PieceCode,
+                      false
+                    );
+                  }}
                       className="flex-1 flex flex-col items-center justify-center gap-2 p-2 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors border border-amber-300 min-h-[52px]"
-                    >
-                      <PieceSprite
-                        piece={promotePiece(pendingMove.piece) as PieceCode}
-                        x={0}
-                        y={0}
+                >
+                    <PieceSprite
+                      piece={promotePiece(pendingMove.piece) as PieceCode}
+                      x={0}
+                      y={0}
                         size={spriteSize}
                         cellSize={spriteSize}
-                        orientationMode="sprite"
+                      orientationMode="sprite"
                         owner={pieceOwner}
                         viewerSide={viewerSide}
-                      />
+                    />
                       <span className="font-extrabold text-amber-900 text-lg">成</span>
-                    </button>
+                </button>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
-                      }}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
+                  }}
                       className="flex-1 flex flex-col items-center justify-center gap-2 p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-300 min-h-[52px]"
-                    >
-                      <PieceSprite
-                        piece={pendingMove.piece}
-                        x={0}
-                        y={0}
+                >
+                    <PieceSprite
+                      piece={pendingMove.piece}
+                      x={0}
+                      y={0}
                         size={spriteSize}
                         cellSize={spriteSize}
-                        orientationMode="sprite"
+                      orientationMode="sprite"
                         owner={pieceOwner}
                         viewerSide={viewerSide}
-                      />
+                    />
                       <span className="font-extrabold text-slate-700 text-lg">不成</span>
                     </button>
                   </div>

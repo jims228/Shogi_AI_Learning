@@ -131,7 +131,7 @@ export default function TarefuTrainingPage() {
       <div className="w-full h-full aspect-square -translate-y-2">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
-            <div className="relative w-full h-full" style={{ zoom: "var(--piece-scale)" }}>
+            <div className="relative w-full h-full">
               <ShogiBoard
                 board={board}
                 hands={hands}

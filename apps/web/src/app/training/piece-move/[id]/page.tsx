@@ -104,9 +104,6 @@ export default function PieceMoveLessonPage() {
       <div className="w-full h-full min-h-0 flex items-center justify-center">
         <div
           className="inline-block"
-          // NOTE: legacy `Board` hit-testing can drift when scaled with transforms.
-          // For mobile WebView only, prefer `zoom` so pointer coordinates match visuals.
-          style={{ zoom: "var(--piece-scale)" }}
         >
           <Board pieces={pieces} highlightSquares={[lesson.targetSquare]} onSquareClick={handleSquareClick} />
         </div>
