@@ -58,6 +58,8 @@
 [data-mobile="1"][data-mobile-lesson-shell] {
   background: #ffffff !important;
   color: #0f172a !important;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .sakura-theme {
