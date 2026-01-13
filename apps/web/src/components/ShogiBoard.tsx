@@ -542,60 +542,85 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             onDoubleClick={handleBoardDoubleClick}
           />
 
-          {pendingMove && (
-            <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl animate-in fade-in duration-200">
-              <div className="bg-white p-4 rounded-xl shadow-2xl flex gap-4 border border-slate-200 transform scale-110">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    executeMove(
-                      pendingMove.sourceSquare,
-                      pendingMove.targetSquare,
-                      promotePiece(pendingMove.piece) as PieceCode,
-                      false
-                    );
-                  }}
-                  className="flex flex-col items-center gap-2 p-3 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 min-w-[80px]"
-                >
-                  <div className="scale-125">
-                    <PieceSprite
-                      piece={promotePiece(pendingMove.piece) as PieceCode}
-                      x={0}
-                      y={0}
-                      size={40}
-                      cellSize={40}
-                      orientationMode="sprite"
-                      owner="sente"
-                      viewerSide="sente"
-                    />
-                  </div>
-                  <span className="font-bold text-amber-900 text-sm">成る</span>
-                </button>
+          {pendingMove && (() => {
+            // Show promotion choices near the target square (instead of top-left/center overlay).
+            // Position is computed in the same coordinate space used for drawing pieces to avoid drift,
+            // and it scales correctly with `--piece-scale` because CELL_SIZE is already scaled.
+            const disp = getDisplayPos(pendingMove.targetSquare.x, pendingMove.targetSquare.y);
+            const pieceOwner = getPieceOwner(pendingMove.piece);
+            const viewerSide = viewerOrientation;
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
-                  }}
-                  className="flex flex-col items-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 min-w-[80px]"
+            const popW = Math.max(220, Math.round(CELL_SIZE * 4.2));
+            const popH = 152;
+            const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+            const rawLeft = disp.x * CELL_SIZE + CELL_SIZE * 0.55;
+            const rawTop = disp.y * CELL_SIZE - CELL_SIZE * 0.15;
+            const left = clamp(rawLeft, 8, boardSize - popW - 8);
+            const top = clamp(rawTop, 8, boardSize - popH - 8);
+
+            const spriteSize = Math.max(44, Math.round(CELL_SIZE * 0.9));
+
+            return (
+              <div className="absolute inset-0 z-[200] pointer-events-auto">
+                {/* invisible blocker to prevent accidental board taps while choosing */}
+                <div className="absolute inset-0 bg-transparent" />
+
+                <div
+                  className="absolute bg-white rounded-2xl shadow-2xl border border-slate-200 p-3"
+                  style={{ left, top, width: popW }}
                 >
-                  <div className="scale-125">
-                    <PieceSprite
-                      piece={pendingMove.piece}
-                      x={0}
-                      y={0}
-                      size={40}
-                      cellSize={40}
-                      orientationMode="sprite"
-                      owner="sente"
-                      viewerSide="sente"
-                    />
+                  <div className="text-xs font-extrabold text-slate-500 mb-2">成りますか？</div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        executeMove(
+                          pendingMove.sourceSquare,
+                          pendingMove.targetSquare,
+                          promotePiece(pendingMove.piece) as PieceCode,
+                          false
+                        );
+                      }}
+                      className="flex-1 flex flex-col items-center justify-center gap-2 p-3 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors border border-amber-300 min-h-[56px]"
+                    >
+                      <PieceSprite
+                        piece={promotePiece(pendingMove.piece) as PieceCode}
+                        x={0}
+                        y={0}
+                        size={spriteSize}
+                        cellSize={spriteSize}
+                        orientationMode="sprite"
+                        owner={pieceOwner}
+                        viewerSide={viewerSide}
+                      />
+                      <span className="font-extrabold text-amber-900 text-sm">成</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
+                      }}
+                      className="flex-1 flex flex-col items-center justify-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-300 min-h-[56px]"
+                    >
+                      <PieceSprite
+                        piece={pendingMove.piece}
+                        x={0}
+                        y={0}
+                        size={spriteSize}
+                        cellSize={spriteSize}
+                        orientationMode="sprite"
+                        owner={pieceOwner}
+                        viewerSide={viewerSide}
+                      />
+                      <span className="font-extrabold text-slate-700 text-sm">不成</span>
+                    </button>
                   </div>
-                  <span className="font-bold text-slate-700 text-sm">成らず</span>
-                </button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
     </div>
   );
