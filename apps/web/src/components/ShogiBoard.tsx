@@ -415,7 +415,12 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       />
 
         {/* 9x9 マス領域のコンテナ（明示的に幅高を持たせる） */}
-        <div ref={containerRef} className="relative overflow-visible" style={{ width: boardSize, height: boardSize }}>
+        <div
+          ref={containerRef}
+          data-shogi-board-root="1"
+          className="relative overflow-visible"
+          style={{ width: boardSize, height: boardSize }}
+        >
           <BoardHintsOverlay
             hintSquares={hintSquares ?? []}
             hintArrows={hintArrows ?? []}

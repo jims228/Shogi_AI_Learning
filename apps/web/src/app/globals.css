@@ -62,6 +62,19 @@
   text-size-adjust: 100%;
 }
 
+/* Mobile WebView: remove tap highlight / selection only inside shogi board. */
+[data-mobile="1"] [data-shogi-board-root="1"],
+[data-mobile="1"] [data-shogi-board-root="1"] * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Keep accessibility intact elsewhere; only strip focus ring inside the board on mobile. */
+[data-mobile="1"] [data-shogi-board-root="1"] :focus {
+  outline: none;
+}
+
 .sakura-theme {
   /* Override shadcn tokens only within the themed area */
   --background: var(--surface);
