@@ -53,7 +53,11 @@ export function RoadmapHomeScreen({ navigation }: Props) {
       const fill = item.locked ? "#f3f4f6" : isNext ? theme.colors.brand : done ? theme.colors.surface : theme.colors.surface;
       const ring = item.locked ? "#d1d5db" : isNext ? theme.colors.brandDark : done ? theme.colors.brandDark : theme.colors.border;
       const ringW = isNext ? 4 : done ? 3 : 2;
-      const icon = item.locked ? "🔒" : done ? "✓" : "▶";
+      // Center icon policy:
+      // - locked: 🔒
+      // - playable (next/available/completed): ▶
+      // Completed is shown via ring/badge, not by swapping the center icon.
+      const icon = item.locked ? "🔒" : "▶";
       const iconColor = item.locked ? "#6b7280" : isNext ? "#fff" : theme.colors.brandDark;
 
       return (
@@ -78,6 +82,11 @@ export function RoadmapHomeScreen({ navigation }: Props) {
             ]}
           >
             <Text style={[styles.bubbleIcon, { color: iconColor }]}>{icon}</Text>
+            {done && !item.locked ? (
+              <View pointerEvents="none" style={styles.doneBadge}>
+                <Text style={styles.doneBadgeText}>✓</Text>
+              </View>
+            ) : null}
           </Pressable>
 
           <Text style={[styles.nodeTitle, item.locked && { color: theme.colors.textMuted }]} numberOfLines={2}>
@@ -174,6 +183,22 @@ const styles = StyleSheet.create({
   },
   bubbleIcon: { fontSize: 22, fontWeight: "900" },
   nodeTitle: { marginTop: 8, maxWidth: 220, textAlign: "center", fontSize: 13, fontWeight: "900", color: theme.colors.text },
+
+  doneBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: theme.colors.brand,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: theme.colors.surface,
+    ...theme.shadow.card,
+  },
+  doneBadgeText: { color: "#fff", fontWeight: "900", fontSize: 14, lineHeight: 14 },
 
   startTag: {
     marginBottom: 8,
