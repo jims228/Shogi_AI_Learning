@@ -96,19 +96,18 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   const top = originY + y * cell + (cell - pieceSize) / 2;
 
   const shouldRotate = orientationMode === "rotate" && !isViewerPiece;
-  const baseTransform = shouldRotate ? "rotate(180deg)" : undefined;
+  const baseTransform = shouldRotate ? " rotate(180deg)" : "";
 
   return (
     <motion.div
       data-shogi-piece={dataShogiPiece}
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.2 }}
+      // Disable mount animation to prevent brief "all pieces disappear" flicker on Android WebView.
+      initial={false}
       className={className}
       style={{
         position: "absolute",
-        left,
-        top,
+        left: 0,
+        top: 0,
         width: pieceSize,
         height: pieceSize,
         backgroundImage: `url(${SPRITE_URL})`,
@@ -116,7 +115,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
         backgroundSize: `${bgWidth}px ${bgHeight}px`,
         backgroundPosition: `${bgPosX}px ${bgPosY}px`,
         pointerEvents: "none",
-        transform: baseTransform,
+        transform: `translate3d(${left}px, ${top}px, 0)${baseTransform}`,
         transformOrigin: "50% 50%",
         ...style,
       }}
