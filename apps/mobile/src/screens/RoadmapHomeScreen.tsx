@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -7,6 +7,7 @@ import { useProgress } from "../state/progress";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import { Card, PrimaryButton, Screen } from "../ui/components";
 import { theme } from "../ui/theme";
+import { SakuraTapBurst, type SakuraTapBurstHandle } from "../ui/effects/SakuraTapBurst";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoadmapHome">;
 
@@ -24,6 +25,7 @@ export function RoadmapHomeScreen({ navigation }: Props) {
   const { progress, isLoaded } = useProgress();
   const items = useMemo(() => getFlatRoadmapItems(), []);
   const completedSet = useMemo(() => new Set(progress.completedLessonIds), [progress.completedLessonIds]);
+  const burstRef = useRef<SakuraTapBurstHandle>(null);
 
   const continueLessonId = useMemo(() => {
     const last = progress.lastPlayedLessonId;
@@ -70,6 +72,10 @@ export function RoadmapHomeScreen({ navigation }: Props) {
 
           <Pressable
             disabled={item.locked}
+            onPressIn={(e) => {
+              if (item.locked) return;
+              burstRef.current?.spawn(e.nativeEvent.pageX, e.nativeEvent.pageY);
+            }}
             onPress={() => navigation.navigate("LessonLaunch", { lessonId: item.lessonId })}
             hitSlop={10}
             style={({ pressed }) => [
@@ -100,6 +106,7 @@ export function RoadmapHomeScreen({ navigation }: Props) {
 
   return (
     <Screen>
+      <SakuraTapBurst ref={burstRef} />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.h1}>ロードマップ</Text>
