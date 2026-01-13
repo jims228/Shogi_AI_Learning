@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -66,6 +66,11 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
         <WebView
           key={`wv:${reloadKey}`}
           source={{ uri: url }}
+          // Android WebView (incl Expo Go) can apply text zoom / viewport scaling heuristics.
+          // We hard-pin zoom to remove the "slightly zoomed page" feel.
+          {...(Platform.OS === "android"
+            ? { textZoom: 100, setBuiltInZoomControls: false, setDisplayZoomControls: false }
+            : null)}
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loading}>
