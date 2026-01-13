@@ -613,9 +613,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     <div
       className="grid select-none"
       style={{
-        // Apply scaling via CSS var only (prevents hydration mismatch and avoids double-scaling).
-        // `zoom` keeps pointer hit-testing aligned (unlike transform: scale in some setups).
-        zoom: "var(--piece-scale)",
+        // NOTE: We intentionally do NOT apply `--piece-scale` here.
+        // Scaling the entire board container can make the whole lesson feel "zoomed".
+        // Instead, scale at the specific usage site (training mobile shells) if needed.
         gridTemplateColumns: `repeat(9, ${CELL_SIZE}px) ${labelGap}px`,
         gridTemplateRows: `${labelGap}px repeat(9, ${CELL_SIZE}px)`,
         gap: 0,

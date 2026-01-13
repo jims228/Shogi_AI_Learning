@@ -135,17 +135,19 @@ export default function PawnTrainingPage() {
       <div className="w-full h-full aspect-square -translate-y-2">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
-            <ShogiBoard
-              board={isBoardReady ? board : createEmptyBoard()}
-              hands={hands}
-              mode="edit"
-              onMove={handleMove}
-              onBoardChange={setBoard}
-              onHandsChange={setHands}
-              orientation="sente"
-              handsPlacement="corners"
-              showCoordinates={false}
-            />
+            <div className="relative w-full h-full" style={{ zoom: "var(--piece-scale)" }}>
+              <ShogiBoard
+                board={isBoardReady ? board : createEmptyBoard()}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation="sente"
+                handsPlacement="corners"
+                showCoordinates={false}
+              />
+            </div>
           </WoodBoardFrame>
         </AutoScaleToFit>
       </div>

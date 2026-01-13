@@ -17,8 +17,9 @@ export function SakuraThemeShell({ children }: { children: React.ReactNode }) {
   const outerClass = useMemo(() => {
     const base = "relative h-full min-h-screen";
     if (!enabled) return base;
-    return `${base} sakura-theme sakura-surface`;
-  }, [enabled]);
+    // Training screens should be plain white (board focus).
+    return isTraining ? `${base} bg-white` : `${base} sakura-theme sakura-surface`;
+  }, [enabled, isTraining]);
 
   const contentClass = useMemo(() => {
     return "relative z-[20] h-full flex flex-col px-4 sm:px-6 lg:px-12 xl:px-[220px] 2xl:px-[260px] py-6 gap-6";
@@ -26,7 +27,7 @@ export function SakuraThemeShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={outerClass}>
-      {enabled ? <div className="sakura-backdrop-layer" aria-hidden="true" /> : null}
+      {enabled && !isTraining ? <div className="sakura-backdrop-layer" aria-hidden="true" /> : null}
       {/* Do not render petals on training screens (board taps must stay clean). */}
       {enabled && !isTraining ? <SakuraPetals /> : null}
       <div className={contentClass}>

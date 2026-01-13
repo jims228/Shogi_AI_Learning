@@ -51,6 +51,7 @@
 /* Mobile (WebView) scaling: driven by server-rendered data-mobile="1" on the lesson root. */
 [data-mobile="1"] {
   --piece-scale: 1.35;
+  background-color: #ffffff;
 }
 
 /* Mobile WebView lesson shell: force readable surface/text. */
