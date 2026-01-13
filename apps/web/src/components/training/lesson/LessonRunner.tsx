@@ -18,7 +18,8 @@ import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
 import { buildPositionFromUsi } from "@/lib/board";
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -39,6 +40,8 @@ type Props = {
   desktopMinWidthPx?: number;
   /** 完了時の遷移先。未指定なら backHref へ */
   onFinishHref?: string;
+  /** mobile=1 from server searchParams (avoid window-based branching to prevent hydration mismatch) */
+  mobile?: boolean;
 };
 
 type PracticeRef = { stepIndex: number; problemIndex: number };
@@ -51,11 +54,12 @@ export function LessonRunner({
   headerRight,
   desktopMinWidthPx = 820,
   onFinishHref,
+  mobile,
 }: Props) {
   const router = useRouter();
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
-  const mobileParams = useMemo(() => getMobileParamsFromUrl(), []);
-  const isMobileWebView = mobileParams.mobile;
+  const mobileFromUrl = useMobileQueryParam();
+  const isMobileWebView = mobile ?? mobileFromUrl;
 
   const [stepIndex, setStepIndex] = useState(0);
   const [guidedSubIndex, setGuidedSubIndex] = useState(0);

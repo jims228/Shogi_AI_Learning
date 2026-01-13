@@ -45,11 +45,11 @@ export interface ShogiBoardProps {
   handsPlacement?: HandsPlacement;
 }
 
-const BASE_CELL_SIZE = 50;
-const BASE_PIECE_SIZE = 49;
+const CELL_SIZE = 50;
+const PIECE_SIZE = 49;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
-const BASE_HAND_CELL_SIZE = 40;
-const BASE_HAND_PIECE_SIZE = 39;
+const HAND_CELL_SIZE = 40;
+const HAND_PIECE_SIZE = 39;
 
 const HOSHI_POINTS = [
   { file: 2, rank: 2 }, { file: 5, rank: 2 }, { file: 8, rank: 2 },
@@ -70,7 +70,7 @@ const FILE_LABELS_SENTE = ["9", "8", "7", "6", "5", "4", "3", "2", "1"];
 const FILE_LABELS_GOTE = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const RANK_LABELS_SENTE = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const RANK_LABELS_GOTE = ["九", "八", "七", "六", "五", "四", "三", "二", "一"];
-const BASE_LABEL_GAP = 26;
+const LABEL_GAP = 26;
 
 const TOUCH_DOUBLE_TAP_MS = 320;
 
@@ -99,26 +99,6 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   handsPlacement = "default",
 }) => {
-  // Scaling single-source-of-truth:
-  // - globals.css defines `--piece-scale` (defaults 1, mobile=1 sets >1)
-  // - We read it here to scale board/piece/hands sizes consistently (no fixed JS multiplier).
-  const uiScale = useMemo(() => {
-    try {
-      if (typeof document === "undefined") return 1;
-      const raw = getComputedStyle(document.documentElement).getPropertyValue("--piece-scale").trim();
-      const v = Number.parseFloat(raw);
-      return Number.isFinite(v) && v > 0 ? v : 1;
-    } catch {
-      return 1;
-    }
-  }, []);
-
-  const CELL_SIZE = Math.round(BASE_CELL_SIZE * uiScale);
-  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale);
-  const HAND_CELL_SIZE = Math.round(BASE_HAND_CELL_SIZE * uiScale);
-  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale);
-  const LABEL_GAP = Math.round(BASE_LABEL_GAP * uiScale);
-
   const boardSize = CELL_SIZE * 9;
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -633,6 +613,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     <div
       className="grid select-none"
       style={{
+        // Apply scaling via CSS var only (prevents hydration mismatch and avoids double-scaling).
+        // `zoom` keeps pointer hit-testing aligned (unlike transform: scale in some setups).
+        zoom: "var(--piece-scale)",
         gridTemplateColumns: `repeat(9, ${CELL_SIZE}px) ${labelGap}px`,
         gridTemplateRows: `${labelGap}px repeat(9, ${CELL_SIZE}px)`,
         gap: 0,

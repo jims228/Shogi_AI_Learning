@@ -17,8 +17,9 @@ import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { createEmptyBoard } from "@/lib/board";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -31,7 +32,7 @@ const normalizeUsiPosition = (s: string) => {
 
 export default function PawnTrainingPage() {
   const router = useRouter();
-  const isMobileWebView = React.useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   // Important: always start with a valid 9x9 board to avoid WebView/hydration crashes.

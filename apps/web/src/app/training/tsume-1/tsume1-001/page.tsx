@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
@@ -9,7 +9,8 @@ import { ManRive } from "@/components/ManRive";
 import { TSUME_1_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
@@ -18,7 +19,7 @@ import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 export default function Tsume1Lesson001Page() {
   const router = useRouter();
-  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
   
   // 状態管理
   const [currentStepIndex, setCurrentStepIndex] = useState(0);

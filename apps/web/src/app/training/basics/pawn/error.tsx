@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { getMobileParamsFromUrl } from "@/lib/mobileBridge";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 export default function PawnBasicsError({
   error,
@@ -10,7 +10,7 @@ export default function PawnBasicsError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const isMobile = React.useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobile = useMobileQueryParam();
 
   React.useEffect(() => {
     if (isMobile) {

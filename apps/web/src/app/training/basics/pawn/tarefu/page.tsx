@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 
@@ -14,10 +14,11 @@ import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { PAWN_LESSON_2_TAREFU_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -41,7 +42,7 @@ export default function TarefuTrainingPage() {
 
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
-  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
 
   useEffect(() => {
     if (!currentLesson) return;

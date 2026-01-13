@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Board } from "@/components/Board";
 import { ManRive } from "@/components/ManRive";
 import { Placed } from "@/lib/sfen";
 import { ArrowLeft, CheckCircle, XCircle, ChevronRight, RefreshCw } from "lucide-react";
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 // Simple Tsume data
 const TSUME_DATA: Record<string, {
@@ -35,7 +36,7 @@ export default function TsumeLessonPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
-  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
   
   const lesson = TSUME_DATA[id];
   

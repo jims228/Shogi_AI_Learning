@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { SakuraPetals } from "@/components/ui/SakuraPetals";
-import { isMobileWebView, syncMobileRootDataAttributes } from "@/lib/mobileBridge";
 
 function isSakuraRoute(pathname: string | null) {
   if (!pathname) return false;
@@ -13,27 +12,16 @@ function isSakuraRoute(pathname: string | null) {
 export function SakuraThemeShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const enabled = isSakuraRoute(pathname);
-  const mobile = useMemo(() => isMobileWebView(), []);
-
-  useEffect(() => {
-    // data-mobile="1" is used by CSS to apply mobile-only styling (WebView).
-    syncMobileRootDataAttributes();
-  }, []);
 
   const outerClass = useMemo(() => {
     const base = "relative h-full min-h-screen";
     if (!enabled) return base;
-    // For mobile WebView lessons we want a plain, readable surface (white background).
-    return mobile ? `${base} sakura-theme` : `${base} sakura-theme sakura-surface`;
-  }, [enabled, mobile]);
+    return `${base} sakura-theme sakura-surface`;
+  }, [enabled]);
 
   const contentClass = useMemo(() => {
-    if (mobile) {
-      // Mobile WebView: allow full-bleed mobile lesson shell (100dvh) without extra padding.
-      return "relative z-[20] h-full flex flex-col";
-    }
     return "relative z-[20] h-full flex flex-col px-4 sm:px-6 lg:px-12 xl:px-[220px] 2xl:px-[260px] py-6 gap-6";
-  }, [mobile]);
+  }, []);
 
   return (
     <div className={outerClass}>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
@@ -9,16 +9,17 @@ import { ManRive } from "@/components/ManRive";
 import { TSUME_2_LESSONS } from "@/constants/rulesData"; // ★ここを変更
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 export default function Tsume2TrainingPage() {
   const router = useRouter();
-  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
   
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [board, setBoard] = useState<any[][]>([]); 

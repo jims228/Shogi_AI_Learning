@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 import { ShogiBoard } from "@/components/ShogiBoard"; 
@@ -12,10 +12,11 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { KNIGHT_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 export default function KnightTrainingPage() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function KnightTrainingPage() {
   
   const currentLesson = KNIGHT_LESSONS[currentStepIndex];
   const isDesktop = useMediaQuery("(min-width: 820px)");
-  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
 
   // ステップが変わったら盤面を初期化
   useEffect(() => {

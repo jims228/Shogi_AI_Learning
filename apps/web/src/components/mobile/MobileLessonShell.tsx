@@ -19,7 +19,8 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
   return (
     <div
       data-mobile-lesson-shell
-      className="h-[100dvh] overflow-hidden flex flex-col bg-white text-slate-900"
+      data-mobile="1"
+      className="fixed inset-0 h-[100dvh] overflow-hidden flex flex-col bg-white text-slate-900"
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 4px)" }}
     >
       <div className="shrink-0 px-3 pt-2">

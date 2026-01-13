@@ -48,31 +48,14 @@
   --piece-scale: 1;
 }
 
-/* When opened from the mobile app WebView: enlarge pieces/board and make training screens readable. */
-html[data-mobile="1"] {
+/* Mobile (WebView) scaling: driven by server-rendered data-mobile="1" on the lesson root. */
+[data-mobile="1"] {
   --piece-scale: 1.35;
 }
 
-html[data-mobile="1"] body {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  background-image: none !important;
-}
-
-html[data-mobile="1"] body::before,
-html[data-mobile="1"] body::after {
-  content: none !important;
-  display: none !important;
-}
-
-/* Mobile WebView lesson shell: force readable text colors (some lesson pages used amber-on-dark). */
-html[data-mobile="1"] [data-mobile-lesson-shell] {
+/* Mobile WebView lesson shell: force readable surface/text. */
+[data-mobile="1"][data-mobile-lesson-shell] {
   background: #ffffff !important;
-  color: #0f172a !important;
-}
-html[data-mobile="1"] [data-mobile-lesson-shell] .text-amber-50,
-html[data-mobile="1"] [data-mobile-lesson-shell] .text-amber-200\/80,
-html[data-mobile="1"] [data-mobile-lesson-shell] .text-amber-50\/80 {
   color: #0f172a !important;
 }
 
