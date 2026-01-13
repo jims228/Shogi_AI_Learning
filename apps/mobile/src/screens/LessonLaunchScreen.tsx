@@ -27,6 +27,30 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
     return `${base}/m/lesson/${encodeURIComponent(lessonId)}?mobile=1&noai=1&lid=${encodeURIComponent(lessonId)}`;
   }, [lessonId, settings.webBaseUrl]);
 
+  const injectedBeforeLoad = useMemo(() => {
+    if (Platform.OS !== "android") return undefined;
+    // Harden Android WebView against autoscale/viewport heuristics (Expo Go can still "feel zoomed").
+    return `
+      (function() {
+        try {
+          var head = document.head || document.getElementsByTagName('head')[0];
+          if (!head) return;
+          var meta = document.querySelector('meta[name="viewport"]');
+          if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', 'viewport');
+            head.appendChild(meta);
+          }
+          meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+          document.documentElement.style.webkitTextSizeAdjust = '100%';
+          document.documentElement.style.textSizeAdjust = '100%';
+          document.body && (document.body.style.webkitTextSizeAdjust = '100%');
+        } catch (e) {}
+      })();
+      true;
+    `;
+  }, []);
+
   const retry = useCallback(() => {
     setErrorText(null);
     setReloadKey((k) => k + 1);
@@ -71,6 +95,7 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
           {...(Platform.OS === "android"
             ? { textZoom: 100, setBuiltInZoomControls: false, setDisplayZoomControls: false }
             : null)}
+          injectedJavaScriptBeforeContentLoaded={injectedBeforeLoad}
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loading}>
