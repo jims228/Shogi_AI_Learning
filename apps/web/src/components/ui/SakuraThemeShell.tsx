@@ -12,6 +12,7 @@ function isSakuraRoute(pathname: string | null) {
 export function SakuraThemeShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const enabled = isSakuraRoute(pathname);
+  const isTraining = Boolean(pathname?.startsWith("/training"));
 
   const outerClass = useMemo(() => {
     const base = "relative h-full min-h-screen";
@@ -26,7 +27,8 @@ export function SakuraThemeShell({ children }: { children: React.ReactNode }) {
   return (
     <div className={outerClass}>
       {enabled ? <div className="sakura-backdrop-layer" aria-hidden="true" /> : null}
-      {enabled ? <SakuraPetals /> : null}
+      {/* Do not render petals on training screens (board taps must stay clean). */}
+      {enabled && !isTraining ? <SakuraPetals /> : null}
       <div className={contentClass}>
         <main className="flex-1 w-full min-h-0 flex flex-col">{children}</main>
       </div>
