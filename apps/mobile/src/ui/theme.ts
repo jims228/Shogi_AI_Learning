@@ -1,7 +1,7 @@
 export const theme = {
   colors: {
     // Sakura / "almost white" background
-    bg: "#fff7fb",
+    bg: "#ffffff",
     surface: "#ffffff",
     // very subtle tint for sections / icon bubbles
     surfaceTint: "#fff0f6",

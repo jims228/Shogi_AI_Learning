@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -7,7 +7,7 @@ import { useProgress } from "../state/progress";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import { Card, PrimaryButton, Screen } from "../ui/components";
 import { theme } from "../ui/theme";
-import { SakuraTapBurst, type SakuraTapBurstHandle } from "../ui/effects/SakuraTapBurst";
+import { useSakuraBurst } from "../ui/effects/SakuraBurstProvider";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoadmapHome">;
 
@@ -25,7 +25,7 @@ export function RoadmapHomeScreen({ navigation }: Props) {
   const { progress, isLoaded } = useProgress();
   const items = useMemo(() => getFlatRoadmapItems(), []);
   const completedSet = useMemo(() => new Set(progress.completedLessonIds), [progress.completedLessonIds]);
-  const burstRef = useRef<SakuraTapBurstHandle>(null);
+  const sakura = useSakuraBurst();
 
   const continueLessonId = useMemo(() => {
     const last = progress.lastPlayedLessonId;
@@ -74,7 +74,7 @@ export function RoadmapHomeScreen({ navigation }: Props) {
             disabled={item.locked}
             onPressIn={(e) => {
               if (item.locked) return;
-              burstRef.current?.spawn(e.nativeEvent.pageX, e.nativeEvent.pageY);
+              sakura.spawn(e.nativeEvent.pageX, e.nativeEvent.pageY);
             }}
             onPress={() => navigation.navigate("LessonLaunch", { lessonId: item.lessonId })}
             hitSlop={10}
@@ -106,16 +106,23 @@ export function RoadmapHomeScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <SakuraTapBurst ref={burstRef} />
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.h1}>ロードマップ</Text>
-          <Text style={styles.subtle}>今日の学習を1つだけ進めよう</Text>
+      {/* Roadmap-only: burst on any tap in this screen (bubble or blank space). */}
+      <View
+        style={{ flex: 1 }}
+        onTouchStart={(e) => {
+          // This does not run on other screens (WebView/board).
+          sakura.spawn(e.nativeEvent.pageX, e.nativeEvent.pageY);
+        }}
+      >
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.h1}>ロードマップ</Text>
+            <Text style={styles.subtle}>今日の学習を1つだけ進めよう</Text>
+          </View>
+          <Pressable onPress={() => navigation.navigate("Settings")} style={styles.linkBtn} hitSlop={10}>
+            <Text style={styles.linkText}>設定</Text>
+          </Pressable>
         </View>
-        <Pressable onPress={() => navigation.navigate("Settings")} style={styles.linkBtn} hitSlop={10}>
-          <Text style={styles.linkText}>設定</Text>
-        </Pressable>
-      </View>
 
       {!isLoaded ? <Text style={[styles.subtle, { marginTop: 6 }]}>読み込み中...</Text> : null}
 
@@ -132,15 +139,16 @@ export function RoadmapHomeScreen({ navigation }: Props) {
         </Card>
       ) : null}
 
-      <View style={styles.roadmapWrap}>
-        <View pointerEvents="none" style={styles.pathLine} />
-        <FlatList
-          data={items}
-          keyExtractor={(l) => l.lessonId}
-          contentContainerStyle={{ paddingTop: theme.spacing.lg, paddingBottom: 72 }}
-          renderItem={renderItem}
-          ItemSeparatorComponent={() => <View style={{ height: 22 }} />}
-        />
+        <View style={styles.roadmapWrap}>
+          <View pointerEvents="none" style={styles.pathLine} />
+          <FlatList
+            data={items}
+            keyExtractor={(l) => l.lessonId}
+            contentContainerStyle={{ paddingTop: theme.spacing.lg, paddingBottom: 72 }}
+            renderItem={renderItem}
+            ItemSeparatorComponent={() => <View style={{ height: 22 }} />}
+          />
+        </View>
       </View>
     </Screen>
   );

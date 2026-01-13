@@ -47,8 +47,9 @@ export const SakuraTapBurst = forwardRef<SakuraTapBurstHandle, {}>(function Saku
       id: `${now}-${i}-${Math.floor(Math.random() * 1e6)}`,
       x: pageX,
       y: pageY,
-      dx: rand(-44, 44),
-      dy: rand(-120, -70),
+      dx: rand(-56, 56),
+      // drift downward / outward (petals "fall" rather than shoot upward)
+      dy: rand(70, 140),
       rot: rand(-30, 30),
       size: rand(10, 16),
       delayMs: rand(0, 90),
