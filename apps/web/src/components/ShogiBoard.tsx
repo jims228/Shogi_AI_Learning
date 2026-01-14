@@ -45,11 +45,11 @@ export interface ShogiBoardProps {
   handsPlacement?: HandsPlacement;
 }
 
-const CELL_SIZE = 50;
-const PIECE_SIZE = 49;
+const BASE_CELL_SIZE = 50;
+const BASE_PIECE_SIZE = 49;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
-const HAND_CELL_SIZE = 40;
-const HAND_PIECE_SIZE = 39;
+const BASE_HAND_CELL_SIZE = 40;
+const BASE_HAND_PIECE_SIZE = 39;
 
 const HOSHI_POINTS = [
   { file: 2, rank: 2 }, { file: 5, rank: 2 }, { file: 8, rank: 2 },
@@ -70,7 +70,7 @@ const FILE_LABELS_SENTE = ["9", "8", "7", "6", "5", "4", "3", "2", "1"];
 const FILE_LABELS_GOTE = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const RANK_LABELS_SENTE = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const RANK_LABELS_GOTE = ["九", "八", "七", "六", "五", "四", "三", "二", "一"];
-const LABEL_GAP = 26;
+const BASE_LABEL_GAP = 26;
 
 const TOUCH_DOUBLE_TAP_MS = 320;
 
@@ -99,10 +99,27 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   handsPlacement = "default",
 }) => {
-  const boardSize = CELL_SIZE * 9;
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
   const touchTapRef = useRef<{ square: Square; timestamp: number } | null>(null);
+
+  // Mobile sizing: scale via CSS variable only (no `zoom` on wrappers).
+  const [uiScale, setUiScale] = useState(1);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const v = window.getComputedStyle(el).getPropertyValue("--piece-scale");
+    const n = parseFloat(v);
+    if (!Number.isFinite(n) || n <= 0) return;
+    setUiScale(n);
+  }, []);
+
+  const CELL_SIZE = Math.round(BASE_CELL_SIZE * uiScale);
+  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale);
+  const HAND_CELL_SIZE = Math.round(BASE_HAND_CELL_SIZE * uiScale);
+  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale);
+  const LABEL_GAP = Math.round(BASE_LABEL_GAP * uiScale);
+  const boardSize = CELL_SIZE * 9;
 
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [internalSelectedHand, setInternalSelectedHand] = useState<SelectedHand>(null);
@@ -398,7 +415,12 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
       />
 
         {/* 9x9 マス領域のコンテナ（明示的に幅高を持たせる） */}
-        <div ref={containerRef} className="relative overflow-visible" style={{ width: boardSize, height: boardSize }}>
+        <div
+          ref={containerRef}
+          data-shogi-board-root="1"
+          className="relative overflow-visible"
+          style={{ width: boardSize, height: boardSize }}
+        >
           <BoardHintsOverlay
             hintSquares={hintSquares ?? []}
             hintArrows={hintArrows ?? []}
@@ -407,17 +429,6 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             boardPxSize={boardSize}
             flipped={flipped}
           />
-          {(() => {
-            // === DEBUG: boardElement size をログ ===
-            if (typeof window !== "undefined") {
-              console.log("[DEBUG-ShogiBoard] boardElement size:", {
-                boardSize,
-                CELL_SIZE,
-                placedPieces: placedPieces.length,
-              });
-            }
-            return null;
-          })()}
           <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-0">
           {[...Array(10)].map((_, i) => (
             <line
@@ -491,9 +502,17 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           <div className="absolute inset-0 z-10 pointer-events-none">
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
+            const isMovingPiece =
+              Boolean(selectedSquare) && selectedSquare!.x === piece.x && selectedSquare!.y === piece.y && canEdit;
+            const stableKey = `sq:${piece.x}:${piece.y}:${piece.piece}`;
             return (
-              <div key={`${idx}-${piece.x}-${piece.y}`} className="contents">
+              <div
+                key={stableKey}
+                className="contents"
+                style={isMovingPiece ? { opacity: 0.18 } : undefined}
+              >
                 <PieceSprite
+                  dataShogiPiece="1"
                   piece={piece.piece}
                   x={display.x}
                   y={display.y}
@@ -533,9 +552,35 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             onDoubleClick={handleBoardDoubleClick}
           />
 
-          {pendingMove && (
-            <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl animate-in fade-in duration-200">
-              <div className="bg-white p-4 rounded-xl shadow-2xl flex gap-4 border border-slate-200 transform scale-110">
+          {pendingMove && (() => {
+            // Show promotion choices near the target square (instead of top-left/center overlay).
+            // Position is computed in the same coordinate space used for drawing pieces to avoid drift,
+            // and it scales correctly with `--piece-scale` because CELL_SIZE is already scaled.
+            const disp = getDisplayPos(pendingMove.targetSquare.x, pendingMove.targetSquare.y);
+            const pieceOwner = getPieceOwner(pendingMove.piece);
+            const viewerSide = viewerOrientation;
+
+            const popW = Math.max(196, Math.round(CELL_SIZE * 3.8));
+            const popH = 132;
+            const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+            const rawLeft = disp.x * CELL_SIZE + CELL_SIZE * 0.55;
+            const rawTop = disp.y * CELL_SIZE - CELL_SIZE * 0.15;
+            const left = clamp(rawLeft, 8, boardSize - popW - 8);
+            const top = clamp(rawTop, 8, boardSize - popH - 8);
+
+            const spriteSize = Math.max(44, Math.round(CELL_SIZE * 0.9));
+
+            return (
+              <div className="absolute inset-0 z-[200] pointer-events-auto">
+                {/* invisible blocker to prevent accidental board taps while choosing */}
+                <div className="absolute inset-0 bg-transparent" />
+
+                <div
+                  className="absolute bg-white rounded-2xl shadow-2xl border border-slate-200 p-2"
+                  style={{ left, top, width: popW }}
+                >
+                  <div className="flex gap-3">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -546,21 +591,19 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                       false
                     );
                   }}
-                  className="flex flex-col items-center gap-2 p-3 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 min-w-[80px]"
+                      className="flex-1 flex flex-col items-center justify-center gap-2 p-2 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors border border-amber-300 min-h-[52px]"
                 >
-                  <div className="scale-125">
                     <PieceSprite
                       piece={promotePiece(pendingMove.piece) as PieceCode}
                       x={0}
                       y={0}
-                      size={40}
-                      cellSize={40}
+                        size={spriteSize}
+                        cellSize={spriteSize}
                       orientationMode="sprite"
-                      owner="sente"
-                      viewerSide="sente"
+                        owner={pieceOwner}
+                        viewerSide={viewerSide}
                     />
-                  </div>
-                  <span className="font-bold text-amber-900 text-sm">成る</span>
+                      <span className="font-extrabold text-amber-900 text-lg">成</span>
                 </button>
 
                 <button
@@ -568,25 +611,25 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                     e.stopPropagation();
                     executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
                   }}
-                  className="flex flex-col items-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300 min-w-[80px]"
+                      className="flex-1 flex flex-col items-center justify-center gap-2 p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-300 min-h-[52px]"
                 >
-                  <div className="scale-125">
                     <PieceSprite
                       piece={pendingMove.piece}
                       x={0}
                       y={0}
-                      size={40}
-                      cellSize={40}
+                        size={spriteSize}
+                        cellSize={spriteSize}
                       orientationMode="sprite"
-                      owner="sente"
-                      viewerSide="sente"
+                        owner={pieceOwner}
+                        viewerSide={viewerSide}
                     />
+                      <span className="font-extrabold text-slate-700 text-lg">不成</span>
+                    </button>
                   </div>
-                  <span className="font-bold text-slate-700 text-sm">成らず</span>
-                </button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
     </div>
   );
@@ -599,6 +642,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     <div
       className="grid select-none"
       style={{
+        // NOTE: We intentionally do NOT apply `--piece-scale` here.
+        // Scaling the entire board container can make the whole lesson feel "zoomed".
+        // Instead, scale at the specific usage site (training mobile shells) if needed.
         gridTemplateColumns: `repeat(9, ${CELL_SIZE}px) ${labelGap}px`,
         gridTemplateRows: `${labelGap}px repeat(9, ${CELL_SIZE}px)`,
         gap: 0,
@@ -657,6 +703,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             hands={hands[topHandSide]}
             orientationMode={orientationMode}
             viewerSide={viewerOrientation}
+            cellSize={HAND_CELL_SIZE}
+            pieceSize={HAND_PIECE_SIZE}
             canEdit={canEdit}
             selectedHand={selectedHand}
             onHandClick={handleHandClick}
@@ -677,6 +725,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             hands={hands[bottomHandSide]}
             orientationMode={orientationMode}
             viewerSide={viewerOrientation}
+            cellSize={HAND_CELL_SIZE}
+            pieceSize={HAND_PIECE_SIZE}
             canEdit={canEdit}
             selectedHand={selectedHand}
             onHandClick={handleHandClick}
@@ -695,6 +745,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         hands={hands[topHandSide]}
         orientationMode={orientationMode}
         viewerSide={viewerOrientation}
+        cellSize={HAND_CELL_SIZE}
+        pieceSize={HAND_PIECE_SIZE}
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
@@ -705,6 +757,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         hands={hands[bottomHandSide]}
         orientationMode={orientationMode}
         viewerSide={viewerOrientation}
+        cellSize={HAND_CELL_SIZE}
+        pieceSize={HAND_PIECE_SIZE}
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
@@ -721,6 +775,8 @@ type HandAreaProps = {
   hands?: Partial<Record<PieceBase, number>>;
   orientationMode: OrientationMode;
   viewerSide: "sente" | "gote";
+  cellSize: number;
+  pieceSize: number;
   canEdit?: boolean;
   selectedHand?: SelectedHand;
   onHandClick?: (base: PieceBase, side: "b" | "w") => void;
@@ -734,6 +790,8 @@ const HandArea: React.FC<HandAreaProps> = ({
   hands,
   orientationMode,
   viewerSide,
+  cellSize,
+  pieceSize,
   canEdit,
   selectedHand,
   onHandClick,
@@ -755,8 +813,8 @@ const HandArea: React.FC<HandAreaProps> = ({
         className={`relative transition-all rounded-md ${canEdit && isSelected ? "bg-amber-300 shadow-md scale-110" : ""}`}
         data-testid={base === "P" ? `hand-piece-${owner}-P` : undefined}
         style={{
-          width: HAND_CELL_SIZE,
-          height: HAND_CELL_SIZE,
+          width: cellSize,
+          height: cellSize,
           cursor: canEdit ? "pointer" : "default",
         }}
         onClick={() => canEdit && onHandClick?.(base, side)}
@@ -765,8 +823,8 @@ const HandArea: React.FC<HandAreaProps> = ({
           piece={piece}
           x={0}
           y={0}
-          size={HAND_PIECE_SIZE}
-          cellSize={HAND_CELL_SIZE}
+          size={pieceSize}
+          cellSize={cellSize}
           orientationMode={orientationMode}
           owner={owner}
           viewerSide={viewerSide}

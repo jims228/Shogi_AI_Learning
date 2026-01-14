@@ -11,12 +11,15 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { createEmptyBoard } from "@/lib/board";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -29,7 +32,7 @@ const normalizeUsiPosition = (s: string) => {
 
 export default function PawnTrainingPage() {
   const router = useRouter();
-  const isMobileWebView = React.useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   // Important: always start with a valid 9x9 board to avoid WebView/hydration crashes.
@@ -132,6 +135,7 @@ export default function PawnTrainingPage() {
       <div className="w-full h-full aspect-square -translate-y-2">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+            <div className="relative w-full h-full">
             <ShogiBoard
               board={isBoardReady ? board : createEmptyBoard()}
               hands={hands}
@@ -143,6 +147,7 @@ export default function PawnTrainingPage() {
               handsPlacement="corners"
               showCoordinates={false}
             />
+            </div>
           </WoodBoardFrame>
         </AutoScaleToFit>
       </div>
@@ -221,24 +226,11 @@ export default function PawnTrainingPage() {
           />
         }
         explanation={
-          <div className="text-[23px] leading-snug font-semibold text-amber-50">
-            <div className="text-[16px] font-extrabold tracking-wide text-amber-200/80">PAWN</div>
-            <div className="mt-1 whitespace-pre-wrap">{currentLesson.description}</div>
-            {isCorrect ? (
-              <div className="mt-2 rounded-xl bg-emerald-600/25 border border-emerald-200/20 px-3 py-2 text-[17px] font-extrabold">
-                正解！次へ進もう。
-              </div>
-            ) : null}
-          </div>
+          <MobileCoachText tag="PAWN" text={currentLesson.description} isCorrect={isCorrect} correctText="正解！次へ進もう。" />
         }
         actions={
           isCorrect ? (
-            <button
-              onClick={handleNext}
-              className="w-full py-6 min-h-[72px] rounded-2xl bg-[#58cc02] text-white font-extrabold text-xl shadow-[0_10px_20px_rgba(0,0,0,0.22)] border-b-4 border-[#3da700] active:translate-y-[1px] active:border-b-2"
-            >
-              次へ
-            </button>
+            <MobilePrimaryCTA onClick={handleNext} />
           ) : null
         }
         board={boardElementMobile}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Lightbulb } from "lucide-react";
 
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
@@ -10,11 +10,15 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 import { UkiCaptureShogiGame, type UkiCaptureResult } from "@/components/training/minigames/UkiCaptureShogiGame";
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 export default function UkiCapturePage() {
   const isDesktop = useMediaQuery("(min-width: 820px)");
-  const isMobileWebView = useMemo(() => getMobileParamsFromUrl().mobile, []);
+  const isMobileWebView = useMobileQueryParam();
 
   const [correctSignal, setCorrectSignal] = useState(0);
   const [secLeft, setSecLeft] = useState(60);
@@ -43,6 +47,27 @@ export default function UkiCapturePage() {
               onTick={onTick}
               onScore={onScore}
             />
+          </WoodBoardFrame>
+        </AutoScaleToFit>
+      </div>
+    </div>
+  );
+
+  const boardElementMobile = (
+    <div className="w-full h-full min-h-0 flex items-center justify-center">
+      <div className="w-full h-full aspect-square -translate-y-2">
+        <AutoScaleToFit minScale={0.42} maxScale={2.4} className="w-full h-full">
+          <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+            <div className="relative w-full h-full">
+              <UkiCaptureShogiGame
+                durationSec={60}
+                targetCount={4}
+                playerPiece="R"
+                playerStart={{ x: 4, y: 7 }}
+                onTick={onTick}
+                onScore={onScore}
+              />
+            </div>
           </WoodBoardFrame>
         </AutoScaleToFit>
       </div>
@@ -133,6 +158,46 @@ export default function UkiCapturePage() {
         </p>
       </div>
     ) : null;
+
+  if (isMobileWebView) {
+    // NOTE: This is a minigame (not LessonRunner). We still unify the mobile layout (coach + board + CTA),
+    // but completion is handled by `postMobileLessonCompleteOnce()` only; the mobile app navigates back.
+    const coachText =
+      "操作駒は飛車。守られていない「浮き駒」を素早く取ろう。\n相手の利きに入ると駒損（減点）です。";
+
+    return (
+      <MobileLessonShell
+        mascot={
+          <ManRive
+            correctSignal={correctSignal}
+            className="bg-transparent [&>canvas]:bg-transparent"
+            style={{ width: 210, height: 210 }}
+          />
+        }
+        explanation={
+          <div className="flex flex-col gap-3">
+            <MobileCoachText tag="UKI CAPTURE" text={coachText} isCorrect={false} />
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl border bg-white px-3 py-2">
+                <div className="text-[11px] font-extrabold text-slate-500">TIME</div>
+                <div className="text-[16px] font-extrabold text-slate-900">{secLeft}s</div>
+              </div>
+              <div className="rounded-xl border bg-white px-3 py-2">
+                <div className="text-[11px] font-extrabold text-slate-500">NET</div>
+                <div className="text-[16px] font-extrabold text-slate-900">{score.net}</div>
+              </div>
+            </div>
+          </div>
+        }
+        actions={
+          secLeft <= 0 ? (
+            <MobilePrimaryCTA label="完了" onClick={() => postMobileLessonCompleteOnce()} />
+          ) : null
+        }
+        board={boardElementMobile}
+      />
+    );
+  }
 
   return (
     <LessonScaffold

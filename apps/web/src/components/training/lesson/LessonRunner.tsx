@@ -12,11 +12,14 @@ import { ShogiBoard } from "@/components/ShogiBoard";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { showToast } from "@/components/ui/toast";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
 import { buildPositionFromUsi } from "@/lib/board";
-import { getMobileParamsFromUrl, postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -37,6 +40,8 @@ type Props = {
   desktopMinWidthPx?: number;
   /** 完了時の遷移先。未指定なら backHref へ */
   onFinishHref?: string;
+  /** mobile=1 from server searchParams (avoid window-based branching to prevent hydration mismatch) */
+  mobile?: boolean;
 };
 
 type PracticeRef = { stepIndex: number; problemIndex: number };
@@ -49,11 +54,12 @@ export function LessonRunner({
   headerRight,
   desktopMinWidthPx = 820,
   onFinishHref,
+  mobile,
 }: Props) {
   const router = useRouter();
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
-  const mobileParams = useMemo(() => getMobileParamsFromUrl(), []);
-  const isMobileWebView = mobileParams.mobile;
+  const mobileFromUrl = useMobileQueryParam();
+  const isMobileWebView = mobile ?? mobileFromUrl;
 
   const [stepIndex, setStepIndex] = useState(0);
   const [guidedSubIndex, setGuidedSubIndex] = useState(0);
@@ -229,6 +235,13 @@ export function LessonRunner({
   const goNext = useCallback(() => {
     if (!step) return;
 
+    const finishLesson = () => {
+      // Guarantee: mobile completion should fire regardless of whether a "review" step exists.
+      // postMobileLessonCompleteOnce is single-shot and no-ops outside mobile WebView.
+      postMobileLessonCompleteOnce();
+      router.push(onFinishHref ?? backHref);
+    };
+
     if (step.type === "guided") {
       const lastSub = step.substeps.length - 1;
       if (guidedSubIndex < lastSub) {
@@ -236,6 +249,10 @@ export function LessonRunner({
         return;
       }
       // guided step finished
+      if (stepIndex >= steps.length - 1) {
+        finishLesson();
+        return;
+      }
       setGuidedSubIndex(0);
       setStepIndex((p) => Math.min(p + 1, steps.length - 1));
       return;
@@ -245,6 +262,10 @@ export function LessonRunner({
       const last = step.problems.length - 1;
       if (practiceIndex < last) {
         setPracticeIndex((p) => p + 1);
+        return;
+      }
+      if (stepIndex >= steps.length - 1) {
+        finishLesson();
         return;
       }
       setPracticeIndex(0);
@@ -259,8 +280,7 @@ export function LessonRunner({
         return;
       }
       // lesson finished
-      postMobileLessonCompleteOnce();
-      router.push(onFinishHref ?? backHref);
+      finishLesson();
       return;
     }
   }, [backHref, guidedSubIndex, onFinishHref, practiceIndex, reviewIndex, reviewQueue.length, router, step, steps.length]);
@@ -446,15 +466,7 @@ export function LessonRunner({
     );
 
     const explanation = (
-      <div className="text-[23px] leading-snug font-semibold text-amber-50">
-        <div className="text-[16px] font-extrabold tracking-wide text-amber-200/80">{stepLabel}</div>
-        <div className="mt-1 whitespace-pre-wrap">{currentPrompt}</div>
-        {isCorrect ? (
-          <div className="mt-2 rounded-xl bg-emerald-600/25 border border-emerald-200/20 px-3 py-2 text-[17px] font-extrabold">
-            正解！次へ進もう。
-          </div>
-        ) : null}
-      </div>
+      <MobileCoachText tag={stepLabel} text={currentPrompt} isCorrect={isCorrect} correctText="正解！次へ進もう。" />
     );
 
     const actions = (
@@ -463,7 +475,7 @@ export function LessonRunner({
           {canHint ? (
             <button
               onClick={() => setHintEnabled((v) => !v)}
-              className="px-4 py-2 rounded-full bg-white/15 text-amber-50 font-extrabold text-xs border border-white/20 active:scale-[0.99]"
+              className="px-4 py-2 rounded-full bg-rose-50 text-rose-700 font-extrabold text-xs border border-rose-200 active:scale-[0.99]"
             >
               {hintEnabled ? "ヒントOFF" : "ヒント"}
             </button>
@@ -472,7 +484,7 @@ export function LessonRunner({
           {canReset ? (
             <button
               onClick={resetCurrentPosition}
-              className="px-4 py-2 rounded-full bg-white/15 text-amber-50 font-extrabold text-xs border border-white/20 active:scale-[0.99]"
+              className="px-4 py-2 rounded-full bg-slate-50 text-slate-700 font-extrabold text-xs border border-slate-200 active:scale-[0.99]"
             >
               戻す
             </button>
@@ -480,12 +492,7 @@ export function LessonRunner({
         </div>
 
         {canShowNextButton ? (
-          <button
-            onClick={goNext}
-            className="w-full py-6 min-h-[72px] rounded-2xl bg-[#58cc02] text-white font-extrabold text-xl shadow-[0_10px_20px_rgba(0,0,0,0.22)] border-b-4 border-[#3da700] active:translate-y-[1px] active:border-b-2"
-          >
-            次へ
-          </button>
+          <MobilePrimaryCTA onClick={goNext} />
         ) : null}
       </div>
     );

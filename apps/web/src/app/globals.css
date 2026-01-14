@@ -43,6 +43,52 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Mobile (WebView) board/piece scaling hook (defaults to desktop). */
+  --piece-scale: 1;
+}
+
+/* Mobile (WebView) scaling: driven by server-rendered data-mobile="1" on the lesson root. */
+[data-mobile="1"] {
+  --piece-scale: 1.35;
+  background-color: #ffffff;
+}
+
+/* Mobile WebView lesson shell: force readable surface/text. */
+[data-mobile="1"][data-mobile-lesson-shell] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Belt-and-suspenders: prevent Android WebView from text-autoscaling descendants. */
+[data-mobile="1"][data-mobile-lesson-shell] * {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Mobile WebView: remove tap highlight / selection only inside shogi board. */
+[data-mobile="1"] [data-shogi-board-root="1"],
+[data-mobile="1"] [data-shogi-board-root="1"] * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Keep accessibility intact elsewhere; only strip focus ring inside the board on mobile. */
+[data-mobile="1"] [data-shogi-board-root="1"] :focus {
+  outline: none;
+}
+
+/* Mobile WebView flicker hardening for pieces (GPU hint). */
+[data-mobile="1"] [data-shogi-board-root="1"] [data-shogi-piece="1"] {
+  backface-visibility: hidden;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .sakura-theme {

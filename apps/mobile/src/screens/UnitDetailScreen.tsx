@@ -1,10 +1,12 @@
-import React, { memo, useCallback, useMemo } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo } from "react";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { ROADMAP, type RoadmapLesson } from "../data/roadmap";
+import { getRoadmapLessons, type RoadmapLesson } from "../data/roadmap";
 import { useProgress } from "../state/progress";
 import type { RootStackParamList } from "../navigation/RootNavigator";
+import { Card, ListRow, ProgressPill, Screen } from "../ui/components";
+import { theme } from "../ui/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "UnitDetail">;
 
@@ -22,8 +24,8 @@ export function UnitDetailScreen({ navigation, route }: Props) {
   const { progress } = useProgress();
   const completed = useMemo(() => new Set(progress.completedLessonIds), [progress.completedLessonIds]);
 
-  const allLessonsSorted = useMemo(() => ROADMAP.lessons.slice().sort((a, b) => a.index - b.index), []);
-  const allLessonIds = useMemo(() => new Set(ROADMAP.lessons.map((l) => l.id)), []);
+  const allLessonsSorted = useMemo(() => getRoadmapLessons().slice().sort((a, b) => a.index - b.index), []);
+  const allLessonIds = useMemo(() => new Set(getRoadmapLessons().map((l) => l.id)), []);
   const UNLOCK_UNTIL_ID = useMemo(() => findUnlockUntilLessonId(allLessonsSorted), [allLessonsSorted]);
   const unlockUntilOrder = useMemo(() => {
     const t = allLessonsSorted.find((l) => l.id === UNLOCK_UNTIL_ID);
@@ -31,12 +33,18 @@ export function UnitDetailScreen({ navigation, route }: Props) {
   }, [UNLOCK_UNTIL_ID, allLessonsSorted]);
 
   const lessons = useMemo(() => {
-    return ROADMAP.lessons
+    return getRoadmapLessons()
       .filter((l) => l.category === category)
       .slice()
       // Preserve original ordering (web LESSONS array order)
       .sort((a, b) => a.index - b.index);
   }, [category]);
+
+  const unitProgress = useMemo(() => {
+    const total = lessons.length;
+    const done = lessons.reduce((acc, l) => acc + (completed.has(l.id) ? 1 : 0), 0);
+    return { done, total };
+  }, [completed, lessons]);
 
   const isUnlocked = useCallback(
     (lesson: RoadmapLesson, idx: number) => {
@@ -61,131 +69,50 @@ export function UnitDetailScreen({ navigation, route }: Props) {
       const done = completed.has(item.id);
       const unlocked = isUnlocked(item, index);
       const disabled = !unlocked || !item.href;
+      const leftIcon = !unlocked ? "🔒" : done ? "✓" : disabled ? "⏳" : "▶";
+      const rightText = done ? "完了" : !unlocked ? "ロック" : disabled ? "準備中" : "";
       return (
-        <LessonNode
-          title={item.title}
-          index={index}
-          done={done}
-          locked={!unlocked}
-          disabled={disabled}
-          onPress={() => navigation.navigate("LessonLaunch", { lessonId: item.id })}
-        />
+        <Card style={styles.lessonCard}>
+          <ListRow
+            title={item.title}
+            subtitle={item.description || undefined}
+            leftIcon={leftIcon}
+            rightText={rightText || undefined}
+            disabled={disabled}
+            onPress={() => navigation.navigate("LessonLaunch", { lessonId: item.id })}
+          />
+        </Card>
       );
     },
     [completed, isUnlocked, navigation],
   );
 
   return (
-    <View style={styles.root}>
-      <View style={styles.unitHeaderWrap}>
-        <View style={styles.unitHeaderPill}>
-          <Text style={styles.unitHeaderText} numberOfLines={1}>
+    <Screen>
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.h1} numberOfLines={1}>
             {category}
           </Text>
+          <Text style={styles.subtle}>レッスン一覧</Text>
         </View>
+        <ProgressPill completed={unitProgress.done} total={unitProgress.total} />
       </View>
-
       <FlatList
         data={lessons}
         keyExtractor={(l) => l.id}
-        contentContainerStyle={{ paddingBottom: 56, paddingTop: 12 }}
+        contentContainerStyle={{ paddingBottom: 64, gap: 12 }}
         renderItem={renderItem}
-        // Rough but stable layout (reduces VirtualizedList warnings).
-        getItemLayout={(_, index) => ({ length: 120, offset: 120 * index, index })}
       />
-    </View>
+    </Screen>
   );
 }
 
-const LessonNode = memo(function LessonNode({
-  title,
-  index,
-  done,
-  locked,
-  disabled,
-  onPress,
-}: {
-  title: string;
-  index: number;
-  done: boolean;
-  locked: boolean;
-  disabled: boolean;
-  onPress: () => void;
-}) {
-  const offsets = [0, 18, -14, 22, -18, 10, 0, -10, 16, -6, 12, -20];
-  const sideOffset = offsets[index % offsets.length] ?? 0;
-
-  const fill = locked ? "#e5e7eb" : done ? "#22c55e" : "#58cc02";
-  const ring = locked ? "#cbd5e1" : done ? "#16a34a" : "#15803d";
-  const icon = locked ? "🔒" : done ? "✓" : disabled ? "⏳" : "▶";
-  const ringW = done ? 6 : 3;
-
-  return (
-    <View style={styles.nodeRow}>
-      {/* Path */}
-      <View style={styles.pathLine} />
-
-      <View style={[styles.nodeWrap, { transform: [{ translateX: sideOffset }] }]}>
-        <Pressable
-          disabled={disabled}
-          onPress={onPress}
-          style={({ pressed }) => [
-            styles.nodeButton,
-            { backgroundColor: fill, borderColor: ring, borderWidth: ringW },
-            disabled && { opacity: 0.55 },
-            pressed && !disabled && { opacity: 0.9, transform: [{ scale: 0.98 }] },
-          ]}
-        >
-          <Text style={styles.nodeIcon}>{icon}</Text>
-        </Pressable>
-        <Text style={styles.nodeTitle} numberOfLines={1}>
-          {title}
-        </Text>
-      </View>
-    </View>
-  );
-});
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#fff" },
-
-  unitHeaderWrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
-  unitHeaderPill: {
-    alignSelf: "flex-start",
-    backgroundColor: "#58cc02",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  unitHeaderText: { color: "#ffffff", fontWeight: "900", letterSpacing: 0.2 },
-
-  nodeRow: { alignItems: "center", justifyContent: "center", height: 120 },
-  pathLine: {
-    position: "absolute",
-    left: "50%",
-    top: 0,
-    bottom: 0,
-    width: 6,
-    marginLeft: -3,
-    backgroundColor: "#e5e7eb",
-    borderRadius: 999,
-    opacity: 0.55,
-  },
-  nodeWrap: { alignItems: "center", justifyContent: "center" },
-  nodeButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  nodeIcon: { fontSize: 22, fontWeight: "900", color: "#111827" },
-  nodeTitle: { marginTop: 6, fontSize: 12, fontWeight: "900", color: "#111827", maxWidth: 280 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: theme.spacing.md },
+  h1: { ...theme.typography.h1, color: theme.colors.text },
+  subtle: { marginTop: 6, color: theme.colors.textMuted, fontWeight: "700" },
+  lessonCard: { padding: theme.spacing.md },
 });
 
 

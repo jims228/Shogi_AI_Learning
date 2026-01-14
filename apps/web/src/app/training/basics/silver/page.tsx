@@ -13,6 +13,10 @@ import { SILVER_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
 import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 export default function SilverTrainingPage() {
   const router = useRouter();
@@ -25,6 +29,7 @@ export default function SilverTrainingPage() {
   
   const currentLesson = SILVER_LESSONS[currentStepIndex];
   const isDesktop = useMediaQuery("(min-width: 820px)");
+  const isMobileWebView = useMobileQueryParam();
 
   useEffect(() => {
     if (currentLesson) {
@@ -105,6 +110,30 @@ export default function SilverTrainingPage() {
     </div>
   );
 
+  const boardElementMobile = (
+    <div className="w-full h-full min-h-0 flex items-center justify-center">
+      <div className="w-full h-full aspect-square -translate-y-2">
+        <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
+          <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+            <div className="relative w-full h-full">
+              <ShogiBoard
+                board={board}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation="sente"
+                handsPlacement="corners"
+                showCoordinates={false}
+              />
+            </div>
+          </WoodBoardFrame>
+        </AutoScaleToFit>
+      </div>
+    </div>
+  );
+
   const explanationElement = (
     <div className="bg-white/80 backdrop-blur rounded-2xl shadow border border-black/10 p-4">
       <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
@@ -155,6 +184,30 @@ export default function SilverTrainingPage() {
       />
     </div>
   );
+
+  if (isMobileWebView) {
+    return (
+      <MobileLessonShell
+        mascot={
+          <ManRive
+            correctSignal={correctSignal}
+            className="bg-transparent [&>canvas]:bg-transparent"
+            style={{ width: 210, height: 210 }}
+          />
+        }
+        explanation={
+          <MobileCoachText
+            tag={`STEP ${currentStepIndex + 1}/${SILVER_LESSONS.length}`}
+            text={currentLesson.description}
+            isCorrect={isCorrect}
+            correctText="正解！次へ進もう。"
+          />
+        }
+        actions={isCorrect ? <MobilePrimaryCTA onClick={handleNext} /> : null}
+        board={boardElementMobile}
+      />
+    );
+  }
 
   return (
     <LessonScaffold

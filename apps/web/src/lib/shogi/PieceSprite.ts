@@ -9,6 +9,8 @@ export type Owner = "black" | "white";
 export const PIECE_WIDTH = 60;
 export const PIECE_HEIGHT = 64;
 export const SPRITE_URL = "https://kishin-analytics.heroz.jp/static/img/piece.png";
+const SPRITE_COLS = 14;
+const SPRITE_ROWS = 1;
 
 // スプライト画像内の位置定義 (x, y はインデックス。実際のpxは index * width/height)
 // 仮定: 画像は横に並んでいる、またはグリッド状。
@@ -45,12 +47,14 @@ export const getSpriteStyle = (type: PieceType, promoted: boolean = false): CSSP
   }
 
   const pos = SPRITE_MAP[targetType] || { x: 0, y: 0 };
-  
+  const scale = "var(--piece-scale, 1)";
+
   return {
     backgroundImage: `url(${SPRITE_URL})`,
-    backgroundPosition: `-${pos.x * PIECE_WIDTH}px -${pos.y * PIECE_HEIGHT}px`,
-    width: `${PIECE_WIDTH}px`,
-    height: `${PIECE_HEIGHT}px`,
+    backgroundPosition: `calc(-${pos.x * PIECE_WIDTH}px * ${scale}) calc(-${pos.y * PIECE_HEIGHT}px * ${scale})`,
+    backgroundSize: `calc(${SPRITE_COLS * PIECE_WIDTH}px * ${scale}) calc(${SPRITE_ROWS * PIECE_HEIGHT}px * ${scale})`,
+    width: `calc(${PIECE_WIDTH}px * ${scale})`,
+    height: `calc(${PIECE_HEIGHT}px * ${scale})`,
     backgroundRepeat: "no-repeat",
     // 拡大縮小時のぼやけ防止
     imageRendering: "pixelated", 

@@ -12,6 +12,24 @@ export function getMobileParamsFromUrl() {
   }
 }
 
+export function isMobileWebView() {
+  return getMobileParamsFromUrl().mobile;
+}
+
+export function syncMobileRootDataAttributes() {
+  try {
+    if (typeof document === "undefined") return;
+    const { mobile, noai } = getMobileParamsFromUrl();
+    const el = document.documentElement;
+    if (mobile) el.dataset.mobile = "1";
+    else delete (el.dataset as any).mobile;
+    if (noai) el.dataset.noai = "1";
+    else delete (el.dataset as any).noai;
+  } catch {
+    // ignore
+  }
+}
+
 export function postMobileLessonCompleteOnce(lessonId?: string) {
   try {
     if (typeof window === "undefined") return;

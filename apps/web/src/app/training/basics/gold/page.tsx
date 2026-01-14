@@ -13,6 +13,10 @@ import { GOLD_LESSONS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board"; 
 import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
+import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
+import { MobileCoachText } from "@/components/mobile/MobileCoachText";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 export default function GoldTrainingPage() {
   const router = useRouter();
@@ -25,6 +29,7 @@ export default function GoldTrainingPage() {
   
   const currentLesson = GOLD_LESSONS[currentStepIndex];
   const isDesktop = useMediaQuery("(min-width: 820px)");
+  const isMobileWebView = useMobileQueryParam();
 
   // ステップ変更時の初期化処理
   useEffect(() => {
@@ -122,6 +127,30 @@ export default function GoldTrainingPage() {
     </div>
   );
 
+  const boardElementMobile = (
+    <div className="w-full h-full min-h-0 flex items-center justify-center">
+      <div className="w-full h-full aspect-square -translate-y-2">
+        <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
+          <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+            <div className="relative w-full h-full">
+              <ShogiBoard
+                board={board}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation="sente"
+                handsPlacement="corners"
+                showCoordinates={false}
+              />
+            </div>
+          </WoodBoardFrame>
+        </AutoScaleToFit>
+      </div>
+    </div>
+  );
+
   const explanationElement = (
     <div className="h-full min-h-0 overflow-y-auto flex flex-col gap-3">
       <div className="flex items-center gap-2 text-sm font-bold text-slate-400">
@@ -179,6 +208,30 @@ export default function GoldTrainingPage() {
       <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
     </div>
   ) : null;
+
+  if (isMobileWebView) {
+    return (
+      <MobileLessonShell
+        mascot={
+          <ManRive
+            correctSignal={correctSignal}
+            className="bg-transparent [&>canvas]:bg-transparent"
+            style={{ width: 210, height: 210 }}
+          />
+        }
+        explanation={
+          <MobileCoachText
+            tag={`STEP ${currentStepIndex + 1}/${GOLD_LESSONS.length}`}
+            text={currentLesson.description}
+            isCorrect={isCorrect}
+            correctText="正解！次へ進もう。"
+          />
+        }
+        actions={isCorrect ? <MobilePrimaryCTA onClick={handleNext} /> : null}
+        board={boardElementMobile}
+      />
+    );
+  }
 
   return (
     <LessonScaffold

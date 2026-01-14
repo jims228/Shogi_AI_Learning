@@ -36,6 +36,10 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
               completedLessonIds: ids,
               lastPlayedLessonId: typeof parsed.lastPlayedLessonId === "string" ? parsed.lastPlayedLessonId : undefined,
             });
+            if (typeof __DEV__ !== "undefined" && __DEV__) {
+              // eslint-disable-next-line no-console
+              console.log("[progress] loaded", { completed: ids.length, lastPlayedLessonId: parsed.lastPlayedLessonId });
+            }
           }
         }
       } catch {
@@ -63,6 +67,10 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         if (prev.completedLessonIds.includes(lessonId)) return prev;
         const next = { ...prev, completedLessonIds: [...prev.completedLessonIds, lessonId] };
         void persist(next);
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          // eslint-disable-next-line no-console
+          console.log("[progress] markCompleted", { lessonId, completed: next.completedLessonIds.length });
+        }
         return next;
       });
     },
@@ -74,6 +82,10 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       setProgress((prev) => {
         const next = { ...prev, lastPlayedLessonId: lessonId };
         void persist(next);
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          // eslint-disable-next-line no-console
+          console.log("[progress] setLastPlayed", { lessonId });
+        }
         return next;
       });
     },

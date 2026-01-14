@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import { LessonRunner } from "@/components/training/lesson/LessonRunner";
 import { PAWN_TATAKI_L1 } from "@/lessons/pawn/tataki";
