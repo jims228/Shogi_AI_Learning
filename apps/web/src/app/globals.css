@@ -50,8 +50,13 @@
 
 /* Mobile (WebView) scaling: driven by server-rendered data-mobile="1" on the lesson root. */
 [data-mobile="1"] {
-  --piece-scale: 1.35;
+  --piece-scale: 1;
   background-color: #ffffff;
+}
+
+/* Scale board/pieces only inside the board root (avoid "global zoom feel"). */
+[data-mobile="1"] [data-shogi-board-root="1"] {
+  --piece-scale: 1.35;
 }
 
 /* Mobile WebView lesson shell: force readable surface/text. */

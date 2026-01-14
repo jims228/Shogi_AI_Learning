@@ -220,6 +220,7 @@ export const Board: React.FC<BoardProps> = ({ initialPieces = [], onMove }) => {
   return (
     <div 
       ref={boardRef}
+      data-shogi-board-root="1"
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(${COLS}, calc(${PIECE_WIDTH}px * ${scale}))`,
