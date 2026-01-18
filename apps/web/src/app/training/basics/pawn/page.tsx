@@ -133,7 +133,7 @@ export default function PawnTrainingPage() {
   );
 
   const boardElementMobile = (
-    <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ transform: "translateY(-40px)" }}>
+    <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ transform: "translateY(-45px)" }}>
       <div className="w-full h-full aspect-square">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
@@ -200,7 +200,7 @@ export default function PawnTrainingPage() {
 
   // ===== おじいちゃん（右下）=====
   const mascotElement = (
-    <div style={{ transform: "translateY(160px)" }}>
+    <div style={{ transform: "translate(-50px, 160px)" }}>
       <ManRive
         correctSignal={correctSignal}
         className="bg-transparent [&>canvas]:bg-transparent"
@@ -223,7 +223,7 @@ export default function PawnTrainingPage() {
     return (
       <MobileLessonShell
         mascot={
-          <div style={{ transform: "translateY(75px)" }}>
+          <div style={{ transform: "translate(-50px, 75px)" }}>
             <ManRive
               correctSignal={correctSignal}
               className="bg-transparent [&>canvas]:bg-transparent"
