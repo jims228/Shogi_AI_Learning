@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-/**
- * Avoid hydration mismatch:
- * - We DO NOT read `window.location` during render.
- * - We resolve `mobile=1` after mount and return the boolean.
- */
-export function useMobileQueryParam(): boolean | null {
-  const [mobile, setMobile] = useState<boolean | null>(null);
+export function useMobileQueryParam(): boolean {
+  const [mobile, setMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("mobile") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     try {
