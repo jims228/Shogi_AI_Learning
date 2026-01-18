@@ -20,10 +20,6 @@ export default function PawnBasicsError({
     }
   }, [error, isMobile]);
 
-  if (isMobile === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
-
   if (isMobile) {
     return (
       <div className="h-[100dvh] overflow-hidden flex flex-col items-center justify-center px-5 text-center text-amber-50"

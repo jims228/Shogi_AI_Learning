@@ -56,6 +56,7 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
     <div
       data-mobile-lesson-shell
       data-mobile="1"
+      suppressHydrationWarning
       className="fixed inset-0 h-[100dvh] overflow-hidden flex flex-col bg-white text-slate-900"
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 4px)" }}
     >

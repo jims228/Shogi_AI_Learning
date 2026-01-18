@@ -20,9 +20,6 @@ import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 export default function Tsume1Lesson001Page() {
   const router = useRouter();
   const isMobileWebView = useMobileQueryParam();
-  if (isMobileWebView === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
   
   // 状態管理
   const [currentStepIndex, setCurrentStepIndex] = useState(0);

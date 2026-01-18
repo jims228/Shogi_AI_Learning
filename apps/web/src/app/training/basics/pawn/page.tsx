@@ -104,7 +104,7 @@ export default function PawnTrainingPage() {
 
   // ===== 盤面（左側に常に出す）=====
   const boardElement = (
-    <div className="w-full h-full flex items-center justify-center">
+    <div className="w-full h-full flex items-center justify-center -translate-y-4">
       <div
         className="w-full"
         style={{
@@ -114,7 +114,11 @@ export default function PawnTrainingPage() {
         }}
       >
         <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
-          <WoodBoardFrame paddingClassName="p-3" className="inline-block">
+          <WoodBoardFrame
+            paddingClassName="p-3"
+            className="inline-block"
+            style={{ ["--piece-scale" as any]: 1.2 }}
+          >
             <ShogiBoard
               board={isBoardReady ? board : createEmptyBoard()}
               hands={hands}
@@ -131,10 +135,14 @@ export default function PawnTrainingPage() {
   );
 
   const boardElementMobile = (
-    <div className="w-full h-full min-h-0 flex items-center justify-center">
-      <div className="w-full h-full aspect-square -translate-y-2">
+    <div className="w-full h-full min-h-0 flex items-center justify-center -translate-y-6">
+      <div className="w-full h-full aspect-square">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
-          <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+          <WoodBoardFrame
+            paddingClassName="p-1"
+            className="w-full h-full"
+            style={{ ["--piece-scale" as any]: 1.2 }}
+          >
             <div className="relative w-full h-full">
             <ShogiBoard
               board={isBoardReady ? board : createEmptyBoard()}
@@ -196,7 +204,7 @@ export default function PawnTrainingPage() {
 
   // ===== おじいちゃん（右下）=====
   const mascotElement = (
-    <div style={{ transform: "translateY(-12px)" }}>
+    <div style={{ transform: "translateY(16px)" }}>
       <ManRive
         correctSignal={correctSignal}
         className="bg-transparent [&>canvas]:bg-transparent"
@@ -215,19 +223,17 @@ export default function PawnTrainingPage() {
     </div>
   ) : null;
 
-  if (isMobileWebView === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
-
   if (isMobileWebView) {
     return (
       <MobileLessonShell
         mascot={
-          <ManRive
-            correctSignal={correctSignal}
-            className="bg-transparent [&>canvas]:bg-transparent"
-            style={{ width: 210, height: 210 }}
-          />
+          <div style={{ transform: "translateY(18px)" }}>
+            <ManRive
+              correctSignal={correctSignal}
+              className="bg-transparent [&>canvas]:bg-transparent"
+              style={{ width: 210, height: 210 }}
+            />
+          </div>
         }
         explanation={
           <MobileCoachText tag="PAWN" text={currentLesson.description} isCorrect={isCorrect} correctText="正解！次へ進もう。" />
