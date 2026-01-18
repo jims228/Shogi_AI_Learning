@@ -104,7 +104,7 @@ export default function PawnTrainingPage() {
 
   // ===== 盤面（左側に常に出す）=====
   const boardElement = (
-    <div className="w-full h-full flex items-center justify-center -translate-y-4">
+    <div className="w-full h-full flex items-center justify-center" style={{ transform: "translateY(-40px)" }}>
       <div
         className="w-full"
         style={{
@@ -114,20 +114,18 @@ export default function PawnTrainingPage() {
         }}
       >
         <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
-          <WoodBoardFrame
-            paddingClassName="p-3"
-            className="inline-block"
-            style={{ ["--piece-scale" as any]: 1.2 }}
-          >
-            <ShogiBoard
-              board={isBoardReady ? board : createEmptyBoard()}
-              hands={hands}
-              mode="edit"
-              onMove={handleMove}
-              onBoardChange={setBoard}
-              onHandsChange={setHands}
-              orientation="sente"
-            />
+          <WoodBoardFrame paddingClassName="p-3" className="inline-block">
+            <div style={{ ["--piece-sprite-scale" as any]: 1.2, ["--piece-offset-y" as any]: -3 }}>
+              <ShogiBoard
+                board={isBoardReady ? board : createEmptyBoard()}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation="sente"
+              />
+            </div>
           </WoodBoardFrame>
         </AutoScaleToFit>
       </div>
@@ -135,26 +133,24 @@ export default function PawnTrainingPage() {
   );
 
   const boardElementMobile = (
-    <div className="w-full h-full min-h-0 flex items-center justify-center -translate-y-6">
+    <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ transform: "translateY(-40px)" }}>
       <div className="w-full h-full aspect-square">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
-          <WoodBoardFrame
-            paddingClassName="p-1"
-            className="w-full h-full"
-            style={{ ["--piece-scale" as any]: 1.2 }}
-          >
+          <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
             <div className="relative w-full h-full">
-            <ShogiBoard
-              board={isBoardReady ? board : createEmptyBoard()}
-              hands={hands}
-              mode="edit"
-              onMove={handleMove}
-              onBoardChange={setBoard}
-              onHandsChange={setHands}
-              orientation="sente"
-              handsPlacement="corners"
-              showCoordinates={false}
-            />
+              <div style={{ ["--piece-sprite-scale" as any]: 1.2, ["--piece-offset-y" as any]: "-5px" }}>
+                <ShogiBoard
+                  board={isBoardReady ? board : createEmptyBoard()}
+                  hands={hands}
+                  mode="edit"
+                  onMove={handleMove}
+                  onBoardChange={setBoard}
+                  onHandsChange={setHands}
+                  orientation="sente"
+                  handsPlacement="corners"
+                  showCoordinates={false}
+                />
+              </div>
             </div>
           </WoodBoardFrame>
         </AutoScaleToFit>
@@ -204,7 +200,7 @@ export default function PawnTrainingPage() {
 
   // ===== おじいちゃん（右下）=====
   const mascotElement = (
-    <div style={{ transform: "translateY(16px)" }}>
+    <div style={{ transform: "translateY(160px)" }}>
       <ManRive
         correctSignal={correctSignal}
         className="bg-transparent [&>canvas]:bg-transparent"
@@ -227,7 +223,7 @@ export default function PawnTrainingPage() {
     return (
       <MobileLessonShell
         mascot={
-          <div style={{ transform: "translateY(18px)" }}>
+          <div style={{ transform: "translateY(75px)" }}>
             <ManRive
               correctSignal={correctSignal}
               className="bg-transparent [&>canvas]:bg-transparent"
