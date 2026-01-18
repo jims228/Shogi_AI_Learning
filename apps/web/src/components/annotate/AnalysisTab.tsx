@@ -219,8 +219,11 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [explanation, setExplanation] = useState<string>("");
   const [explanationJson, setExplanationJson] = useState<any | null>(null);
   const [gameDigest, setGameDigest] = useState<string>("");
+  const [digestMetaSource, setDigestMetaSource] = useState<string>("");
   const [isExplaining, setIsExplaining] = useState(false);
   const [isDigesting, setIsDigesting] = useState(false);
+  const [digestCooldownUntil, setDigestCooldownUntil] = useState(0);
+  const [digestCooldownLeft, setDigestCooldownLeft] = useState(0);
 
   const [previewSequence, setPreviewSequence] = useState<string[] | null>(null);
   const [previewStep, setPreviewStep] = useState<number>(0);
@@ -628,7 +631,22 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     explainLevel,
   ]);
 
-  const handleGenerateGameDigest = useCallback(async () => {
+  useEffect(() => {
+    if (!digestCooldownUntil) {
+      setDigestCooldownLeft(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      const left = Math.max(0, Math.ceil((digestCooldownUntil - Date.now()) / 1000));
+      setDigestCooldownLeft(left);
+      if (left <= 0) setDigestCooldownUntil(0);
+    }, 500);
+    return () => clearInterval(timer);
+  }, [digestCooldownUntil]);
+
+  const handleGenerateGameDigest = useCallback(async (forceLlm = false) => {
+    if (isDigesting) return;
+    if (digestCooldownUntil && Date.now() < digestCooldownUntil) return;
     const hasData = Object.keys(batchData).length > 0;
     if (!hasData) {
         showToast({ title: "先に全体解析を行ってください", variant: "default" });
@@ -637,26 +655,52 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setIsDigesting(true);
     setIsReportModalOpen(true);
     setGameDigest("");
+    setDigestMetaSource("");
     const evalList = [];
     for (let i = 0; i <= totalMoves; i++) {
         const score = getPrimaryEvalScore(batchData[i]);
         evalList.push(score || 0);
     }
     try {
-        const res = await fetch(`${API_BASE}/api/explain/digest`, {
+        const url = forceLlm ? `${API_BASE}/api/explain/digest?force_llm=1` : `${API_BASE}/api/explain/digest`;
+        const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ total_moves: totalMoves, eval_history: evalList, winner: null }),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) {
+            let detail = "";
+            try {
+              const data = await res.json();
+              detail = data?.detail || "";
+            } catch {
+              try {
+                detail = await res.text();
+              } catch {
+                detail = "";
+              }
+            }
+            if (res.status === 429) {
+              const ra = Number(res.headers.get("retry-after") ?? "30");
+              const waitSec = Number.isFinite(ra) && ra > 0 ? Math.ceil(ra) : 30;
+              console.log("[digest] retry-after:", waitSec);
+              setDigestCooldownUntil(Date.now() + waitSec * 1000);
+              const base = detail || "レポート生成の利用制限に達しました。しばらく待ってから再度お試しください。";
+              setGameDigest(`${base}\n\nあと ${waitSec} 秒待ってください。`);
+            } else {
+              setGameDigest(detail || `レポート生成に失敗しました。(status=${res.status})`);
+            }
+            return;
+        }
         const data = await res.json();
         setGameDigest(data.explanation);
+        setDigestMetaSource(data?.meta?.source || "");
     } catch {
         setGameDigest("レポート生成に失敗しました。");
     } finally {
         setIsDigesting(false);
     }
-  }, [batchData, totalMoves]);
+  }, [batchData, totalMoves, isDigesting, digestCooldownUntil]);
 
   const handleBatchAnalysisClick = useCallback(async () => {
     if (isEditMode || isBatchAnalyzing) return;
@@ -798,7 +842,15 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     });
   }, [initialTurn, moveImpacts, moveSequence, timelinePlacedPieces, evalSource]);
   
-  const evalPoints = useMemo(() => Array.from({ length: timeline.boards.length || totalMoves + 1 }, (_, ply) => ({ ply, cp: getPrimaryEvalScore(evalSource[ply]) })), [evalSource, timeline.boards.length, totalMoves]);
+  const evalPoints = useMemo(
+    () =>
+      Array.from({ length: timeline.boards.length || totalMoves + 1 }, (_, ply) => {
+        const cp = getPrimaryEvalScore(evalSource[ply]);
+        return { ply, cp: typeof cp === "number" && Number.isFinite(cp) ? cp : null };
+      }),
+    [evalSource, timeline.boards.length, totalMoves]
+  );
+  const hasEvalPoints = useMemo(() => evalPoints.some((p) => typeof p.cp === "number"), [evalPoints]);
 
   const boardMode: BoardMode = isEditMode ? "edit" : "view";
   const topHandSide: Side = boardOrientation === "sente" ? "w" : "b";
@@ -884,8 +936,24 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 </span>
               </Button>
               {Object.keys(batchData).length > 5 && (
-                  <Button variant="outline" onClick={handleGenerateGameDigest} className="border-amber-400 text-amber-700 bg-amber-50 h-9 text-sm px-3">
-                      <ScrollText className="w-4 h-4 mr-2" /> レポート
+                  <Button
+                    variant="outline"
+                    onClick={() => handleGenerateGameDigest(false)}
+                    disabled={isDigesting || digestCooldownLeft > 0}
+                    className="border-amber-400 text-amber-700 bg-amber-50 h-9 text-sm px-3"
+                  >
+                      <ScrollText className="w-4 h-4 mr-2" />
+                      {isDigesting ? "生成中..." : (digestCooldownLeft > 0 ? `クールダウン(残り${digestCooldownLeft}s)` : "レポート")}
+                  </Button>
+              )}
+              {Object.keys(batchData).length > 5 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleGenerateGameDigest(true)}
+                    disabled={isDigesting}
+                    className="border-purple-400 text-purple-700 bg-purple-50 h-9 text-sm px-3"
+                  >
+                      <Sparkles className="w-4 h-4 mr-2" /> AIで再生成
                   </Button>
               )}
               <Button variant="outline" onClick={handleStartStreamingAnalysis} disabled={isAnalyzing} className="border-slate-300 text-slate-700 h-9 text-sm px-3"><Play className="w-4 h-4 mr-2" /> 検討開始</Button>
@@ -1135,8 +1203,14 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
             <div className="flex-1 min-h-0 shadow-md border border-slate-300 rounded-xl overflow-hidden bg-white">
                 <MoveListPanel entries={moveListEntries} activePly={safeCurrentPly} onSelectPly={handlePlyChange} className="h-full border-0 rounded-none" />
             </div>
-            <div className="h-[180px] shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-                <EvalGraph data={evalPoints} currentPly={safeCurrentPly} onPlyClick={handlePlyChange} />
+            <div className="h-[180px] min-h-[180px] shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+                {hasEvalPoints ? (
+                  <EvalGraph data={evalPoints} currentPly={safeCurrentPly} onPlyClick={handlePlyChange} />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    解析データがありません
+                  </div>
+                )}
             </div>
         </div>
       </div>
@@ -1193,6 +1267,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                 </div>
             ) : (
                 <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    {digestMetaSource ? (
+                      <div className="mb-2 text-xs text-slate-500">生成元: {digestMetaSource}</div>
+                    ) : null}
                     {gameDigest}
                 </div>
             )}

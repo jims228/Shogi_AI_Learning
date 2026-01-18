@@ -1,8 +1,14 @@
 import os
 import time
+import logging
+import re
+import json
+import hashlib
 from typing import List, Optional, Dict, Any, Tuple, cast
 
 import google.generativeai as genai
+from google.api_core import exceptions as gax_exceptions
+from fastapi import HTTPException
 from backend.api.utils.shogi_utils import ShogiUtils, StrategyAnalyzer
 
 from backend.api.utils.shogi_explain_core import (
@@ -16,9 +22,43 @@ from backend.api.utils.ai_explain_json import (
     validate_explain_json,
 )
 
-GENAI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if GENAI_API_KEY:
-    genai.configure(api_key=GENAI_API_KEY)
+_GENAI_CONFIGURED_FOR_KEY: Optional[str] = None
+_LOG = logging.getLogger("uvicorn.error")
+
+# --- digest cache (in-memory, dev only) ---
+_DIGEST_CACHE_TTL_SEC = int(os.getenv("DIGEST_CACHE_TTL_SEC", "600"))
+_DIGEST_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def _get_gemini_api_key() -> Optional[str]:
+    k = os.getenv("GEMINI_API_KEY")
+    return k.strip() if isinstance(k, str) and k.strip() else None
+
+
+def _ensure_genai_configured() -> Optional[str]:
+    """
+    Configure google.generativeai lazily.
+    - Avoid reading env only at import time (dotenv may load later, tests may patch env).
+    - Re-configure if the key changes (useful in dev).
+    """
+    global _GENAI_CONFIGURED_FOR_KEY
+    api_key = _get_gemini_api_key()
+    if not api_key:
+        return None
+    if _GENAI_CONFIGURED_FOR_KEY != api_key:
+        genai.configure(api_key=api_key)
+        _GENAI_CONFIGURED_FOR_KEY = api_key
+    return api_key
+
+def _get_gemini_model_name(default: str = "gemini-2.0-flash") -> str:
+    """
+    Model name for google-generativeai.
+    - Allow override via GEMINI_MODEL.
+    - Default is set to a currently available model for most keys (gemini-2.0-flash).
+    """
+    raw = os.getenv("GEMINI_MODEL", "") or ""
+    raw = raw.strip()
+    return raw or default
 
 USE_EXPLAIN_V2 = os.getenv("USE_EXPLAIN_V2", "0") == "1"
 USE_GEMINI_REWRITE = os.getenv("USE_GEMINI_REWRITE", "1") == "1"
@@ -168,7 +208,7 @@ class AIService:
         """
         既存の生成を丸ごと残す（旧方式）
         """
-        if not GENAI_API_KEY:
+        if not _ensure_genai_configured():
             return "APIキーが設定されていません。環境変数 GEMINI_API_KEY を確認してください。"
 
         ply = data.get("ply", 0)
@@ -215,17 +255,45 @@ class AIService:
 3. 次の方針
 """
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel(_get_gemini_model_name())
         res = await model.generate_content_async(prompt)
         return res.text
 
     @staticmethod
-    async def generate_game_digest(data: Dict[str, Any]) -> str:
-        if not GENAI_API_KEY:
-            return "APIキーが設定されていません。"
+    async def generate_game_digest(data: Dict[str, Any]) -> Dict[str, Any]:
+        request_id = data.get("_request_id") or "n/a"
+        total_moves = int(data.get("total_moves") or 0)
+        eval_history = data.get("eval_history") or []
+        winner = data.get("winner")
+        force_llm = bool(data.get("force_llm"))
+
+        cache_key = _digest_cache_key(total_moves, eval_history, winner)
+        hit = _digest_cache_get(cache_key)
+        if hit and not force_llm:
+            age = int(time.time() - hit["created_at"])
+            _LOG.info("[digest] cache_hit rid=%s key=%s age=%ss", request_id, cache_key, age)
+            return _build_digest_payload(
+                explanation=hit["explanation"],
+                source="cache",
+                limited=hit.get("limited", False),
+                retry_after=None,
+            )
+
+        _LOG.info("[digest] cache_miss rid=%s key=%s", request_id, cache_key)
+
+        force_fallback = os.getenv("FORCE_DIGEST_FALLBACK", "0") == "1"
+        if force_fallback:
+            explanation = _build_fallback_digest(eval_history, total_moves, winner)
+            _digest_cache_set(cache_key, explanation, limited=True)
+            return _build_digest_payload(explanation, source="fallback", limited=True, retry_after=None)
+
+        if not _ensure_genai_configured():
+            # Return fallback to keep dev moving.
+            explanation = _build_fallback_digest(eval_history, total_moves, winner)
+            _digest_cache_set(cache_key, explanation, limited=False)
+            return _build_digest_payload(explanation, source="fallback", limited=False, retry_after=None)
+
         try:
-            total_moves = data.get("total_moves", 0)
-            eval_history = data.get("eval_history", [])
             step = max(1, len(eval_history) // 20)
             eval_summary = [f"{i}手:{v}" for i, v in enumerate(eval_history) if i % step == 0]
 
@@ -236,11 +304,173 @@ class AIService:
 【構成】
 1. 序盤 2. 中盤 3. 終盤 4. 総括
 """
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model_name = _get_gemini_model_name()
+            prompt_size = len(prompt)
+            t0 = time.time()
+            _LOG.info("[digest] llm.start rid=%s model=%s prompt_chars=%s", request_id, model_name, prompt_size)
+            model = genai.GenerativeModel(model_name)
             response = await model.generate_content_async(prompt)
-            return response.text
+            elapsed_ms = int((time.time() - t0) * 1000)
+            _LOG.info("[digest] llm.ok rid=%s ms=%s", request_id, elapsed_ms)
+            explanation = response.text
+            _digest_cache_set(cache_key, explanation, limited=False)
+            return _build_digest_payload(explanation, source="llm", limited=False, retry_after=None)
+        except gax_exceptions.ResourceExhausted as e:
+            _log_llm_exception("ResourceExhausted", e, data)
+            retry_after = _extract_retry_after_seconds(e)
+            explanation = _build_fallback_digest(eval_history, total_moves, winner)
+            _digest_cache_set(cache_key, explanation, limited=True)
+            return _build_digest_payload(explanation, source="fallback", limited=True, retry_after=retry_after)
+        except gax_exceptions.TooManyRequests as e:
+            _log_llm_exception("TooManyRequests", e, data)
+            retry_after = _extract_retry_after_seconds(e)
+            explanation = _build_fallback_digest(eval_history, total_moves, winner)
+            _digest_cache_set(cache_key, explanation, limited=True)
+            return _build_digest_payload(explanation, source="fallback", limited=True, retry_after=retry_after)
+        except gax_exceptions.GoogleAPICallError as e:
+            _log_llm_exception("GoogleAPICallError", e, data)
+            explanation = _build_fallback_digest(eval_history, total_moves, winner)
+            _digest_cache_set(cache_key, explanation, limited=False)
+            return _build_digest_payload(explanation, source="fallback", limited=False, retry_after=None)
         except Exception as e:
-            error_msg = str(e)
-            if "429" in error_msg:
-                return "レポート生成の利用制限に達しました。しばらく待ってから再度お試しください。"
-            return f"レポート生成中にエラーが発生しました: {error_msg}"
+            _log_llm_exception(type(e).__name__, e, data)
+            explanation = _build_fallback_digest(eval_history, total_moves, winner)
+            _digest_cache_set(cache_key, explanation, limited=False)
+            return _build_digest_payload(explanation, source="fallback", limited=False, retry_after=None)
+
+
+def _digest_cache_key(total_moves: int, eval_history: List[int], winner: Optional[str]) -> str:
+    payload = {"total_moves": total_moves, "eval_history": eval_history, "winner": winner}
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _digest_cache_get(key: str) -> Optional[Dict[str, Any]]:
+    v = _DIGEST_CACHE.get(key)
+    if not v:
+        return None
+    if time.time() - v["created_at"] > _DIGEST_CACHE_TTL_SEC:
+        _DIGEST_CACHE.pop(key, None)
+        return None
+    return v
+
+
+def _digest_cache_set(key: str, explanation: str, limited: bool) -> None:
+    if len(_DIGEST_CACHE) > 500:
+        _DIGEST_CACHE.clear()
+    _DIGEST_CACHE[key] = {
+        "created_at": time.time(),
+        "explanation": explanation,
+        "limited": limited,
+    }
+
+
+def _build_digest_payload(explanation: str, source: str, limited: bool, retry_after: Optional[int]) -> Dict[str, Any]:
+    headers: Dict[str, str] = {"X-Digest-Source": source}
+    if retry_after:
+        headers["Retry-After"] = str(retry_after)
+    return {
+        "explanation": explanation,
+        "meta": {
+            "source": source,
+            "limited": bool(limited),
+            "retry_after": retry_after,
+        },
+        "_headers": headers,
+    }
+
+
+def _build_fallback_digest(eval_history: List[int], total_moves: int, winner: Optional[str]) -> str:
+    if not eval_history:
+        return "評価値データがないため簡易レポートを生成できませんでした。"
+
+    n = len(eval_history)
+    thirds = max(1, n // 3)
+    opening = eval_history[:thirds]
+    middle = eval_history[thirds : 2 * thirds]
+    endgame = eval_history[2 * thirds :]
+
+    def avg(xs: List[int]) -> float:
+        return sum(xs) / max(1, len(xs))
+
+    def trend_label(v: float) -> str:
+        if v > 150:
+            return "先手優勢"
+        if v < -150:
+            return "後手優勢"
+        return "互角"
+
+    open_avg = avg(opening)
+    mid_avg = avg(middle)
+    end_avg = avg(endgame)
+
+    # 最大変動点
+    diffs = [eval_history[i] - eval_history[i - 1] for i in range(1, n)]
+    max_up = max(diffs) if diffs else 0
+    max_down = min(diffs) if diffs else 0
+    up_idx = diffs.index(max_up) + 1 if diffs else 0
+    down_idx = diffs.index(max_down) + 1 if diffs else 0
+
+    avg_abs = sum(abs(d) for d in diffs) / max(1, len(diffs))
+    stability = "安定" if avg_abs < 80 else "変動大きめ"
+
+    lines = []
+    if winner:
+        lines.append(f"勝敗: {winner}")
+    lines.append("【全体傾向】")
+    lines.append(f"- 序盤: {trend_label(open_avg)}")
+    lines.append(f"- 中盤: {trend_label(mid_avg)}")
+    lines.append(f"- 終盤: {trend_label(end_avg)}")
+    lines.append("【転換点】")
+    lines.append(f"- 最大上昇: {up_idx}手目付近 (+{max_up}cp)")
+    lines.append(f"- 最大下降: {down_idx}手目付近 ({max_down}cp)")
+    lines.append("【安定度】")
+    lines.append(f"- 評価値の変動は {stability} でした")
+    lines.append("【次の改善】")
+    lines.append("- 中盤で大きく動いた局面を中心に指し手の意図を見直しましょう")
+    lines.append("- 形勢が揺れた手順の候補手比較を意識すると改善につながります")
+    return "\n".join(lines)
+
+
+def _extract_error_body(err: Exception) -> str:
+    # Try to extract response body safely (first 200 chars).
+    resp = getattr(err, "response", None)
+    if resp is None:
+        return ""
+    try:
+        body = getattr(resp, "text", None)
+        if body is None and hasattr(resp, "content"):
+            body = resp.content
+        if isinstance(body, (bytes, bytearray)):
+            body = body.decode("utf-8", errors="ignore")
+        if isinstance(body, str):
+            return body[:200]
+    except Exception:
+        return ""
+    return ""
+
+
+def _extract_retry_after_seconds(err: Exception) -> Optional[int]:
+    # Try to parse retry delay from exception message (e.g. "Please retry in 49.1s")
+    msg = str(err)
+    m = re.search(r"retry in\s+([0-9]+(?:\.[0-9]+)?)s", msg, re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        return max(1, int(float(m.group(1))))
+    except Exception:
+        return None
+
+
+def _log_llm_exception(label: str, err: Exception, data: Dict[str, Any]) -> None:
+    rid = data.get("_request_id") or "n/a"
+    status_code = getattr(err, "status_code", None) or getattr(err, "code", None)
+    body = _extract_error_body(err)
+    _LOG.error(
+        "[digest] llm.err rid=%s type=%s status=%s msg=%s body=%s",
+        rid,
+        label,
+        status_code,
+        err,
+        body,
+    )

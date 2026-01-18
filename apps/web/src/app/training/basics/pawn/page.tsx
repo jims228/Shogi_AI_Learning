@@ -215,6 +215,10 @@ export default function PawnTrainingPage() {
     </div>
   ) : null;
 
+  if (isMobileWebView === null) {
+    return <div className="min-h-[100svh] w-full bg-white" />;
+  }
+
   if (isMobileWebView) {
     return (
       <MobileLessonShell

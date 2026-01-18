@@ -1,6 +1,7 @@
 param(
   [int]$WebPort = 3000,
-  [int]$MetroPort = 8081
+  [int]$MetroPort = 8081,
+  [int]$ApiPort = 8787
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,13 +30,14 @@ adb reverse --remove-all | Out-Null
 Write-Host "Adding reverse rules..." -ForegroundColor Cyan
 adb reverse tcp:$WebPort tcp:$WebPort
 adb reverse tcp:$MetroPort tcp:$MetroPort
+adb reverse tcp:$ApiPort tcp:$ApiPort
 
 Write-Host "Reverse rules:" -ForegroundColor Cyan
 adb reverse --list
 
 Write-Host ""
 Write-Host "Next steps (WSL):" -ForegroundColor Green
-Write-Host "  pnpm --filter web dev"
+Write-Host "  NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:$ApiPort pnpm --filter web dev"
 Write-Host "  pnpm -C apps/mobile start -- --localhost --port $MetroPort"
 Write-Host ""
 Write-Host "On device:" -ForegroundColor Green

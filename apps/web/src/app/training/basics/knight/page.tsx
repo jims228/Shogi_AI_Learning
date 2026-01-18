@@ -30,6 +30,9 @@ export default function KnightTrainingPage() {
   const currentLesson = KNIGHT_LESSONS[currentStepIndex];
   const isDesktop = useMediaQuery("(min-width: 820px)");
   const isMobileWebView = useMobileQueryParam();
+  if (isMobileWebView === null) {
+    return <div className="min-h-[100svh] w-full bg-white" />;
+  }
 
   // ステップが変わったら盤面を初期化
   useEffect(() => {

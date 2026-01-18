@@ -23,9 +23,15 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
   const lesson = useMemo(() => getRoadmapLessons().find((l) => l.id === lessonId) ?? null, [lessonId]);
   const url = useMemo(() => {
     const base = settings.webBaseUrl;
-    // Mobile uses a stable, AI-free entry route.
-    return `${base}/m/lesson/${encodeURIComponent(lessonId)}?mobile=1&noai=1&lid=${encodeURIComponent(lessonId)}`;
-  }, [lessonId, settings.webBaseUrl]);
+    const lid = encodeURIComponent(lessonId);
+    // Prefer direct lesson href to avoid the /m/lesson redirect flash.
+    if (lesson?.href) {
+      const join = lesson.href.includes("?") ? "&" : "?";
+      return `${base}${lesson.href}${join}mobile=1&noai=1&lid=${lid}`;
+    }
+    // Fallback to the mobile entry route.
+    return `${base}/m/lesson/${lid}?mobile=1&noai=1&lid=${lid}`;
+  }, [lessonId, lesson?.href, settings.webBaseUrl]);
 
   const injectedBeforeLoad = useMemo(() => {
     if (Platform.OS !== "android") return undefined;
@@ -92,8 +98,10 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
         ) : null}
 
         <WebView
-          key={`wv:${reloadKey}`}
+          key={`wv:${reloadKey}:${lessonId}`}
           source={{ uri: url }}
+          cacheEnabled={false}
+          {...(Platform.OS === "android" ? { cacheMode: "LOAD_NO_CACHE" as const } : null)}
           // Android WebView (incl Expo Go) can apply text zoom / viewport scaling heuristics.
           // We hard-pin zoom to remove the "slightly zoomed page" feel.
           {...(Platform.OS === "android"
@@ -113,13 +121,27 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
               ) : null}
             </View>
           )}
+          {...(__DEV__
+            ? {
+                renderError: () => (
+                  <View style={styles.loading}>
+                    <Text style={styles.debug} selectable>
+                      WEB_BASE_URL: {settings.webBaseUrl}
+                      {"\n"}lessonId: {lessonId}
+                    </Text>
+                  </View>
+                ),
+              }
+            : null)}
           onLoadStart={() => {
             setLastPlayed(lessonId);
             setErrorText(null);
           }}
           onError={(e) => {
             const msg = e?.nativeEvent?.description || "WebView error";
-            setErrorText(msg);
+            const code = e?.nativeEvent?.code;
+            const url2 = e?.nativeEvent?.url || url;
+            setErrorText(`WebView error: ${code ?? "?"}\n${msg}\n${url2}`);
           }}
           onHttpError={(e) => {
             const code = e?.nativeEvent?.statusCode;
@@ -164,6 +186,18 @@ export function LessonLaunchScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.bg },
+  devBanner: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    right: 8,
+    zIndex: 3,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  devText: { fontSize: 10, color: theme.colors.textMuted, fontWeight: "800" },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: theme.spacing.lg },
   loadingText: { color: theme.colors.textMuted, fontWeight: "800" },
   title: { marginTop: 24, paddingHorizontal: theme.spacing.lg, fontSize: 18, fontWeight: "900", color: theme.colors.text },
