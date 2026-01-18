@@ -72,8 +72,10 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
       <div className="shrink-0 px-3 pt-2">
         <div className="flex items-start gap-3">
           <div className="shrink-0 w-[210px] h-[210px] flex items-start justify-start">{mascot}</div>
-          <div className="min-w-0 flex-1 pt-1">
-            <div className="max-h-[210px] overflow-auto pr-1">{explanation}</div>
+          <div className="min-w-0 flex-1 pt-1" style={{ marginTop: 120 }}>
+            <div className="max-h-[210px] overflow-auto pr-1" style={{ width: "calc(100% + 40px)", marginLeft: -70 }}>
+              {explanation}
+            </div>
           </div>
         </div>
       </div>
