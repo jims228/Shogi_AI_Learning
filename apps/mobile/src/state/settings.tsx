@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Platform } from "react-native";
 
 type MobileSettings = {
   webBaseUrl: string;
@@ -24,9 +25,17 @@ function normalizeBaseUrl(s: string) {
   return (s || "").trim().replace(/\/$/, "");
 }
 
+function normalizeWebBaseUrl(s: string) {
+  const v = normalizeBaseUrl(s);
+  if (Platform.OS === "android" && v.includes("localhost")) {
+    return v.replace("localhost", "127.0.0.1");
+  }
+  return v;
+}
+
 function envDefaults(): MobileSettings {
   return {
-    webBaseUrl: normalizeBaseUrl(process.env.EXPO_PUBLIC_WEB_BASE_URL || "http://localhost:3000"),
+    webBaseUrl: normalizeWebBaseUrl(process.env.EXPO_PUBLIC_WEB_BASE_URL || "http://localhost:3000"),
     apiBaseUrl: normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:8787"),
   };
 }
@@ -85,10 +94,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === "object") {
             const next: MobileSettings = {
-              webBaseUrl: normalizeBaseUrl(typeof parsed.webBaseUrl === "string" ? parsed.webBaseUrl : envDefaults().webBaseUrl),
+              webBaseUrl: normalizeWebBaseUrl(typeof parsed.webBaseUrl === "string" ? parsed.webBaseUrl : envDefaults().webBaseUrl),
               apiBaseUrl: normalizeBaseUrl(typeof parsed.apiBaseUrl === "string" ? parsed.apiBaseUrl : envDefaults().apiBaseUrl),
             };
             setSettings(next);
+            // Auto-heal stored localhost on Android
+            if (next.webBaseUrl !== parsed.webBaseUrl) {
+              void persist(next);
+            }
             return;
           }
         }
@@ -117,7 +130,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const setWebBaseUrl = useCallback(
     (v: string) => {
       setSettings((prev) => {
-        const next = { ...prev, webBaseUrl: normalizeBaseUrl(v) };
+        const next = { ...prev, webBaseUrl: normalizeWebBaseUrl(v) };
         void persist(next);
         return next;
       });

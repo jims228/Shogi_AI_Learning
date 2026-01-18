@@ -2,23 +2,29 @@ from __future__ import annotations
 import asyncio, os, re, shlex, time, json, shutil
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, List, AsyncGenerator
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+
+# Load .env as early as possible so modules that read env vars at import time
+# (e.g. AI services) see the correct values.
+load_dotenv()
 
 from backend.api.services.ai_service import AIService
 from backend.api.auth import Principal, require_api_key
 from backend.api.middleware.rate_limit import RateLimitMiddleware
 from backend.api.tsume_data import TSUME_PROBLEMS
 
-load_dotenv()
-
 # ====== 設定 ======
-USI_CMD = "/usr/local/bin/yaneuraou"
-ENGINE_WORK_DIR = "/usr/local/bin"
-EVAL_DIR = "/usr/local/bin/eval"
+# NOTE:
+# - In some dev environments (e.g. WSL without passwordless sudo), writing to /usr/local/bin is not possible.
+# - Allow overriding engine paths via environment variables while keeping the old defaults.
+USI_CMD = os.getenv("USI_CMD", "/usr/local/bin/yaneuraou")
+ENGINE_WORK_DIR = os.getenv("ENGINE_WORK_DIR", "/usr/local/bin")
+EVAL_DIR = os.getenv("EVAL_DIR", "/usr/local/bin/eval")
 
 # 評価値のマイルド係数
 SCORE_SCALE = 0.7 
@@ -71,6 +77,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Retry-After", "X-Digest-Source"],
 )
 
 # ====== テスト互換: 公開モデル ======
@@ -993,8 +1000,22 @@ async def explain_endpoint(req: ExplainRequest, _principal: Principal = Depends(
     return await AIService.generate_shogi_explanation_payload(_dump_model(req))
 
 @app.post("/api/explain/digest")
-async def digest_endpoint(req: GameDigestInput, _principal: Principal = Depends(require_api_key)):
-    return {"explanation": await AIService.generate_game_digest(_dump_model(req))}
+async def digest_endpoint(
+    req: GameDigestInput,
+    request: Request,
+    force_llm: bool = False,
+    _principal: Principal = Depends(require_api_key),
+):
+    import uuid
+    rid = uuid.uuid4().hex[:12]
+    ip = request.client.host if request.client else "unknown"
+    print(f"[digest] in rid={rid} ip={ip} path=/api/explain/digest")
+    payload = _dump_model(req) or {}
+    payload["_request_id"] = rid
+    payload["force_llm"] = force_llm
+    result = await AIService.generate_game_digest(payload)
+    headers = result.pop("_headers", None) or {}
+    return JSONResponse(result, headers=headers)
 
 @app.get("/api/tsume/list")
 def get_tsume_list():

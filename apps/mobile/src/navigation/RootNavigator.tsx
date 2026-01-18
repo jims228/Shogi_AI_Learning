@@ -24,7 +24,7 @@ export function RootNavigator() {
         options={{ title: "ロードマップ" }}
       />
       <Stack.Screen name="UnitDetail" component={UnitDetailScreen} options={{ title: "ユニット" }} />
-      <Stack.Screen name="LessonLaunch" component={LessonLaunchScreen} options={{ title: "レッスン" }} />
+      <Stack.Screen name="LessonLaunch" component={LessonLaunchScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "設定" }} />
     </Stack.Navigator>
   );

@@ -40,6 +40,18 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
     }
   })();
 
+  const showDebug =
+    isDev &&
+    debug &&
+    (() => {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        return sp.get("debug") === "1";
+      } catch {
+        return false;
+      }
+    })();
+
   return (
     <div
       data-mobile-lesson-shell
@@ -47,7 +59,7 @@ export function MobileLessonShell({ mascot, explanation, board, actions }: Props
       className="fixed inset-0 h-[100dvh] overflow-hidden flex flex-col bg-white text-slate-900"
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 4px)" }}
     >
-      {isDev && debug ? (
+      {showDebug ? (
         <div className="fixed right-2 top-2 z-[99999] pointer-events-none rounded-lg bg-black/70 px-2 py-1 text-[11px] font-mono text-white">
           <div>vv.scale: {String(debug.vvScale)}</div>
           <div>innerW/htmlW: {debug.innerW}/{debug.htmlClientW}</div>
