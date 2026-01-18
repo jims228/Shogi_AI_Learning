@@ -105,19 +105,26 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   // Mobile sizing: scale via CSS variable only (no `zoom` on wrappers).
   const [uiScale, setUiScale] = useState(1);
+  const [pieceScale, setPieceScale] = useState(1);
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const v = window.getComputedStyle(el).getPropertyValue("--piece-scale");
     const n = parseFloat(v);
-    if (!Number.isFinite(n) || n <= 0) return;
-    setUiScale(n);
+    if (Number.isFinite(n) && n > 0) {
+      setUiScale(n);
+    }
+    const pv = window.getComputedStyle(el).getPropertyValue("--piece-sprite-scale");
+    const pn = parseFloat(pv);
+    if (Number.isFinite(pn) && pn > 0) {
+      setPieceScale(pn);
+    }
   }, []);
 
   const CELL_SIZE = Math.round(BASE_CELL_SIZE * uiScale);
-  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale);
+  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale * pieceScale);
   const HAND_CELL_SIZE = Math.round(BASE_HAND_CELL_SIZE * uiScale);
-  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale);
+  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale * pieceScale);
   const LABEL_GAP = Math.round(BASE_LABEL_GAP * uiScale);
   const boardSize = CELL_SIZE * 9;
 
@@ -499,7 +506,10 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           })}
           </div>
 
-          <div className="absolute inset-0 z-10 pointer-events-none">
+          <div
+            className="absolute inset-0 z-10 pointer-events-none"
+            style={{ transform: "translateY(var(--piece-offset-y, 0px))" }}
+          >
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
             const isMovingPiece =
@@ -569,7 +579,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             const left = clamp(rawLeft, 8, boardSize - popW - 8);
             const top = clamp(rawTop, 8, boardSize - popH - 8);
 
-            const spriteSize = Math.max(44, Math.round(CELL_SIZE * 0.9));
+            const spriteSize = Math.max(44, Math.round(CELL_SIZE * 0.9 * pieceScale));
 
             return (
               <div className="absolute inset-0 z-[200] pointer-events-auto">
@@ -597,11 +607,11 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                       piece={promotePiece(pendingMove.piece) as PieceCode}
                       x={0}
                       y={0}
-                        size={spriteSize}
-                        cellSize={spriteSize}
+                      size={spriteSize}
+                      cellSize={spriteSize}
                       orientationMode="sprite"
-                        owner={pieceOwner}
-                        viewerSide={viewerSide}
+                      owner={pieceOwner}
+                      viewerSide={viewerSide}
                     />
                       <span className="font-extrabold text-amber-900 text-2xl">成</span>
                 </button>
@@ -617,11 +627,11 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                       piece={pendingMove.piece}
                       x={0}
                       y={0}
-                        size={spriteSize}
-                        cellSize={spriteSize}
+                      size={spriteSize}
+                      cellSize={spriteSize}
                       orientationMode="sprite"
-                        owner={pieceOwner}
-                        viewerSide={viewerSide}
+                      owner={pieceOwner}
+                      viewerSide={viewerSide}
                     />
                       <span className="font-extrabold text-slate-700 text-2xl">不成</span>
                     </button>
