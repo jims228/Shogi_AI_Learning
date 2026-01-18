@@ -7,8 +7,8 @@ import { useEffect, useState } from "react";
  * - We DO NOT read `window.location` during render.
  * - We resolve `mobile=1` after mount and return the boolean.
  */
-export function useMobileQueryParam() {
-  const [mobile, setMobile] = useState(false);
+export function useMobileQueryParam(): boolean | null {
+  const [mobile, setMobile] = useState<boolean | null>(null);
 
   useEffect(() => {
     try {

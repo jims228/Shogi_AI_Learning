@@ -64,9 +64,9 @@ export default function EvalGraph({ data, currentPly, onPlyClick }: EvalGraphPro
   };
 
   return (
-    <div className="w-full h-[200px] select-none bg-white rounded-xl p-2 border border-slate-200">
+    <div className="w-full h-[200px] min-h-[200px] select-none bg-white rounded-xl p-2 border border-slate-200">
       <div className="text-xs font-bold text-slate-500 mb-1 px-2">AI評価値（勝率推移）</div>
-      <ResponsiveContainer width="100%" height="90%">
+      <ResponsiveContainer width="100%" height={160}>
         <AreaChart
           data={chartData}
           margin={{ top: 5, right: 10, left: -20, bottom: 0 }}

@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
 export type LessonScaffoldProps = {
   title: string;
@@ -48,29 +49,35 @@ export function LessonScaffold({
   desktopLayout = "twoCol",
 }: LessonScaffoldProps) {
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
+  const isMobileWebView = useMobileQueryParam();
   const p = typeof progress01 === "number" ? clamp01(progress01) : null;
 
   return (
-    <div className="min-h-[100svh] w-full overflow-auto bg-[#f6f1e7] text-[#3a2b17]">
-      {/* Header */}
-      <div className="h-12 px-3 flex items-center gap-2 border-b border-black/10">
-        <Link
-          href={backHref}
-          className="inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-black/5 active:scale-95 transition"
-          aria-label="Back"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </Link>
+    <div
+      className="min-h-[100svh] w-full overflow-auto bg-[#f6f1e7] text-[#3a2b17]"
+      suppressHydrationWarning
+    >
+      {/* Header (hide in mobile WebView) */}
+      {isMobileWebView === false ? (
+        <div className="h-12 px-3 flex items-center gap-2 border-b border-black/10">
+          <Link
+            href={backHref}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-black/5 active:scale-95 transition"
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Link>
 
-        <div className="flex-1 min-w-0">
-          {topLabel ? (
-            <div className="text-[11px] font-extrabold tracking-wide text-slate-600">{topLabel}</div>
-          ) : null}
-          <div className="font-bold truncate">{title}</div>
+          <div className="flex-1 min-w-0">
+            {topLabel ? (
+              <div className="text-[11px] font-extrabold tracking-wide text-slate-600">{topLabel}</div>
+            ) : null}
+            <div className="font-bold truncate">{title}</div>
+          </div>
+
+          {headerRight ? <div className="shrink-0 text-[#3a2b17]">{headerRight}</div> : null}
         </div>
-
-        {headerRight ? <div className="shrink-0 text-[#3a2b17]">{headerRight}</div> : null}
-      </div>
+      ) : null}
 
       {/* Content */}
       <div className="h-[calc(100svh-3rem)] min-h-0">

@@ -20,6 +20,9 @@ import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 export default function Tsume3TrainingPage() {
   const router = useRouter();
   const isMobileWebView = useMobileQueryParam();
+  if (isMobileWebView === null) {
+    return <div className="min-h-[100svh] w-full bg-white" />;
+  }
   
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [board, setBoard] = useState<any[][]>([]); 
