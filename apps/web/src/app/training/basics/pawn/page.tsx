@@ -200,7 +200,7 @@ export default function PawnTrainingPage() {
 
   // ===== おじいちゃん（右下）=====
   const mascotElement = (
-    <div style={{ transform: "translate(-50px, 160px)" }}>
+    <div style={{ transform: "translate(-40px, 165px)" }}>
       <ManRive
         correctSignal={correctSignal}
         className="bg-transparent [&>canvas]:bg-transparent"
@@ -223,7 +223,7 @@ export default function PawnTrainingPage() {
     return (
       <MobileLessonShell
         mascot={
-          <div style={{ transform: "translate(-50px, 75px)" }}>
+          <div style={{ transform: "translate(-40px, 80px)" }}>
             <ManRive
               correctSignal={correctSignal}
               className="bg-transparent [&>canvas]:bg-transparent"
