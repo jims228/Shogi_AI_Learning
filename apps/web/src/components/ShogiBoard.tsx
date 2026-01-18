@@ -603,7 +603,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                         owner={pieceOwner}
                         viewerSide={viewerSide}
                     />
-                      <span className="font-extrabold text-amber-900 text-lg">成</span>
+                      <span className="font-extrabold text-amber-900 text-2xl">成</span>
                 </button>
 
                 <button
@@ -623,7 +623,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                         owner={pieceOwner}
                         viewerSide={viewerSide}
                     />
-                      <span className="font-extrabold text-slate-700 text-lg">不成</span>
+                      <span className="font-extrabold text-slate-700 text-2xl">不成</span>
                     </button>
                   </div>
                 </div>

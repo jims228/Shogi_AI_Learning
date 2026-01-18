@@ -30,9 +30,6 @@ export default function GoldTrainingPage() {
   const currentLesson = GOLD_LESSONS[currentStepIndex];
   const isDesktop = useMediaQuery("(min-width: 820px)");
   const isMobileWebView = useMobileQueryParam();
-  if (isMobileWebView === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
 
   // ステップ変更時の初期化処理
   useEffect(() => {

@@ -19,9 +19,6 @@ import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 export default function UkiCapturePage() {
   const isDesktop = useMediaQuery("(min-width: 820px)");
   const isMobileWebView = useMobileQueryParam();
-  if (isMobileWebView === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
 
   const [correctSignal, setCorrectSignal] = useState(0);
   const [secLeft, setSecLeft] = useState(60);

@@ -58,7 +58,7 @@ export function LessonScaffold({
       suppressHydrationWarning
     >
       {/* Header (hide in mobile WebView) */}
-      {isMobileWebView === false ? (
+      {!isMobileWebView ? (
         <div className="h-12 px-3 flex items-center gap-2 border-b border-black/10">
           <Link
             href={backHref}
