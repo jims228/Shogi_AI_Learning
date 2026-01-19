@@ -247,6 +247,23 @@ Start Mobile:
 pnpm -C apps/mobile start
 ```
 
+### Android実機 (Windows + WSL2 + USB) で 127.0.0.1 を使う
+
+実機アプリの設定を **`WEB_BASE_URL=http://127.0.0.1:3000` / `API_BASE_URL=http://127.0.0.1:8787`** のまま使うために、Windows → WSL2 の portproxy と `adb reverse` を毎回貼り直します。
+
+毎回の起動手順（3ステップ）:
+1) **WSLで3つ起動**（0.0.0.0 で listen 推奨）
+```bash
+HOST=0.0.0.0 PORT=8787 ./scripts/run_backend.sh
+pnpm --filter web dev -- --hostname 0.0.0.0 --port 3000
+pnpm -C apps/mobile start -- --lan --port 8081
+```
+2) **PowerShell 管理者でスクリプト実行**
+```powershell
+.\scripts\android-usb-wsl2.ps1
+```
+3) **実機で起動**（アプリ設定は `127.0.0.1` のままでOK）
+
 ### Real device / emulator URL notes (localhost problem)
 
 Mobile opens lessons at:
