@@ -13,6 +13,8 @@ export default function TsugifuTrainingPage() {
       headerRight={<span>❤ 4</span>}
       desktopMinWidthPx={820}
       onFinishHref="/learn/roadmap"
+      reserveMobileCtaSpace
+      mobileExplanationHeightPx={210}
     />
   );
 }

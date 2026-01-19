@@ -42,6 +42,10 @@ type Props = {
   onFinishHref?: string;
   /** mobile=1 from server searchParams (avoid window-based branching to prevent hydration mismatch) */
   mobile?: boolean;
+  /** Reserve space for mobile CTA to avoid layout shift */
+  reserveMobileCtaSpace?: boolean;
+  /** Fix mobile explanation height to avoid layout shift */
+  mobileExplanationHeightPx?: number;
 };
 
 type PracticeRef = { stepIndex: number; problemIndex: number };
@@ -55,6 +59,8 @@ export function LessonRunner({
   desktopMinWidthPx = 820,
   onFinishHref,
   mobile,
+  reserveMobileCtaSpace = false,
+  mobileExplanationHeightPx,
 }: Props) {
   const router = useRouter();
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
@@ -469,6 +475,12 @@ export function LessonRunner({
       <MobileCoachText tag={stepLabel} text={currentPrompt} isCorrect={isCorrect} correctText="正解！次へ進もう。" />
     );
 
+    const nextCta = canShowNextButton ? (
+      <MobilePrimaryCTA onClick={goNext} />
+    ) : reserveMobileCtaSpace ? (
+      <div className="w-full h-[56px]" aria-hidden />
+    ) : null;
+
     const actions = (
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
@@ -491,13 +503,19 @@ export function LessonRunner({
           ) : null}
         </div>
 
-        {canShowNextButton ? (
-          <MobilePrimaryCTA onClick={goNext} />
-        ) : null}
+        {nextCta}
       </div>
     );
 
-    return <MobileLessonShell mascot={mascot} explanation={explanation} actions={actions} board={boardElementMobile} />;
+    return (
+      <MobileLessonShell
+        mascot={mascot}
+        explanation={explanation}
+        actions={actions}
+        board={boardElementMobile}
+        explanationHeightPx={mobileExplanationHeightPx}
+      />
+    );
   }
 
   const explanationElement = (

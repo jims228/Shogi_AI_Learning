@@ -213,6 +213,11 @@ export default function TarefuTrainingPage() {
   ) : null;
 
   if (isMobileWebView) {
+    const mobileActions = isCorrect ? (
+      <MobilePrimaryCTA onClick={handleNext} />
+    ) : (
+      <div className="w-full h-[56px]" aria-hidden />
+    );
     return (
       <MobileLessonShell
         mascot={
@@ -230,8 +235,9 @@ export default function TarefuTrainingPage() {
             correctText="正解！次へ進もう。"
           />
         }
-        actions={isCorrect ? <MobilePrimaryCTA onClick={handleNext} /> : null}
+        actions={mobileActions}
         board={boardElementMobile}
+        explanationHeightPx={210}
       />
     );
   }
