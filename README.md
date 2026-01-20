@@ -46,6 +46,7 @@ cd apps/backend && python -m venv .venv && source .venv/bin/activate && pip inst
 ### Environment files
 - Copy `.env.example` → `.env` and adjust engine paths.
 - `apps/web/.env.local` and `apps/backend/.env` should define matching `ENGINE_URL` / `NEXT_PUBLIC_ENGINE_URL` values.
+- Auth/Billing progress notes: `docs/auth-billing-STATUS.md`.
 
 ### Run locally
 ```bash

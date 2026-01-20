@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Engine URL policy: NEXT_PUBLIC_ENGINE_URL -> ENGINE_URL -> default
 const API_BASE: string =
@@ -99,7 +100,7 @@ export function useAnnotate() {
       const url = `${API_BASE}/annotate`;
       // eslint-disable-next-line no-console
       console.log("[web] annotate fetch to:", url);
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usi, byoyomi_ms: 500 }),
@@ -129,7 +130,7 @@ export function useAnnotate() {
       const url = `${API_BASE}/health`;
       // eslint-disable-next-line no-console
       console.log("[web] health fetch to:", url);
-      const r = await fetch(url, { cache: "no-store" });
+      const r = await fetchWithAuth(url, { cache: "no-store" });
       const j = await r.json().catch(() => ({}));
       // eslint-disable-next-line no-console
       console.log("[web] engine health:", r.status, j);
@@ -202,7 +203,7 @@ export function useGameAnalysis() {
       const url = `${API_BASE}/analyze-game`;
       // eslint-disable-next-line no-console
       console.log("[web] game analysis fetch to:", url);
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usi, pov, depth }),

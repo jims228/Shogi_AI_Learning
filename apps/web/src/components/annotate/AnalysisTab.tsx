@@ -27,6 +27,7 @@ import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
 import { useBatchAnalysis } from "@/hooks/useBatchAnalysis";
 import { useRouter } from "next/navigation";
+import { fetchWithAuth, getSupabaseAccessToken } from "@/lib/fetchWithAuth";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
@@ -325,7 +326,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       ? (previewState.lastMove ? usiMoveToCoords(previewState.lastMove) : null)
       : (!isEditMode && prevMove ? usiMoveToCoords(prevMove) : null);
   
-  const startEngineAnalysis = useCallback((command: string, ply: number) => {
+  const startEngineAnalysis = useCallback(async (command: string, ply: number) => {
     if (!command) return;
     
     if (eventSourceRef.current) {
@@ -339,8 +340,13 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         return next;
     });
     
-    const url = `${API_BASE}/api/analysis/stream?position=${encodeURIComponent(command)}`;
-    const es = new EventSource(url);
+    const token = await getSupabaseAccessToken();
+    const url = new URL(`${API_BASE}/api/analysis/stream`);
+    url.searchParams.set("position", command);
+    if (token) {
+      url.searchParams.set("access_token", token);
+    }
+    const es = new EventSource(url.toString());
     eventSourceRef.current = es;
     activeStreamPlyRef.current = ply;
 
@@ -414,7 +420,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       });
     }
     const command = getSubsetUSI(usi, ply);
-    if (command) startEngineAnalysis(command, ply);
+    if (command) void startEngineAnalysis(command, ply);
   }, [startEngineAnalysis, usi]);
 
   // ★連続検討のキモ: 局面が変わっても isAnalyzing が true なら新しい局面を解析しに行く
@@ -589,7 +595,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setExplanation("");
     setExplanationJson(null);
     try {
-      const res = await fetch(`${API_BASE}/api/explain`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -663,7 +669,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     }
     try {
         const url = forceLlm ? `${API_BASE}/api/explain/digest?force_llm=1` : `${API_BASE}/api/explain/digest`;
-        const res = await fetch(url, {
+        const res = await fetchWithAuth(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ total_moves: totalMoves, eval_history: evalList, winner: null }),
@@ -715,7 +721,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     stopEngineAnalysis(); // ストリーム解析などを止める
 
     try {
-      const response = await fetch(`${API_BASE}/api/analysis/batch`, { // batch-streamではなくbatchでOK
+      const response = await fetchWithAuth(`${API_BASE}/api/analysis/batch`, { // batch-streamではなくbatchでOK
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

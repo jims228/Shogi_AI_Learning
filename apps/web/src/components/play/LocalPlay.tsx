@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Board } from "@/components/Board";
 import type { Placed, PieceCode } from "@/lib/sfen";
 import { sfenToPlaced } from "@/lib/sfen";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 type Side = "black" | "white";
 type Hand = Record<"P"|"L"|"N"|"S"|"G"|"B"|"R", number>;
@@ -179,7 +180,7 @@ export default function LocalPlay() {
     // eslint-disable-next-line no-console
     console.log("[web] localplay digest fetch to:", url);
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ usi })
       });
       if (!res.ok) {
@@ -201,7 +202,7 @@ export default function LocalPlay() {
     // eslint-disable-next-line no-console
     console.log("[web] localplay annotate fetch to:", url);
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ usi, byoyomi_ms: 500 })
       });
       if (!res.ok) {
