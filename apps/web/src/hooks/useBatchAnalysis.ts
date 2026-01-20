@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { type AnalysisCache } from "@/lib/analysisUtils";
 import { showToast } from "@/components/ui/toast";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
@@ -45,7 +46,7 @@ export const useBatchAnalysis = (): UseBatchAnalysisReturn => {
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch(`${API_BASE}/api/analysis/batch-stream`, {
+      const response = await fetchWithAuth(`${API_BASE}/api/analysis/batch-stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

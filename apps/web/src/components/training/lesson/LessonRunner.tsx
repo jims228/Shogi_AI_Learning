@@ -238,7 +238,7 @@ export function LessonRunner({
     setMistakes((prev) => [...prev, { stepIndex, problemIndex: practiceIndex }]);
   }, [mistakesSet, practiceIndex, step, stepIndex]);
 
-  const goNext = useCallback(() => {
+  const goNext = () => {
     if (!step) return;
 
     const finishLesson = () => {
@@ -289,51 +289,48 @@ export function LessonRunner({
       finishLesson();
       return;
     }
-  }, [backHref, guidedSubIndex, onFinishHref, practiceIndex, reviewIndex, reviewQueue.length, router, step, steps.length]);
+  };
 
-  const handleMove = useCallback(
-    (move: BoardMove) => {
-      if (!step) return;
-      if (isCorrect) return; // prevent double input during success state
+  const handleMove = (move: BoardMove) => {
+    if (!step) return;
+    if (isCorrect) return; // prevent double input during success state
 
-      const ok = isExpectedMove(move, expectedMoves);
+    const ok = isExpectedMove(move, expectedMoves);
 
-      if (ok) {
-        setIsCorrect(true);
-        setCorrectSignal((v) => v + 1);
+    if (ok) {
+      setIsCorrect(true);
+      setCorrectSignal((v) => v + 1);
 
-        const after: "auto" | "nextButton" = (() => {
-          if (step.type === "guided") return step.substeps[guidedSubIndex]?.after ?? "auto";
-          return "nextButton";
-        })();
+      const after: "auto" | "nextButton" = (() => {
+        if (step.type === "guided") return step.substeps[guidedSubIndex]?.after ?? "auto";
+        return "nextButton";
+      })();
 
-        if (after === "auto") {
-          window.setTimeout(() => {
-            goNext();
-          }, 200);
-        } else {
-          // nextButton: wait user
-          // Mobile WebView: show inline success banner under the explanation (avoid overlay/toast on mascot).
-          if (!isMobileWebView) {
-            showToast({ title: "正解！", description: "次へ進もう。" });
-          }
+      if (after === "auto") {
+        window.setTimeout(() => {
+          goNext();
+        }, 200);
+      } else {
+        // nextButton: wait user
+        // Mobile WebView: show inline success banner under the explanation (avoid overlay/toast on mascot).
+        if (!isMobileWebView) {
+          showToast({ title: "正解！", description: "次へ進もう。" });
         }
-        return;
       }
+      return;
+    }
 
-      // wrong
-      if (step.type === "practice") markMistakeIfNeeded();
+    // wrong
+    if (step.type === "practice") markMistakeIfNeeded();
 
-      const wrongHint =
-        step.type === "guided"
-          ? step.substeps[guidedSubIndex]?.wrongHint
-          : "その手ではありません。もう一度考えてみましょう。";
+    const wrongHint =
+      step.type === "guided"
+        ? step.substeps[guidedSubIndex]?.wrongHint
+        : "その手ではありません。もう一度考えてみましょう。";
 
-      showToast({ title: "惜しい！", description: wrongHint ?? "その手ではありません。もう一度考えてみましょう。" });
-      window.setTimeout(() => resetCurrentPosition(), 650);
-    },
-    [expectedMoves, goNext, guidedSubIndex, isCorrect, isMobileWebView, markMistakeIfNeeded, resetCurrentPosition, step],
-  );
+    showToast({ title: "惜しい！", description: wrongHint ?? "その手ではありません。もう一度考えてみましょう。" });
+    window.setTimeout(() => resetCurrentPosition(), 650);
+  };
 
   const canShowNextButton = useMemo(() => {
     if (!step) return false;

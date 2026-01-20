@@ -9,6 +9,7 @@ import Link from "next/link";
 import { buildBoardTimeline, type BoardMatrix, type HandsState, type Side } from "@/lib/board";
 import { type PieceBase } from "@/lib/sfen";
 import { cn } from "@/lib/utils";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8787";
 
@@ -88,7 +89,7 @@ export default function TsumePage() {
 
   // 初期ロード
   useEffect(() => {
-    fetch(`${API_BASE}/api/tsume/list`)
+    fetchWithAuth(`${API_BASE}/api/tsume/list`)
       .then(res => res.json())
       .then(data => {
         setProblemList(data);
@@ -102,7 +103,7 @@ export default function TsumePage() {
   const selectProblem = async (id: number) => {
     setIsProcessing(true);
     try {
-      const res = await fetch(`${API_BASE}/api/tsume/${id}`);
+      const res = await fetchWithAuth(`${API_BASE}/api/tsume/${id}`);
       const data = await res.json();
       setCurrentProblem(data);
       setCurrentSfen(data.sfen);
@@ -150,7 +151,7 @@ export default function TsumePage() {
 
     try {
       // 2. AIに手を送る
-      const res = await fetch(`${API_BASE}/api/tsume/play`, {
+      const res = await fetchWithAuth(`${API_BASE}/api/tsume/play`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sfen: nextSfen }),

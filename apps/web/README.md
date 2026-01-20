@@ -2,16 +2,23 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### Environment setup (Supabase / Stripe)
+
+Create `apps/web/.env.local` from the example file and fill in values:
+
+```bash
+cp apps/web/.env.local.example apps/web/.env.local
+```
+
+- In Supabase Dashboard, copy the **Project URL** and **anon public key** into:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- After editing `.env.local`, restart the dev server to load changes.
+
 First, run the development server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm -C apps/web dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

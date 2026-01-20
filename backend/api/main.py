@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend.api.services.ai_service import AIService
-from backend.api.auth import Principal, require_api_key
+from backend.api.auth import Principal, require_api_key, require_user
 from backend.api.middleware.rate_limit import RateLimitMiddleware
 from backend.api.tsume_data import TSUME_PROBLEMS
 
@@ -995,7 +995,7 @@ def root(): return {"message": "engine ok"}
 def health(): return {"status": "ok"}
 
 @app.post("/api/explain")
-async def explain_endpoint(req: ExplainRequest, _principal: Principal = Depends(require_api_key)):
+async def explain_endpoint(req: ExplainRequest, _principal: Principal = Depends(require_user)):
     # Backward compatible: still returns "explanation", but may include "explanation_json" + "verify".
     return await AIService.generate_shogi_explanation_payload(_dump_model(req))
 
