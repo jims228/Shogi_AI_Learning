@@ -55,13 +55,21 @@ docker/engine/**
 !docker/engine/*.example
 
 ### Environment / secrets
+# --- env / secrets ---
+
 .env
-.env*
-!.env.example
-!.env.prod.example
+.env.local
+.env.*.local
+
 apps/web/.env.local
+apps/web/.env.*.local
+
+backend/.env
 apps/backend/.env
-apps/backend/.env.local
+
+*.env.local
+
+!apps/web/.env.local.example
 
 ### Editor / OS
 .DS_Store
