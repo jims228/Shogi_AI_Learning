@@ -1004,7 +1004,7 @@ async def digest_endpoint(
     req: GameDigestInput,
     request: Request,
     force_llm: bool = False,
-    _principal: Principal = Depends(require_api_key),
+    _principal: Principal = Depends(require_user),
 ):
     import uuid
     rid = uuid.uuid4().hex[:12]
@@ -1035,7 +1035,7 @@ async def tsume_play_endpoint(req: TsumePlayRequest, _principal: Principal = Dep
     return await stream_engine.solve_tsume_hand(req.sfen)
 
 @app.post("/api/analysis/batch")
-async def batch_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_api_key)):
+async def batch_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_user)):
     moves = req.moves or []
     if req.usi and "moves" in req.usi:
          moves = req.usi.split("moves")[1].split()
@@ -1051,11 +1051,11 @@ async def batch_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depe
     return StreamingResponse(generator(), media_type="application/x-ndjson")
 
 @app.post("/api/analysis/batch-stream")
-async def batch_stream_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_api_key)):
+async def batch_stream_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_user)):
     return await batch_endpoint(req)
 
 @app.get("/api/analysis/stream")
-def stream_endpoint(position: str, _principal: Principal = Depends(require_api_key)):
+def stream_endpoint(position: str, _principal: Principal = Depends(require_user)):
     return StreamingResponse(
         stream_engine.stream_analyze(AnalyzeIn(position=position, depth=15, multipv=3)),
         media_type="text/event-stream"

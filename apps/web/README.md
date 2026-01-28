@@ -21,6 +21,8 @@ First, run the development server:
 pnpm -C apps/web dev
 ```
 
+WSL 環境で Supabase への接続が `UND_ERR_CONNECT_TIMEOUT` になる場合は、DNS設定を固定するために `pnpm -C apps/web dev:wsl` を使って起動してください（`NODE_OPTIONS=--dns-result-order=ipv4first` を恒久化したコマンドです）。
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
