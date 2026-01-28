@@ -58,8 +58,10 @@ docker/engine/**
 # --- env / secrets ---
 
 .env
+.env.*
 .env.local
 .env.*.local
+.envrc
 
 apps/web/.env.local
 apps/web/.env.*.local
@@ -69,6 +71,8 @@ apps/backend/.env
 
 *.env.local
 
+!.env.example
+!.env.*.example
 !apps/web/.env.local.example
 
 ### Editor / OS

@@ -43,10 +43,50 @@ pnpm install
 cd apps/backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 ```
 
-### Environment files
-- Copy `.env.example` → `.env` and adjust engine paths.
-- `apps/web/.env.local` and `apps/backend/.env` should define matching `ENGINE_URL` / `NEXT_PUBLIC_ENGINE_URL` values.
+### Environment files (single source of truth)
+- Copy `.env.example` → **repo root** `.env` and adjust engine paths.
+- Policy: **Only repo-root `.env` is used for Gemini keys/models.** Do not set `GEMINI_*` or `GOOGLE_API_KEY` in `.env.local` or `.envrc`.
+- Legacy files like `apps/web/.env` or `backend/api/.env` are **not** read for Gemini. If they exist for other purposes, keep them for non-Gemini settings only, or rename to `.env.deprecated`.
+- If you use `apps/web/.env.local`, keep it for web-only settings (e.g. `NEXT_PUBLIC_*`), and **do not** place Gemini keys there.
 - Auth/Billing progress notes: `docs/auth-billing-STATUS.md`.
+
+### Env audit (recommended before LLM runs)
+Run the audit helper to see which env files exist and what the runtime will use:
+```bash
+python3 tools/env_audit.py
+```
+It prints repo root, detected `.env/.env.* /.envrc`, and the **effective** `GEMINI_API_KEY` prefix + `GEMINI_MODEL` after loading root `.env`.
+If you use direnv, avoid `.envrc` exports for Gemini keys.
+
+### Secret hygiene (required)
+- Only put API keys in repo-root `.env`.
+- Do **not** place keys in `apps/**/.env*` or `.envrc`.
+- Run before commit:
+```bash
+python3 tools/scan_secrets.py
+```
+If you use pre-commit, install it and enable hooks:
+```bash
+pre-commit install
+```
+
+### Batch generation with cost guards (recommended)
+Use cost guard flags to prevent runaway billing:
+```bash
+python3 tools/generate_wkbk_explanations_gemini.py \
+  --provider openai \
+  --only-lineage "詰将棋" \
+  --max-items 50 \
+  --max-requests 50 \
+  --max-total-tokens 200000 \
+  --max-estimated-cost-usd 1.00 \
+  --max-rpm 30 \
+  --sleep-secs 1
+```
+Notes:
+- Set `OPENAI_API_KEY`/`OPENAI_MODEL` (or `GEMINI_*`) in repo root `.env`.
+- For cost estimation, set `OPENAI_PRICE_INPUT_USD_PER_1K` / `OPENAI_PRICE_OUTPUT_USD_PER_1K`
+  (and Gemini equivalents if using Gemini).
 
 ### Run locally
 ```bash
