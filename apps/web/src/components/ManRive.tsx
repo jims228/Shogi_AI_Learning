@@ -18,7 +18,7 @@ export type ManRiveProps = {
 
 export function ManRive({ correctSignal, className, style }: ManRiveProps) {
   const { rive, RiveComponent } = useRive({
-    src: '/man.riv',
+    src: '/anime/man.riv',
     stateMachines: 'Main',
     autoplay: true,
     layout: new Layout({

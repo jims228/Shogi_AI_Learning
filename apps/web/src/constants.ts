@@ -70,6 +70,18 @@ export const LESSONS: Lesson[] = [
   },
 
   {
+    id: "basics_pawn_0_remake",
+    title: "歩の動きと成り_作り直し",
+    description: "歩は前に1マス。敵陣で成る/不成、成りのタイミングを確認します。（Duolingo風UI）",
+    category: "basics",
+    status: "available",
+    order: 13,
+    href: "/training/basics/pawn",
+    stars: 0,
+    prerequisites: [],
+  },
+
+  {
     id: "basics_pawn_1_role",
     title: "歩の役割（壁・道を開ける・捨て駒・と金）",
     description:

@@ -9,11 +9,18 @@ import { useProgress } from "../state/progress";
 import { useSettings } from "../state/settings";
 import { Card, PrimaryButton, Screen } from "../ui/components";
 import { theme } from "../ui/theme";
+import { PawnLessonRemakeScreen } from "./PawnLessonRemakeScreen";
+
+const PAWN_REMAKE_LESSON_ID = "basics_pawn_0_remake";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
 
 export function LessonLaunchScreen({ navigation, route }: Props) {
   const { lessonId } = route.params;
+
+  if (lessonId === PAWN_REMAKE_LESSON_ID) {
+    return <PawnLessonRemakeScreen navigation={navigation} route={route} />;
+  }
   const { markCompleted, setLastPlayed } = useProgress();
   const { settings } = useSettings();
   const completedOnceRef = useRef(false);

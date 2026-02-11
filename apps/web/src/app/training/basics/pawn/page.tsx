@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 
@@ -17,7 +17,7 @@ import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import { PAWN_LESSON_0_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce, getMobileParamsFromUrl } from "@/lib/mobileBridge";
 import { createEmptyBoard } from "@/lib/board";
 import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
@@ -30,9 +30,19 @@ const normalizeUsiPosition = (s: string) => {
   return `position sfen ${t}`;
 };
 
+function postToRn(msg: { type: string; [k: string]: unknown }) {
+  try {
+    const w = typeof window !== "undefined" ? (window as any) : null;
+    if (w?.ReactNativeWebView?.postMessage) w.ReactNativeWebView.postMessage(JSON.stringify(msg));
+  } catch {
+    // ignore
+  }
+}
+
 export default function PawnTrainingPage() {
   const router = useRouter();
   const isMobileWebView = useMobileQueryParam();
+  const { embed: isEmbed } = getMobileParamsFromUrl();
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   // Important: always start with a valid 9x9 board to avoid WebView/hydration crashes.
@@ -56,7 +66,8 @@ export default function PawnTrainingPage() {
       console.error("SFEN Parse Error", e);
     }
     setIsCorrect(false);
-  }, [currentLesson]);
+    if (isEmbed) postToRn({ type: "stepChanged", stepIndex: currentStepIndex, title: currentLesson.title, description: currentLesson.description });
+  }, [currentLesson, currentStepIndex, isEmbed]);
 
   const handleMove = useCallback(
     (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => {
@@ -65,7 +76,8 @@ export default function PawnTrainingPage() {
       if (correct) {
         setIsCorrect(true);
         setCorrectSignal((v) => v + 1);
-        if (!isMobileWebView) {
+        if (isEmbed) postToRn({ type: "lessonCorrect" });
+        else if (!isMobileWebView) {
           showToast({ title: "正解！", description: currentLesson.successMessage });
         }
       } else {
@@ -78,7 +90,7 @@ export default function PawnTrainingPage() {
         }, 900);
       }
     },
-    [currentLesson, isMobileWebView],
+    [currentLesson, isMobileWebView, isEmbed],
   );
 
   const handleNext = () => {
@@ -89,8 +101,46 @@ export default function PawnTrainingPage() {
     }
   };
 
+  // Expose next handler for React Native embed (native calls window.__rnLessonNext())
+  const handleNextRef = useRef(handleNext);
+  handleNextRef.current = handleNext;
+  useEffect(() => {
+    if (!isEmbed || typeof window === "undefined") return;
+    (window as any).__rnLessonNext = () => handleNextRef.current();
+    return () => {
+      delete (window as any).__rnLessonNext;
+    };
+  }, [isEmbed]);
+
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
   const isBoardReady = Array.isArray(board) && board.length === 9 && Array.isArray(board[0]) && board[0].length === 9;
+
+  // Embed mode: only board for React Native Duolingo-style shell (header/instruction/dialogue/footer are native)
+  if (isEmbed) {
+    return (
+      <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ minHeight: "380px" }}>
+        <div className="w-full h-full aspect-square max-w-[min(100vw,380px)]">
+          <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
+            <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+              <div className="relative w-full h-full">
+                <ShogiBoard
+                  board={isBoardReady ? board : createEmptyBoard()}
+                  hands={hands}
+                  mode="edit"
+                  onMove={handleMove}
+                  onBoardChange={setBoard}
+                  onHandsChange={setHands}
+                  orientation="sente"
+                  handsPlacement="corners"
+                  showCoordinates={false}
+                />
+              </div>
+            </WoodBoardFrame>
+          </AutoScaleToFit>
+        </div>
+      </div>
+    );
+  }
 
   const nextButton = isCorrect ? (
     <button
@@ -104,7 +154,7 @@ export default function PawnTrainingPage() {
 
   // ===== 盤面（左側に常に出す）=====
   const boardElement = (
-    <div className="w-full h-full flex items-center justify-center" style={{ transform: "translateY(-40px)" }}>
+    <div className="w-full h-full flex items-center justify-center" style={{ transform: "translateY(-50px)" }}>
       <div
         className="w-full"
         style={{
@@ -133,24 +183,22 @@ export default function PawnTrainingPage() {
   );
 
   const boardElementMobile = (
-    <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ transform: "translateY(-45px)" }}>
+    <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ transform: "translateY(-65px)" }}>
       <div className="w-full h-full aspect-square">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
             <div className="relative w-full h-full">
-              <div style={{ ["--piece-sprite-scale" as any]: 1.2, ["--piece-offset-y" as any]: "-5px" }}>
-                <ShogiBoard
-                  board={isBoardReady ? board : createEmptyBoard()}
-                  hands={hands}
-                  mode="edit"
-                  onMove={handleMove}
-                  onBoardChange={setBoard}
-                  onHandsChange={setHands}
-                  orientation="sente"
-                  handsPlacement="corners"
-                  showCoordinates={false}
-                />
-              </div>
+              <ShogiBoard
+                board={isBoardReady ? board : createEmptyBoard()}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation="sente"
+                handsPlacement="corners"
+                showCoordinates={false}
+              />
             </div>
           </WoodBoardFrame>
         </AutoScaleToFit>

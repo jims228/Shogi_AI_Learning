@@ -1,14 +1,15 @@
 export function getMobileParamsFromUrl() {
   try {
-    if (typeof window === "undefined") return { mobile: false, noai: false, lid: undefined as string | undefined };
+    if (typeof window === "undefined") return { mobile: false, noai: false, lid: undefined as string | undefined, embed: false };
     const sp = new URLSearchParams(window.location.search);
     return {
       mobile: sp.get("mobile") === "1",
       noai: sp.get("noai") === "1",
       lid: sp.get("lid") ?? undefined,
+      embed: sp.get("embed") === "1",
     };
   } catch {
-    return { mobile: false, noai: false, lid: undefined as string | undefined };
+    return { mobile: false, noai: false, lid: undefined as string | undefined, embed: false };
   }
 }
 
