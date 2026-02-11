@@ -49,9 +49,9 @@ const BASE_CELL_SIZE = 50;
 const BASE_PIECE_SIZE = 49;
 const PIECE_SIZE_MULTIPLIER = 1.31; // 駒の表示倍率（盤上・持ち駒共通）
 /** 自分の駒の縦位置オフセット（px）。負で上方向 */
-const PIECE_OFFSET_Y_OWN_PX = -2.2;
+const PIECE_OFFSET_Y_OWN_PX = -3.4;
 /** 相手の駒の縦位置オフセット（px）。負で上方向 */
-const PIECE_OFFSET_Y_OPPONENT_PX = -4.6;
+const PIECE_OFFSET_Y_OPPONENT_PX = -3.9;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
 const BASE_HAND_CELL_SIZE = 40;
 const BASE_HAND_PIECE_SIZE = 39;
