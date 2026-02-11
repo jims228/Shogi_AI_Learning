@@ -26,8 +26,8 @@ const spriteMap: Record<string, SpriteEntry> = {
   "+L": { row: 1, col: 1, offsetX: -3, offsetY: 0 },
   "+N": { row: 1, col: 2, offsetX: 1, offsetY: 0 },
   "+S": { row: 1, col: 3, offsetX: -2, offsetY: 0 },
-  "+B": { row: 1, col: 4, offsetX: -2, offsetY: 0 },
-  "+R": { row: 1, col: 5, offsetX: -2, offsetY: 0 },
+  "+B": { row: 1, col: 5, offsetX: -2, offsetY: 0 },  // 馬 (角成) = col 5
+  "+R": { row: 1, col: 6, offsetX: -2, offsetY: 0 },  // 龍 (飛成) = col 6
 };
 
 const PLAYER_ROW_OFFSET: Record<"player" | "opponent", 0 | 2> = {
