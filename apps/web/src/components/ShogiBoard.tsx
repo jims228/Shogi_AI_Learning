@@ -47,6 +47,11 @@ export interface ShogiBoardProps {
 
 const BASE_CELL_SIZE = 50;
 const BASE_PIECE_SIZE = 49;
+const PIECE_SIZE_MULTIPLIER = 1.31; // 駒の表示倍率（盤上・持ち駒共通）
+/** 自分の駒の縦位置オフセット（px）。負で上方向 */
+const PIECE_OFFSET_Y_OWN_PX = -2.2;
+/** 相手の駒の縦位置オフセット（px）。負で上方向 */
+const PIECE_OFFSET_Y_OPPONENT_PX = -4.6;
 const HAND_ORDER: PieceBase[] = ["P", "L", "N", "S", "G", "B", "R", "K"];
 const BASE_HAND_CELL_SIZE = 40;
 const BASE_HAND_PIECE_SIZE = 39;
@@ -122,9 +127,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   }, []);
 
   const CELL_SIZE = Math.round(BASE_CELL_SIZE * uiScale);
-  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale * pieceScale);
+  const PIECE_SIZE = Math.round(BASE_PIECE_SIZE * uiScale * pieceScale * PIECE_SIZE_MULTIPLIER);
   const HAND_CELL_SIZE = Math.round(BASE_HAND_CELL_SIZE * uiScale);
-  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale * pieceScale);
+  const HAND_PIECE_SIZE = Math.round(BASE_HAND_PIECE_SIZE * uiScale * pieceScale * PIECE_SIZE_MULTIPLIER);
   const LABEL_GAP = Math.round(BASE_LABEL_GAP * uiScale);
   const boardSize = CELL_SIZE * 9;
 
@@ -506,12 +511,12 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           })}
           </div>
 
-          <div
-            className="absolute inset-0 z-10 pointer-events-none"
-            style={{ transform: "translateY(var(--piece-offset-y, 0px))" }}
-          >
+          <div className="absolute inset-0 z-10 pointer-events-none">
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
+            const pieceOwner = getPieceOwner(piece.piece);
+            const isViewerPiece = pieceOwner === viewerOrientation;
+            const shiftY = isViewerPiece ? PIECE_OFFSET_Y_OWN_PX : PIECE_OFFSET_Y_OPPONENT_PX;
             const isMovingPiece =
               Boolean(selectedSquare) && selectedSquare!.x === piece.x && selectedSquare!.y === piece.y && canEdit;
             const stableKey = `sq:${piece.x}:${piece.y}:${piece.piece}`;
@@ -528,7 +533,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   y={display.y}
                   size={PIECE_SIZE}
                   cellSize={CELL_SIZE}
-                  owner={getPieceOwner(piece.piece)}
+                  shiftY={shiftY}
+                  owner={pieceOwner}
                   orientationMode={orientationMode}
                   viewerSide={viewerOrientation}
                 />
@@ -579,7 +585,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             const left = clamp(rawLeft, 8, boardSize - popW - 8);
             const top = clamp(rawTop, 8, boardSize - popH - 8);
 
-            const spriteSize = Math.max(44, Math.round(CELL_SIZE * 0.9 * pieceScale));
+            const spriteSize = Math.max(44, Math.round(CELL_SIZE * 0.9 * pieceScale * PIECE_SIZE_MULTIPLIER));
 
             return (
               <div className="absolute inset-0 z-[200] pointer-events-auto">
@@ -715,6 +721,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             viewerSide={viewerOrientation}
             cellSize={HAND_CELL_SIZE}
             pieceSize={HAND_PIECE_SIZE}
+            shiftYForViewer={PIECE_OFFSET_Y_OWN_PX}
+            shiftYForOpponent={PIECE_OFFSET_Y_OPPONENT_PX}
             canEdit={canEdit}
             selectedHand={selectedHand}
             onHandClick={handleHandClick}
@@ -737,6 +745,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             viewerSide={viewerOrientation}
             cellSize={HAND_CELL_SIZE}
             pieceSize={HAND_PIECE_SIZE}
+            shiftYForViewer={PIECE_OFFSET_Y_OWN_PX}
+            shiftYForOpponent={PIECE_OFFSET_Y_OPPONENT_PX}
             canEdit={canEdit}
             selectedHand={selectedHand}
             onHandClick={handleHandClick}
@@ -757,6 +767,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         viewerSide={viewerOrientation}
         cellSize={HAND_CELL_SIZE}
         pieceSize={HAND_PIECE_SIZE}
+        shiftYForViewer={PIECE_OFFSET_Y_OWN_PX}
+        shiftYForOpponent={PIECE_OFFSET_Y_OPPONENT_PX}
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
@@ -769,6 +781,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         viewerSide={viewerOrientation}
         cellSize={HAND_CELL_SIZE}
         pieceSize={HAND_PIECE_SIZE}
+        shiftYForViewer={PIECE_OFFSET_Y_OWN_PX}
+        shiftYForOpponent={PIECE_OFFSET_Y_OPPONENT_PX}
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
@@ -787,6 +801,10 @@ type HandAreaProps = {
   viewerSide: "sente" | "gote";
   cellSize: number;
   pieceSize: number;
+  /** 自分の駒の縦オフセット（px）。盤面の PIECE_OFFSET_Y_OWN_PX に合わせる */
+  shiftYForViewer?: number;
+  /** 相手の駒の縦オフセット（px）。盤面の PIECE_OFFSET_Y_OPPONENT_PX に合わせる */
+  shiftYForOpponent?: number;
   canEdit?: boolean;
   selectedHand?: SelectedHand;
   onHandClick?: (base: PieceBase, side: "b" | "w") => void;
@@ -802,6 +820,8 @@ const HandArea: React.FC<HandAreaProps> = ({
   viewerSide,
   cellSize,
   pieceSize,
+  shiftYForViewer = 0,
+  shiftYForOpponent = 0,
   canEdit,
   selectedHand,
   onHandClick,
@@ -809,6 +829,8 @@ const HandArea: React.FC<HandAreaProps> = ({
 }) => {
   const owner = side === "b" ? "sente" : "gote";
   const label = owner === "sente" ? "先手の持ち駒" : "後手の持ち駒";
+  const isViewerHand = owner === viewerSide;
+  const shiftY = isViewerHand ? shiftYForViewer : shiftYForOpponent;
 
   const items = HAND_ORDER.map((base) => {
     const count = hands?.[base];
@@ -835,6 +857,7 @@ const HandArea: React.FC<HandAreaProps> = ({
           y={0}
           size={pieceSize}
           cellSize={cellSize}
+          shiftY={shiftY}
           orientationMode={orientationMode}
           owner={owner}
           viewerSide={viewerSide}

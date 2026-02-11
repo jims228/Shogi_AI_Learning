@@ -9,10 +9,10 @@ const SPRITE_URL = "/images/pieces.png";
 
 // pieces.png layout (130px tiles, 8 cols × 4 rows)
 //   row 0: viewer-side unpromoted   [P, L, N, S, G, B, R, K]
-//   row 1: viewer-side promoted     [+P, +L, +N, +S, (blank), +B, +R, (blank)]
+//   row 1: viewer-side promoted     [+P, +L, +N, +S, +B, +R, (col6), (col7)] と杏圭全馬龍
 //   row 2: opponent-side unpromoted [same order]
 //   row 3: opponent-side promoted   [same order]
-// Rows 2/3 mirror rows 0/1, but are drawn as the far-side player.
+// Rows 2/3 are dedicated gote (inverted) sprites; no rotation needed when orientationMode="sprite".
 const spriteMap: Record<string, { row: 0 | 1; col: number }> = {
   P: { row: 0, col: 0 },
   L: { row: 0, col: 1 },
@@ -26,8 +26,8 @@ const spriteMap: Record<string, { row: 0 | 1; col: number }> = {
   "+L": { row: 1, col: 1 },
   "+N": { row: 1, col: 2 },
   "+S": { row: 1, col: 3 },
-  "+B": { row: 1, col: 5 },
-  "+R": { row: 1, col: 6 },
+  "+B": { row: 1, col: 4 },
+  "+R": { row: 1, col: 5 },
 };
 
 const PLAYER_ROW_OFFSET: Record<"player" | "opponent", 0 | 2> = {
@@ -45,6 +45,8 @@ interface PieceSpriteProps {
   cellSize?: number;    // board cell size
   offsetX?: number;     // board left offset
   offsetY?: number;     // board top offset
+  /** 縦方向の追加オフセット（px）。自分側・相手側で別々に指定可能 */
+  shiftY?: number;
   owner?: "sente" | "gote";
   orientationMode?: OrientationMode;
   viewerSide?: "sente" | "gote";
@@ -62,6 +64,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   cellSize,
   offsetX = 0,
   offsetY = 0,
+  shiftY = 0,
   owner,
   orientationMode: orientationModeProp = "sprite",
   viewerSide = "sente",
@@ -93,7 +96,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   const bgPosY = -spriteRow * TILE_SIZE * scale;
 
   const left = originX + x * cell + (cell - pieceSize) / 2;
-  const top = originY + y * cell + (cell - pieceSize) / 2;
+  const top = originY + y * cell + (cell - pieceSize) / 2 + shiftY;
 
   const shouldRotate = orientationMode === "rotate" && !isViewerPiece;
   const baseTransform = shouldRotate ? " rotate(180deg)" : "";

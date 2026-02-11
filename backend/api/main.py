@@ -1,5 +1,5 @@
 from __future__ import annotations
-import asyncio, os, re, shlex, time, json, shutil
+import asyncio, os, re, shlex, time, json, shutil, uuid
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, List, AsyncGenerator
 from fastapi import FastAPI, HTTPException, Depends, Request
@@ -746,6 +746,7 @@ class EngineState(BaseEngine):
     def __init__(self, name="StreamEngine"):
         super().__init__(name=name)
         self.lock = asyncio.Lock()
+        self.cancel_event = asyncio.Event()
 
     async def ensure_alive(self):
         if self.proc and self.proc.returncode is None: return
@@ -793,8 +794,12 @@ class EngineState(BaseEngine):
             if line.startswith("bestmove"):
                 return
 
+    async def cancel_current(self):
+        self.cancel_event.set()
+
     async def stream_analyze(self, req: AnalyzeIn):
         async with self.lock:
+            self.cancel_event.clear()
             await self.ensure_alive()
             if not self.proc:
                 yield f"data: {json.dumps({'error': 'Engine not available'})}\n\n"
@@ -815,6 +820,10 @@ class EngineState(BaseEngine):
             await self._send_line(f"go depth {req.depth} multipv {req.multipv}")
             
             while True:
+                if self.cancel_event.is_set():
+                    self.cancel_event.clear()
+                    await self.stop_and_flush()
+                    break
                 line = await self._read_line(timeout=2.0)
                 if line is None:
                     yield ": keepalive\n\n"
@@ -946,6 +955,7 @@ class BatchEngineState(EngineState):
     
     async def stream_batch_analyze(self, moves: List[str], time_budget_ms: int = None) -> AsyncGenerator[str, None]:
         async with self.lock:
+            self.cancel_event.clear()
             await self.ensure_alive()
             await self.stop_and_flush()
 
@@ -954,6 +964,10 @@ class BatchEngineState(EngineState):
             start_time = time.time()
             
             for i in range(len(moves) + 1):
+                if self.cancel_event.is_set():
+                    self.cancel_event.clear()
+                    await self.stop_and_flush()
+                    break
                 if time_budget_ms and (time.time() - start_time > time_budget_ms / 1000):
                     print(f"[{self.name}] Time budget exceeded at ply {i}")
                     break 
@@ -1035,31 +1049,70 @@ async def tsume_play_endpoint(req: TsumePlayRequest, _principal: Principal = Dep
     return await stream_engine.solve_tsume_hand(req.sfen)
 
 @app.post("/api/analysis/batch")
-async def batch_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_user)):
+async def batch_endpoint(
+    req: BatchAnalysisRequest,
+    request: Request,
+    request_id: Optional[str] = None,
+    _principal: Principal = Depends(require_user),
+):
     moves = req.moves or []
     if req.usi and "moves" in req.usi:
          moves = req.usi.split("moves")[1].split()
+
+    rid = request_id or uuid.uuid4().hex[:12]
+    ip = request.client.host if request.client else "unknown"
     
     async def generator():
+        print(f"[batch] start rid={rid} ip={ip}")
         try:
             async for line in batch_engine.stream_batch_analyze(moves, req.time_budget_ms):
+                if await request.is_disconnected():
+                    print(f"[batch] client_disconnect rid={rid}")
+                    await batch_engine.cancel_current()
+                    break
                 yield line
         except Exception as e:
-            print(f"Batch error: {e}")
+            print(f"[batch] error rid={rid}: {e}")
             yield json.dumps({"error": str(e)}) + "\n"
+        finally:
+            print(f"[batch] end rid={rid}")
 
     return StreamingResponse(generator(), media_type="application/x-ndjson")
 
 @app.post("/api/analysis/batch-stream")
-async def batch_stream_endpoint(req: BatchAnalysisRequest, _principal: Principal = Depends(require_user)):
-    return await batch_endpoint(req)
+async def batch_stream_endpoint(
+    req: BatchAnalysisRequest,
+    request: Request,
+    request_id: Optional[str] = None,
+    _principal: Principal = Depends(require_user),
+):
+    return await batch_endpoint(req, request=request, request_id=request_id)
 
 @app.get("/api/analysis/stream")
-def stream_endpoint(position: str, _principal: Principal = Depends(require_user)):
-    return StreamingResponse(
-        stream_engine.stream_analyze(AnalyzeIn(position=position, depth=15, multipv=3)),
-        media_type="text/event-stream"
-    )
+async def stream_endpoint(
+    position: str,
+    request: Request,
+    request_id: Optional[str] = None,
+    _principal: Principal = Depends(require_user),
+):
+    rid = request_id or uuid.uuid4().hex[:12]
+    ip = request.client.host if request.client else "unknown"
+
+    async def generator():
+        print(f"[analysis] stream_start rid={rid} ip={ip}")
+        try:
+            async for chunk in stream_engine.stream_analyze(
+                AnalyzeIn(position=position, depth=15, multipv=3)
+            ):
+                if await request.is_disconnected():
+                    print(f"[analysis] client_disconnect rid={rid}")
+                    await stream_engine.cancel_current()
+                    break
+                yield chunk
+        finally:
+            print(f"[analysis] stream_end rid={rid}")
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
 
 if __name__ == "__main__":
     import uvicorn

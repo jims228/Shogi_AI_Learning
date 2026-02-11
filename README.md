@@ -69,6 +69,7 @@ If you use pre-commit, install it and enable hooks:
 ```bash
 pre-commit install
 ```
+For history rewrites after accidental commits, see `docs/security.md`.
 
 ### Batch generation with cost guards (recommended)
 Use cost guard flags to prevent runaway billing:

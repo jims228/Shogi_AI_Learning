@@ -205,6 +205,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeStreamPlyRef = useRef<number | null>(null);
+  const requestedPlyRef = useRef<number | null>(null);
+  const realtimeAnalysisRef = useRef<AnalysisCache>({});
+  const requestIdRef = useRef<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [kifuText, setKifuText] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -228,6 +231,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   const [previewSequence, setPreviewSequence] = useState<string[] | null>(null);
   const [previewStep, setPreviewStep] = useState<number>(0);
+
+  useEffect(() => {
+    realtimeAnalysisRef.current = realtimeAnalysis;
+  }, [realtimeAnalysis]);
 
   const timeline = useMemo(() => {
     try { return buildBoardTimeline(usi); } 
@@ -300,6 +307,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       eventSourceRef.current = null;
     }
     activeStreamPlyRef.current = null;
+    requestedPlyRef.current = null;
+    requestIdRef.current = null;
     setIsAnalyzing(false);
   }, []);
 
@@ -328,87 +337,123 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   
   const startEngineAnalysis = useCallback(async (command: string, ply: number) => {
     if (!command) return;
-    
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+
+    if (activeStreamPlyRef.current === ply && eventSourceRef.current) {
+      return;
     }
 
-    setRealtimeAnalysis(prev => {
-        const next = { ...prev };
-        delete next[ply];
-        return next;
-    });
-    
-    const token = await getSupabaseAccessToken();
-    const url = new URL(`${API_BASE}/api/analysis/stream`);
-    url.searchParams.set("position", command);
-    if (token) {
-      url.searchParams.set("access_token", token);
-    }
-    const es = new EventSource(url.toString());
-    eventSourceRef.current = es;
-    activeStreamPlyRef.current = ply;
+    let requestId: string | null = null;
 
-    es.onopen = () => {
-      console.log(`[Analysis] Connection opened for ply ${ply}`);
-    };
-
-    es.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.multipv_update) {
-            setRealtimeAnalysis((prev) => {
-                const previousEntry = prev[ply] || { ok: true, multipv: [] };
-                const currentList = previousEntry.multipv ? [...previousEntry.multipv] : [];
-                const newItem = payload.multipv_update;
-                if (!newItem.multipv) return prev;
-                const index = currentList.findIndex(item => item.multipv === newItem.multipv);
-                if (index !== -1) {
-                    currentList[index] = newItem;
-                } else {
-                    currentList.push(newItem);
-                }
-                currentList.sort((a, b) => (a.multipv || 0) - (b.multipv || 0));
-                return {
-                    ...prev,
-                    [ply]: {
-                        ...previousEntry,
-                        multipv: currentList
-                    }
-                };
-            });
-        }
-        if (payload.bestmove) {
-            setRealtimeAnalysis(prev => {
-                const previousEntry = prev[ply] || { ok: true };
-                return {
-                    ...prev,
-                    [ply]: {
-                        ...previousEntry,
-                        bestmove: payload.bestmove,
-                        multipv: previousEntry.multipv 
-                    }
-                };
-            });
-            es.close();
-            if (eventSourceRef.current === es) {
-                eventSourceRef.current = null;
-                activeStreamPlyRef.current = null;
-            }
-        }
-      } catch (e) {
-        console.error("[Analysis] Parse error:", e);
+    try {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
-    };
-    es.onerror = () => { 
-        console.debug("[Analysis] Stream closed/ended (onerror)"); 
-        es.close();
-        if (eventSourceRef.current === es) {
-            eventSourceRef.current = null;
-            activeStreamPlyRef.current = null;
+
+      setRealtimeAnalysis(prev => {
+          const next = { ...prev };
+          delete next[ply];
+          return next;
+      });
+      
+      const token = await getSupabaseAccessToken();
+      const url = new URL(`${API_BASE}/api/analysis/stream`);
+      requestId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      requestIdRef.current = requestId;
+      url.searchParams.set("position", command);
+      url.searchParams.set("request_id", requestId);
+      if (token) {
+        url.searchParams.set("access_token", token);
+      }
+      const es = new EventSource(url.toString());
+      eventSourceRef.current = es;
+      activeStreamPlyRef.current = ply;
+
+      es.onopen = () => {
+        console.log("[Analysis] connect", { requestId, ply });
+      };
+
+      es.onmessage = (event) => {
+        if (eventSourceRef.current !== es) return;
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.multipv_update) {
+              setRealtimeAnalysis((prev) => {
+                  const previousEntry = prev[ply] || { ok: true, multipv: [] };
+                  const currentList = previousEntry.multipv ? [...previousEntry.multipv] : [];
+                  const newItem = payload.multipv_update;
+                  if (!newItem.multipv) return prev;
+                  const index = currentList.findIndex(item => item.multipv === newItem.multipv);
+                  if (index !== -1) {
+                      currentList[index] = newItem;
+                  } else {
+                      currentList.push(newItem);
+                  }
+                  currentList.sort((a, b) => (a.multipv || 0) - (b.multipv || 0));
+                  return {
+                      ...prev,
+                      [ply]: {
+                          ...previousEntry,
+                          multipv: currentList
+                      }
+                  };
+              });
+          }
+          if (payload.bestmove) {
+              setRealtimeAnalysis(prev => {
+                  const previousEntry = prev[ply] || { ok: true };
+                  return {
+                      ...prev,
+                      [ply]: {
+                          ...previousEntry,
+                          bestmove: payload.bestmove,
+                          multipv: previousEntry.multipv 
+                      }
+                  };
+              });
+              es.close();
+              if (eventSourceRef.current === es) {
+                  eventSourceRef.current = null;
+                  activeStreamPlyRef.current = null;
+                  requestedPlyRef.current = null;
+                  requestIdRef.current = null;
+              }
+              console.log("[Analysis] disconnect", { requestId, ply, reason: "bestmove" });
+          }
+        } catch (e) {
+          console.error("[Analysis] Parse error:", e);
         }
-    };
+      };
+      es.onerror = () => { 
+          console.debug("[Analysis] Stream closed/ended (onerror)"); 
+          es.close();
+          if (eventSourceRef.current === es) {
+              eventSourceRef.current = null;
+              activeStreamPlyRef.current = null;
+              requestedPlyRef.current = null;
+              requestIdRef.current = null;
+          }
+          console.log("[Analysis] disconnect", { requestId, ply, reason: "error" });
+      };
+    } catch (e) {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (activeStreamPlyRef.current === ply) {
+        activeStreamPlyRef.current = null;
+      }
+      if (requestIdRef.current === requestId) {
+        requestIdRef.current = null;
+      }
+      if (requestedPlyRef.current === ply) {
+        requestedPlyRef.current = null;
+      }
+      console.error("[Analysis] start failed:", e);
+    }
   }, []);
 
   const requestAnalysisForPly = useCallback((ply: number, options?: { force?: boolean }) => {
@@ -418,15 +463,19 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
          delete next[ply];
          return next;
       });
+      requestedPlyRef.current = null;
     }
+    if (requestedPlyRef.current === ply) return;
     const command = getSubsetUSI(usi, ply);
-    if (command) void startEngineAnalysis(command, ply);
+    if (!command) return;
+    requestedPlyRef.current = ply;
+    void startEngineAnalysis(command, ply);
   }, [startEngineAnalysis, usi]);
 
   // ★連続検討のキモ: 局面が変わっても isAnalyzing が true なら新しい局面を解析しに行く
   useEffect(() => {
     if (isAnalyzing && !isEditMode) {
-        const hasRealtimeResult = !!realtimeAnalysis[safeCurrentPly]?.bestmove;
+        const hasRealtimeResult = !!realtimeAnalysisRef.current[safeCurrentPly]?.bestmove;
         const isCurrentlyStreamingThis = activeStreamPlyRef.current === safeCurrentPly;
         
         // 解析済み(キャッシュあり)でなく、現在ストリーミング中でもない場合のみリクエスト
@@ -434,7 +483,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
              requestAnalysisForPly(safeCurrentPly);
         }
     }
-  }, [safeCurrentPly, isAnalyzing, isEditMode, requestAnalysisForPly, usi, realtimeAnalysis]);
+  }, [safeCurrentPly, isAnalyzing, isEditMode, requestAnalysisForPly, usi]);
 
   const saveToHistory = useCallback((board: BoardMatrix, hands: HandsState) => {
     setEditHistory((prev) => {
@@ -486,6 +535,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
         eventSourceRef.current = null;
     }
     activeStreamPlyRef.current = null;
+    requestedPlyRef.current = null;
+    requestIdRef.current = null;
 
     setPreviewSequence(null);
     setPreviewStep(0);
@@ -715,67 +766,10 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     const basePosition = buildUsiPositionForPly(usi, totalMoves);
     if (!basePosition?.trim()) return;
 
-    setIsBatchAnalyzing(true); 
-    // setBatchData({}); // 最初にグラフをクリア
     resetBatchData(); // フックの関数を使用
     stopEngineAnalysis(); // ストリーム解析などを止める
-
-    try {
-      const response = await fetchWithAuth(`${API_BASE}/api/analysis/batch`, { // batch-streamではなくbatchでOK
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          position: basePosition,
-          usi: basePosition,
-          moves: moveSequence,
-          max_ply: totalMoves,
-          movetime_ms: 250,
-          multipv: 1, // グラフ用は1で高速化
-          time_budget_ms: 180000
-        }),
-      });
-
-      if (!response.ok) throw new Error();
-      if (!response.body) throw new Error("No body");
-
-      // ★ここからストリーミング読み込み
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        // 最後の行は不完全かもしれないのでバッファに残す
-        buffer = lines.pop() || ""; 
-
-        for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-                const data = JSON.parse(line);
-                if (data.error) {
-                    console.error("Batch error:", data.error);
-                    continue;
-                }
-                // ★ニョキニョキポイント：データが来るたびにStateを更新
-                if (typeof data.ply === 'number' && data.result) {
-                    setBatchData(prev => ({ ...prev, [data.ply]: data.result }));
-                }
-            } catch (e) {
-                console.error("JSON parse error", e);
-            }
-        }
-      }
-      showToast({ title: "全体解析完了", variant: "default" });
-    } catch {
-      showToast({ title: "解析失敗", variant: "default" });
-    } finally {
-      setIsBatchAnalyzing(false);
-    }
-  }, [isEditMode, isBatchAnalyzing, timeline.boards.length, usi, totalMoves, moveSequence, stopEngineAnalysis, resetBatchData, setBatchData, setIsBatchAnalyzing]);
+    void runBatchAnalysis(basePosition, totalMoves, moveSequence);
+  }, [isEditMode, isBatchAnalyzing, timeline.boards.length, usi, totalMoves, moveSequence, stopEngineAnalysis, resetBatchData, runBatchAnalysis]);
 
   const handleLoadKifu = useCallback(() => {
     setErrorMessage("");
@@ -801,9 +795,13 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
 
   useEffect(() => {
       return () => {
+          cancelBatchAnalysis();
           if (eventSourceRef.current) {
               eventSourceRef.current.close();
           }
+          activeStreamPlyRef.current = null;
+          requestedPlyRef.current = null;
+          requestIdRef.current = null;
       };
   }, []);
   
