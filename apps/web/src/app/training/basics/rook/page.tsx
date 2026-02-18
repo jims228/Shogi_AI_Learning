@@ -71,6 +71,10 @@ export default function RookTrainingPage() {
     }
   };
 
+  if (isMobileWebView === null) {
+    return <div className="min-h-[100svh] w-full bg-white" />;
+  }
+
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
 
   const nextButton = isCorrect ? (
