@@ -206,14 +206,14 @@ function playMoves(board: BoardMatrix, moves: string[], startTurn: Side, hands: 
   return turn;
 }
 
-function cloneHands(hands: HandsState): HandsState {
+export function cloneHands(hands: HandsState): HandsState {
   return {
     b: { ...hands.b },
     w: { ...hands.w },
   };
 }
 
-function applyMove(board: BoardMatrix, hands: HandsState, move: string, turn: Side): Side {
+export function applyMove(board: BoardMatrix, hands: HandsState, move: string, turn: Side): Side {
   const trimmed = move.trim();
   if (!trimmed || trimmed === "resign" || trimmed === "win" || trimmed === "draw") {
     return flipTurn(turn);
