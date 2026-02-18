@@ -21,7 +21,7 @@ const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
 const MASCOT_PULL_LEFT = 30;
 const MASCOT_OFFSET_Y = 8;
-const BOARD_SAFETY = Platform.OS === "android" ? 12 : 0;
+const BOARD_SAFETY = Platform.OS === "android" ? -20 : 0;
 const INSET = Platform.OS === "android" ? 4 : 2;
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
@@ -198,7 +198,8 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
               message={dialogueMessage}
               characterSlot={characterSlot}
               characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
-              bubbleStyle={{ marginBottom: 50 }}
+              style={{ paddingRight: 8, gap: 10 }}
+              bubbleStyle={{ marginBottom: 80, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
             />
           </View>
           <BoardArea style={styles.boardArea}>
@@ -289,18 +290,13 @@ const styles = StyleSheet.create({
   riveWrap: {
     width: MASCOT_SIZE,
     height: MASCOT_SIZE,
-    overflow: "hidden",
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
   },
   riveWebViewContainer: {
-    backgroundColor: "#ffffff",
-    borderRadius: 999,
-    overflow: "hidden",
+    backgroundColor: "transparent",
   },
   riveWebView: {
     width: MASCOT_SIZE,
     height: MASCOT_SIZE,
-    backgroundColor: "#ffffff",
+    backgroundColor: "transparent",
   },
 });
