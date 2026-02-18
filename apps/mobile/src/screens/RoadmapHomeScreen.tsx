@@ -23,6 +23,7 @@ function shortenTitle(s: string) {
 
 const LESSON_BROWN = "#6d4c41";
 const LESSON_BROWN_DARK = "#3e2723";
+const BOARD_BG = "#eecfa1";
 
 export function RoadmapHomeScreen({ navigation }: Props) {
   const { progress, isLoaded } = useProgress();
@@ -108,7 +109,7 @@ export function RoadmapHomeScreen({ navigation }: Props) {
   );
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: BOARD_BG }} contentStyle={{ paddingTop: 4 }}>
       {/* Roadmap-only: burst on any tap in this screen (bubble or blank space). */}
       <View
         style={{ flex: 1 }}
@@ -117,16 +118,6 @@ export function RoadmapHomeScreen({ navigation }: Props) {
           sakura.spawn(e.nativeEvent.pageX, e.nativeEvent.pageY);
         }}
       >
-        <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.h1}>ロードマップ</Text>
-            <Text style={styles.subtle}>今日の学習を1つだけ進めよう</Text>
-          </View>
-          <Pressable onPress={() => navigation.navigate("Settings")} style={styles.linkBtn} hitSlop={10}>
-            <Text style={styles.linkText}>設定</Text>
-          </Pressable>
-        </View>
-
       {!isLoaded ? <Text style={[styles.subtle, { marginTop: 6 }]}>読み込み中...</Text> : null}
 
       {continueLesson ? (
@@ -137,7 +128,11 @@ export function RoadmapHomeScreen({ navigation }: Props) {
             {continueLesson.subtitle || "次のレッスンを始めましょう。"}
           </Text>
           <View style={{ marginTop: theme.spacing.md }}>
-            <PrimaryButton title="レッスンを開く" onPress={() => navigation.navigate("LessonLaunch", { lessonId: continueLesson.lessonId })} />
+            <PrimaryButton
+              title="レッスンを開く"
+              onPress={() => navigation.navigate("LessonLaunch", { lessonId: continueLesson.lessonId })}
+              buttonStyle={styles.continueBtn}
+            />
           </View>
         </Card>
       ) : null}
@@ -147,29 +142,46 @@ export function RoadmapHomeScreen({ navigation }: Props) {
           <FlatList
             data={items}
             keyExtractor={(l) => l.lessonId}
-            contentContainerStyle={{ paddingTop: theme.spacing.lg, paddingBottom: 72 }}
+            contentContainerStyle={{ paddingTop: theme.spacing.lg, paddingBottom: 80 }}
             renderItem={renderItem}
             ItemSeparatorComponent={() => <View style={{ height: 22 }} />}
           />
         </View>
+
+        {/* 設定ボタン: 右下に固定 */}
+        <Pressable
+          onPress={() => navigation.navigate("Settings")}
+          style={styles.settingsBtn}
+          hitSlop={10}
+        >
+          <Text style={styles.linkText}>設定</Text>
+        </Pressable>
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: theme.spacing.md },
-  h1: { ...theme.typography.h1, color: theme.colors.text },
   subtle: { marginTop: 6, color: theme.colors.textMuted, fontWeight: "700" },
-  linkBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: theme.radius.md, backgroundColor: "#f3f4f6", minHeight: 44, justifyContent: "center" },
   linkText: { fontWeight: "900", color: "#374151" },
+  settingsBtn: {
+    position: "absolute",
+    bottom: theme.spacing.md,
+    right: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: theme.radius.md,
+    backgroundColor: "rgba(255,255,255,0.75)",
+    minHeight: 44,
+    justifyContent: "center",
+  },
 
-  continueCard: { marginTop: theme.spacing.sm },
+  continueCard: { marginTop: 0 },
   cardEyebrow: { ...theme.typography.sub, color: theme.colors.textMuted },
   cardTitle: { marginTop: 6, fontSize: 18, fontWeight: "900", color: theme.colors.text, letterSpacing: 0.2 },
   cardSub: { marginTop: 8, color: theme.colors.textMuted, fontWeight: "700", lineHeight: 18 },
 
-  roadmapWrap: { flex: 1, marginTop: theme.spacing.lg },
+  roadmapWrap: { flex: 1, marginTop: theme.spacing.xs },
   pathLine: {
     position: "absolute",
     left: "50%",
@@ -228,6 +240,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   startTagText: { fontSize: 11, fontWeight: "900", color: LESSON_BROWN_DARK, letterSpacing: 0.4 },
+  continueBtn: { backgroundColor: LESSON_BROWN, borderBottomColor: LESSON_BROWN_DARK },
 });
 
 

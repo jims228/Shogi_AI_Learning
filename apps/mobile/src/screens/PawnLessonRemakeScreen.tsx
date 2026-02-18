@@ -164,9 +164,9 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   }, [isCorrect]);
 
   // おじいちゃん: /m/rive-avatar (Web側で白背景強制済み) を WebView で表示。
-  // チェック柄は globals.css の bg-ichimatsu.png が原因で、/m/rive-avatar/page.tsx 側で上書き済み。
-  // marginLeft の負値でレイアウト空間ごと左にずらす（transform と違い親の overflow に依存しない）。
-  const characterSlot = (
+  // useMemo で安定化: isCorrect など無関係な state が変わっても再レンダーしない。
+  // これにより topSection のレイアウト再計算が起きず、キャラ位置がブレない。
+  const characterSlot = useMemo(() => (
     <View style={[styles.riveWrap, { marginLeft: -MASCOT_PULL_LEFT, marginTop: MASCOT_OFFSET_Y }]}>
       <WebView
         ref={(r) => {
@@ -187,7 +187,19 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
           : null)}
       />
     </View>
-  );
+  ), [riveAvatarUrl]);
+
+  // dialogueMessage が変わった時だけ DialogueRow を再レンダー。
+  // isCorrect などが変わっても topSection のレイアウト計算を走らせない。
+  const dialogueRowNode = useMemo(() => (
+    <DialogueRow
+      message={dialogueMessage}
+      characterSlot={characterSlot}
+      characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
+      style={{ paddingRight: 8, gap: 10, height: MASCOT_SIZE }}
+      bubbleStyle={{ marginBottom: 80, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
+    />
+  ), [dialogueMessage, characterSlot]);
 
   return (
     <Screen pad={false} edges={["top", "bottom", "left", "right"]}>
@@ -197,13 +209,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
           <View style={styles.topSection}>
             <View style={styles.contentTopSpacer} />
             <InstructionTitle text="パズルを解いてください" />
-            <DialogueRow
-              message={dialogueMessage}
-              characterSlot={characterSlot}
-              characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
-              style={{ paddingRight: 8, gap: 10, height: MASCOT_SIZE }}
-              bubbleStyle={{ marginBottom: 80, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
-            />
+            {dialogueRowNode}
           </View>
           <BoardArea style={styles.boardArea}>
             <View
