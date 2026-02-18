@@ -43,9 +43,6 @@ export default function TarefuTrainingPage() {
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
   const isMobileWebView = useMobileQueryParam();
-  if (isMobileWebView === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
 
   useEffect(() => {
     if (!currentLesson) return;

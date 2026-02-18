@@ -190,7 +190,11 @@ export default function PawnTrainingPage() {
     <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ transform: "translateY(-65px)" }}>
       <div className="w-full h-full aspect-square">
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
-          <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
+          <WoodBoardFrame
+            paddingClassName="p-1"
+            className="w-full h-full"
+            style={{ ["--piece-scale" as any]: 1.2 }}
+          >
             <div className="relative w-full h-full">
               <ShogiBoard
                 board={isBoardReady ? board : createEmptyBoard()}
@@ -270,10 +274,6 @@ export default function PawnTrainingPage() {
       <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
     </div>
   ) : null;
-
-  if (isMobileWebView === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
 
   if (isMobileWebView) {
     const mobileActions = isCorrect ? (

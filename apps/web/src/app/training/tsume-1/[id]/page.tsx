@@ -37,9 +37,6 @@ export default function TsumeLessonPage() {
   const router = useRouter();
   const id = params?.id as string;
   const isMobileWebView = useMobileQueryParam();
-  if (isMobileWebView === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
   
   const lesson = TSUME_DATA[id];
   

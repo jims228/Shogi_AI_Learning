@@ -65,10 +65,7 @@ export function LessonRunner({
   const router = useRouter();
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
   const mobileFromUrl = useMobileQueryParam();
-  if (mobile === undefined && mobileFromUrl === null) {
-    return <div className="min-h-[100svh] w-full bg-white" />;
-  }
-  const isMobileWebView = mobile ?? (mobileFromUrl ?? false);
+  const isMobileWebView = mobile ?? mobileFromUrl;
 
   const [stepIndex, setStepIndex] = useState(0);
   const [guidedSubIndex, setGuidedSubIndex] = useState(0);
