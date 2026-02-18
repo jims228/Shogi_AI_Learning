@@ -13,6 +13,7 @@ import {
   DialogueRow,
   BoardArea,
   LessonFooter,
+  LESSON_FOOTER_HEIGHT,
 } from "../ui/lesson";
 import { theme } from "../ui/theme";
 
@@ -21,7 +22,7 @@ const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
 const MASCOT_PULL_LEFT = 30;
 const MASCOT_OFFSET_Y = 8;
-const BOARD_SAFETY = Platform.OS === "android" ? 4 : 0;
+const BOARD_SAFETY = Platform.OS === "android" ? -50 : 0;
 const INSET = Platform.OS === "android" ? 4 : 2;
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
@@ -200,7 +201,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
               message={dialogueMessage}
               characterSlot={characterSlot}
               characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
-              style={{ paddingRight: 8, gap: 10 }}
+              style={{ paddingRight: 8, gap: 10, height: MASCOT_SIZE }}
               bubbleStyle={{ marginBottom: 80, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
             />
           </View>
@@ -252,8 +253,8 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.bg, overflow: "visible" },
-  content: { flex: 1, paddingBottom: 0, overflow: "visible" },
+  root: { flex: 1, backgroundColor: theme.colors.bg },
+  content: { flex: 1, paddingBottom: LESSON_FOOTER_HEIGHT, overflow: "visible" },
   topSection: { overflow: "visible" },
   contentTopSpacer: { height: 2 },
   boardArea: {

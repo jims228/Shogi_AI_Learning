@@ -54,6 +54,8 @@ interface PieceSpriteProps {
   style?: React.CSSProperties;
   /** mobile-only flicker hardening hook (data attribute) */
   dataShogiPiece?: string;
+  /** Extra CSS scale applied on top of the translate (e.g. 1.12 for selected pieces) */
+  scaleMultiplier?: number;
 }
 
 export const PieceSprite: React.FC<PieceSpriteProps> = ({
@@ -71,6 +73,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   className,
   style,
   dataShogiPiece,
+  scaleMultiplier,
 }) => {
   const pieceSize = size ?? 46;
   const cell = cellSize ?? pieceSize;
@@ -101,6 +104,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
 
   const shouldRotate = orientationMode === "rotate" && !isViewerPiece;
   const baseTransform = shouldRotate ? " rotate(180deg)" : "";
+  const scaleStr = scaleMultiplier && scaleMultiplier !== 1 ? ` scale(${scaleMultiplier})` : "";
 
   return (
     <motion.div
@@ -119,7 +123,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
         backgroundSize: `${bgWidth}px ${bgHeight}px`,
         backgroundPosition: `${bgPosX}px ${bgPosY}px`,
         pointerEvents: "none",
-        transform: `translate3d(${left}px, ${top}px, 0)${baseTransform}`,
+        transform: `translate3d(${left}px, ${top}px, 0)${baseTransform}${scaleStr}`,
         transformOrigin: "50% 50%",
         ...style,
       }}

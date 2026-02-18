@@ -8,12 +8,14 @@ export function PrimaryButton({
   onPress,
   disabled,
   style,
+  buttonStyle,
   testID,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   style?: ViewStyle;
+  buttonStyle?: ViewStyle;
   testID?: string;
 }) {
   return (
@@ -24,6 +26,7 @@ export function PrimaryButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.btn,
+        buttonStyle,
         disabled && styles.disabled,
         pressed && !disabled && styles.pressed,
         style,

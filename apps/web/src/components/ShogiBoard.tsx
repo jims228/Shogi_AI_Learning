@@ -527,7 +527,6 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
               <div
                 key={stableKey}
                 className="contents"
-                style={isMovingPiece ? { opacity: 0.18 } : undefined}
               >
                 <PieceSprite
                   dataShogiPiece="1"
@@ -540,6 +539,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   owner={pieceOwner}
                   orientationMode={orientationMode}
                   viewerSide={viewerOrientation}
+                  style={isMovingPiece ? { opacity: 0.55 } : undefined}
+                  scaleMultiplier={isMovingPiece ? 1.13 : undefined}
                 />
               </div>
             );
@@ -566,6 +567,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
               backgroundColor: "transparent",
               cursor: mode === "edit" ? "pointer" : "default",
               pointerEvents: "auto",
+              WebkitTapHighlightColor: "transparent",
             }}
             onClick={handleBoardClick}
             onDoubleClick={handleBoardDoubleClick}
@@ -579,8 +581,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             const pieceOwner = getPieceOwner(pendingMove.piece);
             const viewerSide = viewerOrientation;
 
-            const popW = Math.max(196, Math.round(CELL_SIZE * 3.8));
-            const popH = 132;
+            const popW = Math.max(220, Math.round(CELL_SIZE * 4.2));
+            const popH = 180;
             const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
             const rawLeft = disp.x * CELL_SIZE + CELL_SIZE * 0.55;
@@ -588,7 +590,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             const left = clamp(rawLeft, 8, boardSize - popW - 8);
             const top = clamp(rawTop, 8, boardSize - popH - 8);
 
-            const spriteSize = Math.max(44, Math.round(CELL_SIZE * 0.9 * pieceScale * PIECE_SIZE_MULTIPLIER));
+            const spriteSize = Math.max(56, Math.round(CELL_SIZE * 1.2 * pieceScale * PIECE_SIZE_MULTIPLIER));
 
             return (
               <div className="absolute inset-0 z-[200] pointer-events-auto">
@@ -610,7 +612,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                       false
                     );
                   }}
-                      className="flex-1 flex flex-col items-center justify-center gap-2 p-2 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors border border-amber-300 min-h-[52px]"
+                      className="flex-1 flex flex-col items-center justify-center gap-3 p-3 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors border border-amber-300 min-h-[80px]"
                 >
                     <PieceSprite
                       piece={promotePiece(pendingMove.piece) as PieceCode}
@@ -622,7 +624,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                       owner={pieceOwner}
                       viewerSide={viewerSide}
                     />
-                      <span className="font-extrabold text-amber-900 text-2xl">成</span>
+                      <span className="font-extrabold text-amber-900 text-4xl">成</span>
                 </button>
 
                 <button
@@ -630,7 +632,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                     e.stopPropagation();
                     executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
                   }}
-                      className="flex-1 flex flex-col items-center justify-center gap-2 p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-300 min-h-[52px]"
+                      className="flex-1 flex flex-col items-center justify-center gap-3 p-3 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-300 min-h-[80px]"
                 >
                     <PieceSprite
                       piece={pendingMove.piece}
@@ -642,7 +644,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                       owner={pieceOwner}
                       viewerSide={viewerSide}
                     />
-                      <span className="font-extrabold text-slate-700 text-2xl">不成</span>
+                      <span className="font-extrabold text-slate-700 text-4xl">不成</span>
                     </button>
                   </div>
                 </div>

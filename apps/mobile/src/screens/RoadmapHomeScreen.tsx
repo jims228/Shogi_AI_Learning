@@ -21,6 +21,9 @@ function shortenTitle(s: string) {
   return noPrefix || noParen || t;
 }
 
+const LESSON_BROWN = "#6d4c41";
+const LESSON_BROWN_DARK = "#3e2723";
+
 export function RoadmapHomeScreen({ navigation }: Props) {
   const { progress, isLoaded } = useProgress();
   const items = useMemo(() => getFlatRoadmapItems(), []);
@@ -52,15 +55,15 @@ export function RoadmapHomeScreen({ navigation }: Props) {
       const isNext = !item.locked && item.lessonId === nextLessonId;
       const dx = offsets[index % offsets.length] ?? 0;
 
-      const fill = item.locked ? "#f3f4f6" : isNext ? theme.colors.brand : done ? theme.colors.surface : theme.colors.surface;
-      const ring = item.locked ? "#d1d5db" : isNext ? theme.colors.brandDark : done ? theme.colors.brandDark : theme.colors.border;
+      const fill = item.locked ? "#f3f4f6" : isNext ? LESSON_BROWN : done ? theme.colors.surface : theme.colors.surface;
+      const ring = item.locked ? "#d1d5db" : isNext ? LESSON_BROWN_DARK : done ? LESSON_BROWN_DARK : theme.colors.border;
       const ringW = isNext ? 4 : done ? 3 : 2;
       // Center icon policy:
       // - locked: 🔒
       // - playable (next/available/completed): ▶
       // Completed is shown via ring/badge, not by swapping the center icon.
       const icon = item.locked ? "🔒" : "▶";
-      const iconColor = item.locked ? "#6b7280" : isNext ? "#fff" : theme.colors.brandDark;
+      const iconColor = item.locked ? "#6b7280" : isNext ? "#fff" : LESSON_BROWN_DARK;
 
       return (
         <View style={[styles.nodeRow, { transform: [{ translateX: dx }] }]}>
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
   },
   bubbleDone: { backgroundColor: theme.colors.surfaceTint },
   bubbleNext: {
-    shadowColor: theme.colors.brand,
+    shadowColor: LESSON_BROWN,
     shadowOpacity: 0.25,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
@@ -206,7 +209,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 999,
-    backgroundColor: theme.colors.brand,
+    backgroundColor: LESSON_BROWN,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -224,7 +227,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
-  startTagText: { fontSize: 11, fontWeight: "900", color: theme.colors.brandDark, letterSpacing: 0.4 },
+  startTagText: { fontSize: 11, fontWeight: "900", color: LESSON_BROWN_DARK, letterSpacing: 0.4 },
 });
 
 
