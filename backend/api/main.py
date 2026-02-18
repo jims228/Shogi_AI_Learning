@@ -67,13 +67,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="USI Engine Gateway", lifespan=lifespan)
 app.add_middleware(RateLimitMiddleware)
 
-_default_origins = ["http://localhost:3000", "http://localhost:3001"]
-_env_origins = os.getenv("FRONTEND_ORIGINS", "")
-_origins = [o.strip() for o in _env_origins.split(",") if o.strip()] or _default_origins
-
+# CORS設定: フロントエンドからのアクセスを許可
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=["*"],  # 開発用に全許可
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1113,6 +1110,13 @@ async def stream_endpoint(
             print(f"[analysis] stream_end rid={rid}")
 
     return StreamingResponse(generator(), media_type="text/event-stream")
+
+@app.post("/api/solve/mate")
+async def solve_mate_endpoint(req: MateRequest):
+    """
+    詰み探索を実行するエンドポイント
+    """
+    return await stream_engine.solve_mate(req.sfen, req.timeout)
 
 if __name__ == "__main__":
     import uvicorn

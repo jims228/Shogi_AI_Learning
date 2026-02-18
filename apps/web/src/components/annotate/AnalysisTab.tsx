@@ -13,6 +13,8 @@ import {
   buildPositionFromUsi,
   cloneBoard,
   getStartBoard,
+  applyMove,
+  cloneHands,
   type BoardMatrix,
   type HandsState,
   type Side,
@@ -212,6 +214,9 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [kifuText, setKifuText] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isTsumeMode, setIsTsumeMode] = useState(false);
+  const [isLearningMenuOpen, setIsLearningMenuOpen] = useState(false);
+  const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
   const [boardOrientation, setBoardOrientation] = useState<"sente" | "gote">("sente");
   const [selectedHand, setSelectedHand] = useState<SelectedHand>(null);
   
@@ -280,7 +285,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     } catch {
         return null;
     }
-  }, [previewSequence, previewStep, usi, safeCurrentPly]);
+  }, [previewPv, previewMoves, previewStep, usi, safeCurrentPly]);
 
   const displayedBoard = previewState ? previewState.board : (snapshotOverrides[safeCurrentPly] ?? baseBoard);
   const fallbackHands = useMemo<HandsState>(() => ({ b: {}, w: {} }), []);
@@ -326,7 +331,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   
   const showArrow = !isEditMode && (isAnalyzing || !!currentAnalysis);
 
-  const bestmoveCoords = (showArrow && currentAnalysis?.bestmove && !previewSequence) 
+  const bestmoveCoords = (showArrow && currentAnalysis?.bestmove) 
       ? usiMoveToCoords(currentAnalysis.bestmove) 
       : null;
   
@@ -502,18 +507,18 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   }, [editHistory, safeCurrentPly, isAnalyzing, stopEngineAnalysis]);
 
   const handleBoardEdit = useCallback((next: BoardMatrix) => {
-    if (!isEditMode) return;
+    if (!isEditMode && !isTsumeMode) return;
     saveToHistory(displayedBoard, activeHands);
     setSnapshotOverrides((prev) => ({ ...prev, [safeCurrentPly]: cloneBoard(next) }));
     if (isAnalyzing) { stopEngineAnalysis(); }
-  }, [isEditMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
+  }, [isEditMode, isTsumeMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
 
   const handleHandsEdit = useCallback((next: HandsState) => {
-    if (!isEditMode) return;
+    if (!isEditMode && !isTsumeMode) return;
     saveToHistory(displayedBoard, activeHands);
     setHandsOverrides((prev) => ({ ...prev, [safeCurrentPly]: next }));
     if (isAnalyzing) { stopEngineAnalysis(); }
-  }, [isEditMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
+  }, [isEditMode, isTsumeMode, safeCurrentPly, displayedBoard, activeHands, saveToHistory, isAnalyzing, stopEngineAnalysis]);
 
   const handleHandClick = useCallback((base: PieceBase, side: Side) => {
     if (!isEditMode) return;
@@ -576,8 +581,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   }, [handlePlyChange, maxPly, previewSequence]);
   
   const navDisabled = isEditMode;
-  const canGoPrev = previewSequence ? previewStep > 0 : safeCurrentPly > 0;
-  const canGoNext = previewSequence ? previewStep < previewSequence.length : safeCurrentPly < maxPly;
+  const canGoPrev = previewPv ? previewStep > 0 : safeCurrentPly > 0;
+  const canGoNext = previewPv ? previewStep < previewMoves.length : safeCurrentPly < maxPly;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -813,7 +818,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setEditHistory([]);
     setExplanation("");
     setGameDigest("");
-    setPreviewSequence(null);
+    setPreviewPv(null);
     setPreviewStep(0);
     stopEngineAnalysis();
     resetBatchData(); 
@@ -823,7 +828,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     if (isEditMode) {
       setEditHistory([]);
       setExplanation("");
-      setPreviewSequence(null);
+      setPreviewPv(null);
       setPreviewStep(0);
     } else {
       // 編集モードでない場合はここでは何もしない（継続解析のため）
@@ -1280,6 +1285,75 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
           </div>
           <DialogFooter className="border-t border-slate-100 bg-slate-50 px-6 py-3">
             <Button onClick={() => setIsReportModalOpen(false)}>閉じる</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isLearningMenuOpen} onOpenChange={setIsLearningMenuOpen}>
+        <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 shadow-2xl border border-slate-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800 text-lg font-bold">
+              <GraduationCap className="w-6 h-6 text-indigo-600" /> 学習メニュー
+            </DialogTitle>
+            <DialogDescription>
+              将棋の上達に役立つ機能を選択してください。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button variant="outline" className="h-14 justify-start text-base font-bold border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200" onClick={() => { setIsLearningMenuOpen(false); setIsRoadmapOpen(true); }}>
+              <BookOpen className="w-5 h-5 mr-3 text-indigo-500" /> 初心者ロードマップ
+            </Button>
+            <Button variant="outline" className="h-14 justify-start text-base font-bold border-slate-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200" onClick={() => { setIsLearningMenuOpen(false); setIsTsumeMode(true); if(isAnalyzing) handleStopAnalysis(); }}>
+              <Sparkles className="w-5 h-5 mr-3 text-rose-500" /> 実践詰将棋モード
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsLearningMenuOpen(false)}>閉じる</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRoadmapOpen} onOpenChange={setIsRoadmapOpen}>
+        <DialogContent className="fixed z-50 left-1/2 top-1/2 w-[90vw] max-w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-0 shadow-2xl border border-slate-200">
+          <DialogHeader className="border-b border-indigo-100 bg-indigo-50 px-6 py-4">
+            <DialogTitle className="flex items-center gap-2 text-indigo-800 text-lg font-bold">
+              <BookOpen className="w-5 h-5" /> 初心者ロードマップ
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-6">
+                <div className="flex gap-4">
+                    <div className="flex-none w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">1</div>
+                    <div>
+                        <h3 className="font-bold text-slate-800 mb-1">ルールを覚える</h3>
+                        <p className="text-sm text-slate-600">駒の動き、反則、成りを覚えましょう。</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex-none w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">2</div>
+                    <div>
+                        <h3 className="font-bold text-slate-800 mb-1">1手詰を解く</h3>
+                        <p className="text-sm text-slate-600">「詰み」の形を体に染み込ませましょう。毎日10問が目安です。</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex-none w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">3</div>
+                    <div>
+                        <h3 className="font-bold text-slate-800 mb-1">棒銀戦法を試す</h3>
+                        <p className="text-sm text-slate-600">攻めの基本「棒銀」を使って、実際にAIと対局してみましょう。</p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex-none w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">4</div>
+                    <div>
+                        <h3 className="font-bold text-slate-800 mb-1">3手詰に挑戦</h3>
+                        <p className="text-sm text-slate-600">少し読みが必要になります。読みの力を鍛えましょう。</p>
+                    </div>
+                </div>
+            </div>
+          </div>
+          <DialogFooter className="border-t border-slate-100 bg-slate-50 px-6 py-3">
+            <Button onClick={() => setIsRoadmapOpen(false)}>閉じる</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
