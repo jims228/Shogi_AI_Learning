@@ -156,12 +156,8 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 
   const dialogueMessage = stepDescription || stepTitle || "問題に答えてね。";
 
-  useEffect(() => {
-    if (!isCorrect) return;
-    avatarWebViewRef.current?.injectJavaScript(
-      "typeof window.__avatarCorrect === 'function' && window.__avatarCorrect(); true;"
-    );
-  }, [isCorrect]);
+  // NOTE: __avatarCorrect() の Rive アニメーションが正解時にキャラ位置をずらす原因だったため無効化。
+  // アニメーション復活させる場合はキャラを position:absolute で固定してから再検討する。
 
   // おじいちゃん: /m/rive-avatar (Web側で白背景強制済み) を WebView で表示。
   // useMemo で安定化: isCorrect など無関係な state が変わっても再レンダーしない。
