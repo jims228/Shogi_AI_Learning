@@ -8,6 +8,8 @@ type AutoScaleToFitProps = {
   maxScale?: number;      // 上限（1より大きくできる）
   fitMode?: "both" | "width-only";  // width だけでフィットするモード
   className?: string;
+  /** false にすると overflow-hidden を外す（embed モードで border が切れるのを防ぐ） */
+  overflowHidden?: boolean;
   children: React.ReactNode;
 };
 
@@ -21,6 +23,7 @@ export function AutoScaleToFit({
   maxScale = 1.35,
   fitMode = "both",  // デフォルトは両方
   className,
+  overflowHidden = true,
   children,
 }: AutoScaleToFitProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -125,7 +128,7 @@ export function AutoScaleToFit({
   }, [containerSize, contentSize, minScale, maxScale, fitMode]);
 
   return (
-    <div ref={containerRef} className={cn("relative h-full w-full overflow-hidden", className)}>
+    <div ref={containerRef} className={cn("relative h-full w-full", overflowHidden ? "overflow-hidden" : "overflow-visible", className)}>
       <div className="flex h-full w-full items-center justify-start">
         <div
           className="relative"

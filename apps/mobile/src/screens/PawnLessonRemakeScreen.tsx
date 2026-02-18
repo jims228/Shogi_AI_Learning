@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -21,7 +21,7 @@ const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
 const MASCOT_PULL_LEFT = 30;
 const MASCOT_OFFSET_Y = 8;
-const BOARD_SAFETY = Platform.OS === "android" ? -20 : 0;
+const BOARD_SAFETY = Platform.OS === "android" ? 4 : 0;
 const INSET = Platform.OS === "android" ? 4 : 2;
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
@@ -40,6 +40,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   const [isCorrect, setIsCorrect] = useState(false);
   const [loading, setLoading] = useState(true);
   const [boardSlotSize, setBoardSlotSize] = useState({ w: 0, h: 0 });
+  const { width: windowWidth } = useWindowDimensions();
 
   const progress = (stepIndex + 1) / TOTAL_STEPS;
   const isLastStep = stepIndex >= TOTAL_STEPS - 1;
@@ -53,12 +54,13 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   const riveAvatarUrl = useMemo(() => `${settings.webBaseUrl}/m/rive-avatar`, [settings.webBaseUrl]);
 
   const boardSize = useMemo(() => {
-    const w = Math.floor(boardSlotSize.w);
     const h = Math.floor(boardSlotSize.h);
-    if (!w || !h) return 320;
-    const s = Math.min(w, h) - BOARD_SAFETY;
+    // 画面幅から BoardArea の水平パディング(16*2)と右端の余白(20)を引いた上限
+    const maxW = Math.floor(windowWidth - 16 * 2 - 20);
+    if (!h || !maxW) return 320;
+    const s = Math.min(maxW, h) - BOARD_SAFETY;
     return Math.max(240, s);
-  }, [boardSlotSize]);
+  }, [boardSlotSize.h, windowWidth]);
 
   const injectedBeforeLoad = useMemo(() => {
     if (Platform.OS !== "android") return undefined;
@@ -268,7 +270,6 @@ const styles = StyleSheet.create({
   },
   webViewWrap: {
     borderRadius: 8,
-    overflow: "hidden",
     backgroundColor: "#ffffff",
   },
   webViewHidden: { opacity: 0 },
