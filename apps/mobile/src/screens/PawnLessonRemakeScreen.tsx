@@ -19,7 +19,7 @@ import { theme } from "../ui/theme";
 const TOTAL_STEPS = 5;
 const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
-const MASCOT_PULL_LEFT = 60;
+const MASCOT_PULL_LEFT = 30;
 const MASCOT_OFFSET_Y = 8;
 const BOARD_SAFETY = Platform.OS === "android" ? 12 : 0;
 const INSET = Platform.OS === "android" ? 4 : 2;
@@ -198,6 +198,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
               message={dialogueMessage}
               characterSlot={characterSlot}
               characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
+              bubbleStyle={{ marginBottom: 50 }}
             />
           </View>
           <BoardArea style={styles.boardArea}>
@@ -256,6 +257,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     paddingVertical: 0,
+    marginTop: -40,
   },
   boardSlot: {
     alignItems: "center",

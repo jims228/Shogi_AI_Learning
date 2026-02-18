@@ -10,17 +10,19 @@ type Props = {
   /** Character slot width; use 210 to match MobileLessonShell (ManRive). Default 88. */
   characterWidth?: number;
   style?: ViewStyle;
+  /** Extra style applied to the speech bubble wrapper only. */
+  bubbleStyle?: ViewStyle;
 };
 
 /**
  * Row: left = character (e.g. おじいちゃん), right = speech bubble with tail.
  * Matches web MobileLessonShell: mascot 210x210 + explanation with flex-1 and wrapping.
  */
-export function DialogueRow({ message, characterSlot, characterWidth = 88, style }: Props) {
+export function DialogueRow({ message, characterSlot, characterWidth = 88, style, bubbleStyle }: Props) {
   return (
     <View style={[styles.row, style]}>
       <View style={[styles.character, { width: characterWidth }]}>{characterSlot}</View>
-      <View style={styles.bubbleWrap}>
+      <View style={[styles.bubbleWrap, bubbleStyle]}>
         <View style={styles.bubble}>
           <Text style={styles.message}>{message}</Text>
         </View>
