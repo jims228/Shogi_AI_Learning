@@ -511,7 +511,10 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           })}
           </div>
 
-          <div className="absolute inset-0 z-10 pointer-events-none">
+          <div
+            className="absolute inset-0 z-10 pointer-events-none"
+            style={{ transform: "translateY(var(--piece-offset-y, 0px))" }}
+          >
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
             const pieceOwner = getPieceOwner(piece.piece);
