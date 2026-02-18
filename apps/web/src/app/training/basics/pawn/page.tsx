@@ -42,7 +42,10 @@ function postToRn(msg: { type: string; [k: string]: unknown }) {
 export default function PawnTrainingPage() {
   const router = useRouter();
   const isMobileWebView = useMobileQueryParam();
-  const { embed: isEmbed } = getMobileParamsFromUrl();
+  const [isEmbed, setIsEmbed] = useState(false);
+  useEffect(() => {
+    setIsEmbed(getMobileParamsFromUrl().embed);
+  }, []);
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   // Important: always start with a valid 9x9 board to avoid WebView/hydration crashes.
@@ -115,12 +118,13 @@ export default function PawnTrainingPage() {
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
   const isBoardReady = Array.isArray(board) && board.length === 9 && Array.isArray(board[0]) && board[0].length === 9;
 
-  // Embed mode: only board for React Native Duolingo-style shell (header/instruction/dialogue/footer are native)
+  // Embed mode: only board for React Native Duolingo-style shell (header/instruction/dialogue/footer are native).
+  // No minHeight — the RN WebView container dictates the size; AutoScaleToFit scales down to fit.
   if (isEmbed) {
     return (
-      <div className="w-full h-full min-h-0 flex items-center justify-center" style={{ minHeight: "380px" }}>
-        <div className="w-full h-full aspect-square max-w-[min(100vw,380px)]">
-          <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
+      <div className="w-full h-full flex items-center justify-center p-1">
+        <div className="aspect-square" style={{ width: "100%", maxWidth: "100vh", maxHeight: "100%" }}>
+          <AutoScaleToFit minScale={0.3} maxScale={2.4} className="w-full h-full">
             <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
               <div className="relative w-full h-full">
                 <ShogiBoard
@@ -131,8 +135,8 @@ export default function PawnTrainingPage() {
                   onBoardChange={setBoard}
                   onHandsChange={setHands}
                   orientation="sente"
-                  handsPlacement="corners"
                   showCoordinates={false}
+                  showHands={false}
                 />
               </div>
             </WoodBoardFrame>

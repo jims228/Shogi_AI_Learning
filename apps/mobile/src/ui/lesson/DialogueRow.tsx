@@ -34,14 +34,17 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingHorizontal: LESSON_SPACING.headerPaddingHorizontal,
+    paddingLeft: 0,
+    paddingRight: LESSON_SPACING.headerPaddingHorizontal,
     gap: LESSON_SPACING.sectionGap,
     marginBottom: LESSON_SPACING.sectionGap,
+    overflow: "visible",
   },
   character: {
     alignItems: "center",
     justifyContent: "flex-end",
     flexShrink: 0,
+    overflow: "visible",
   },
   bubbleWrap: {
     flex: 1,

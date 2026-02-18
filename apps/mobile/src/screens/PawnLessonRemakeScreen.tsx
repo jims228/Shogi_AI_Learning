@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -17,8 +17,12 @@ import {
 import { theme } from "../ui/theme";
 
 const TOTAL_STEPS = 5;
-/** Mascot size to match web MobileLessonShell (ManRive 210x210). */
 const MASCOT_SIZE = 210;
+/** 画面左にはみ出す量 (正=左にずらす) */
+const MASCOT_PULL_LEFT = 60;
+const MASCOT_OFFSET_Y = 8;
+const BOARD_SAFETY = Platform.OS === "android" ? 12 : 0;
+const INSET = Platform.OS === "android" ? 4 : 2;
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
 
@@ -35,6 +39,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   const [stepDescription, setStepDescription] = useState("");
   const [isCorrect, setIsCorrect] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [boardSlotSize, setBoardSlotSize] = useState({ w: 0, h: 0 });
 
   const progress = (stepIndex + 1) / TOTAL_STEPS;
   const isLastStep = stepIndex >= TOTAL_STEPS - 1;
@@ -42,11 +47,18 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 
   const url = useMemo(() => {
     const base = settings.webBaseUrl;
-    const join = "/training/basics/pawn".includes("?") ? "&" : "?";
-    return `${base}/training/basics/pawn${join}mobile=1&noai=1&embed=1&lid=${encodeURIComponent(lessonId)}`;
+    return `${base}/training/basics/pawn?mobile=1&noai=1&embed=1&lid=${encodeURIComponent(lessonId)}`;
   }, [lessonId, settings.webBaseUrl]);
 
   const riveAvatarUrl = useMemo(() => `${settings.webBaseUrl}/m/rive-avatar`, [settings.webBaseUrl]);
+
+  const boardSize = useMemo(() => {
+    const w = Math.floor(boardSlotSize.w);
+    const h = Math.floor(boardSlotSize.h);
+    if (!w || !h) return 320;
+    const s = Math.min(w, h) - BOARD_SAFETY;
+    return Math.max(240, s);
+  }, [boardSlotSize]);
 
   const injectedBeforeLoad = useMemo(() => {
     if (Platform.OS !== "android") return undefined;
@@ -63,9 +75,39 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
             }
           }
           if (meta) meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
-          document.documentElement.style.zoom = '1';
-          document.body && (document.body.style.zoom = '1');
+          var css = document.createElement('style');
+          css.type = 'text/css';
+          css.appendChild(document.createTextNode(
+            'html, body { margin:0 !important; padding:0 !important; height:100% !important; overflow:hidden !important; background:transparent !important; }' +
+            '#__next, #root { height:100% !important; }'
+          ));
+          (document.head || document.documentElement).appendChild(css);
         } catch (e) {}
+      })();
+      true;
+    `;
+  }, []);
+
+  const injectedBoardNoScroll = useMemo(() => {
+    return `
+      (function(){
+        try{
+          var style = document.createElement('style');
+          style.type = 'text/css';
+          style.appendChild(document.createTextNode(
+            'html, body { overflow:hidden !important; overscroll-behavior:none !important; margin:0 !important; padding:0 !important; }' +
+            '* { overscroll-behavior:none !important; }'
+          ));
+          (document.head || document.documentElement).appendChild(style);
+
+          var lock = function(){ try{ window.scrollTo(0,0); }catch(e){} };
+          lock();
+          window.addEventListener('scroll', lock, { passive: true });
+
+          var stop = function(e){ try{ e.preventDefault(); } catch(_) {} };
+          document.addEventListener('touchmove', stop, { passive: false });
+          document.addEventListener('wheel', stop, { passive: false });
+        }catch(e){}
       })();
       true;
     `;
@@ -84,7 +126,6 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
       navigation.goBack();
       return;
     }
-    // Tell WebView to advance step; it will send stepChanged and we sync stepIndex from that
     webViewRef.current?.injectJavaScript(
       "typeof window.__rnLessonNext === 'function' && window.__rnLessonNext(); true;"
     );
@@ -112,7 +153,6 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 
   const dialogueMessage = stepDescription || stepTitle || "問題に答えてね。";
 
-  // Fire Rive "surprise" when user gets correct (same as other lessons using ManRive).
   useEffect(() => {
     if (!isCorrect) return;
     avatarWebViewRef.current?.injectJavaScript(
@@ -120,19 +160,27 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
     );
   }, [isCorrect]);
 
-  // おじいちゃん: 他レッスンと同じ ManRive (/anime/man.riv) を WebView で表示（/m/rive-avatar が描画）
+  // おじいちゃん: /m/rive-avatar (Web側で白背景強制済み) を WebView で表示。
+  // チェック柄は globals.css の bg-ichimatsu.png が原因で、/m/rive-avatar/page.tsx 側で上書き済み。
+  // marginLeft の負値でレイアウト空間ごと左にずらす（transform と違い親の overflow に依存しない）。
   const characterSlot = (
-    <View style={styles.riveWrap}>
+    <View style={[styles.riveWrap, { marginLeft: -MASCOT_PULL_LEFT, marginTop: MASCOT_OFFSET_Y }]}>
       <WebView
         ref={(r) => {
           avatarWebViewRef.current = r;
         }}
         source={{ uri: riveAvatarUrl }}
         style={styles.riveWebView}
+        containerStyle={styles.riveWebViewContainer}
         scrollEnabled={false}
+        nestedScrollEnabled={false}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
         cacheEnabled={false}
+        androidLayerType="hardware"
         {...(Platform.OS === "android"
-          ? { cacheMode: "LOAD_NO_CACHE" as const, textZoom: 100 }
+          ? { cacheMode: "LOAD_NO_CACHE" as const, textZoom: 100, overScrollMode: "never" as const }
           : null)}
       />
     </View>
@@ -142,45 +190,57 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
     <Screen pad={false} edges={["top", "bottom", "left", "right"]}>
       <View style={styles.root}>
         <LessonHeader progress={progress} onClose={onClose} />
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.contentTopSpacer} />
-          <InstructionTitle text="パズルを解いてください" />
-          <DialogueRow
-            message={dialogueMessage}
-            characterSlot={characterSlot}
-            characterWidth={MASCOT_SIZE}
-          />
-          <BoardArea>
-            {loading && (
-              <View style={styles.loadingWrap}>
-                <ActivityIndicator />
-                <Text style={styles.loadingText}>盤面を読み込み中…</Text>
+        <View style={styles.content}>
+          <View style={styles.topSection}>
+            <View style={styles.contentTopSpacer} />
+            <InstructionTitle text="パズルを解いてください" />
+            <DialogueRow
+              message={dialogueMessage}
+              characterSlot={characterSlot}
+              characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
+            />
+          </View>
+          <BoardArea style={styles.boardArea}>
+            <View
+              style={styles.boardSlot}
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                const w = Math.floor(width);
+                const h = Math.floor(height);
+                setBoardSlotSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+              }}
+            >
+              {loading && (
+                <View style={styles.loadingOverlay}>
+                  <ActivityIndicator />
+                  <Text style={styles.loadingText}>盤面を読み込み中…</Text>
+                </View>
+              )}
+              <View style={[styles.webViewWrap, { width: boardSize, height: boardSize, padding: INSET }, loading && styles.webViewHidden]}>
+                <WebView
+                  ref={(r) => {
+                    webViewRef.current = r;
+                  }}
+                  source={{ uri: url }}
+                  style={[styles.webView, { width: boardSize - INSET * 2, height: boardSize - INSET * 2 }]}
+                  cacheEnabled={false}
+                  showsVerticalScrollIndicator={false}
+                  showsHorizontalScrollIndicator={false}
+                  bounces={false}
+                  androidLayerType={Platform.OS === "android" ? "software" : undefined}
+                  {...(Platform.OS === "android"
+                    ? { cacheMode: "LOAD_NO_CACHE" as const, textZoom: 100, overScrollMode: "never" as const }
+                    : null)}
+                  injectedJavaScriptBeforeContentLoaded={(injectedBeforeLoad ?? "") + "\n" + injectedBoardNoScroll}
+                  onLoadEnd={() => setLoading(false)}
+                  onMessage={onMessage}
+                  scrollEnabled={false}
+                  nestedScrollEnabled={false}
+                />
               </View>
-            )}
-            <View style={[styles.webViewWrap, loading && styles.webViewHidden]}>
-              <WebView
-                ref={(r) => {
-                  webViewRef.current = r;
-                }}
-                source={{ uri: url }}
-                style={styles.webView}
-                cacheEnabled={false}
-                {...(Platform.OS === "android"
-                  ? { cacheMode: "LOAD_NO_CACHE" as const, textZoom: 100 }
-                  : null)}
-                injectedJavaScriptBeforeContentLoaded={injectedBeforeLoad}
-                onLoadEnd={() => setLoading(false)}
-                onMessage={onMessage}
-                scrollEnabled={false}
-              />
             </View>
           </BoardArea>
-        </ScrollView>
+        </View>
         <LessonFooter nextLabel={nextLabel} onNext={onNext} disabled={!isCorrect} />
       </View>
     </Screen>
@@ -188,27 +248,36 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.bg },
-  scroll: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingBottom: 24 },
-  contentTopSpacer: { height: 8 },
-  webViewWrap: {
+  root: { flex: 1, backgroundColor: theme.colors.bg, overflow: "visible" },
+  content: { flex: 1, paddingBottom: 0, overflow: "visible" },
+  topSection: { overflow: "visible" },
+  contentTopSpacer: { height: 2 },
+  boardArea: {
+    flex: 1,
+    minHeight: 0,
+    paddingVertical: 0,
+  },
+  boardSlot: {
+    alignItems: "center",
+    justifyContent: "flex-start",
     width: "100%",
-    minHeight: 360,
+    height: "100%",
+  },
+  webViewWrap: {
     borderRadius: 8,
     overflow: "hidden",
+    backgroundColor: "#ffffff",
   },
-  webViewHidden: { opacity: 0, position: "absolute", left: 0, right: 0 },
+  webViewHidden: { opacity: 0 },
   webView: {
-    width: "100%",
-    minHeight: 360,
     backgroundColor: "transparent",
   },
-  loadingWrap: {
-    minHeight: 360,
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
+    zIndex: 10,
   },
   loadingText: {
     fontSize: 14,
@@ -219,11 +288,17 @@ const styles = StyleSheet.create({
     width: MASCOT_SIZE,
     height: MASCOT_SIZE,
     overflow: "hidden",
-    backgroundColor: "transparent",
+    borderRadius: 999,
+    backgroundColor: "#ffffff",
+  },
+  riveWebViewContainer: {
+    backgroundColor: "#ffffff",
+    borderRadius: 999,
+    overflow: "hidden",
   },
   riveWebView: {
     width: MASCOT_SIZE,
     height: MASCOT_SIZE,
-    backgroundColor: "transparent",
+    backgroundColor: "#ffffff",
   },
 });
