@@ -540,7 +540,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   orientationMode={orientationMode}
                   viewerSide={viewerOrientation}
                   style={isMovingPiece ? { opacity: 0.55 } : undefined}
-                  scaleMultiplier={isMovingPiece ? 1.13 : undefined}
+                  scaleMultiplier={isMovingPiece ? 1.15 : undefined}
                 />
               </div>
             );
@@ -574,84 +574,84 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           />
 
           {pendingMove && (() => {
-            // Show promotion choices near the target square (instead of top-left/center overlay).
-            // Position is computed in the same coordinate space used for drawing pieces to avoid drift,
-            // and it scales correctly with `--piece-scale` because CELL_SIZE is already scaled.
-            const disp = getDisplayPos(pendingMove.targetSquare.x, pendingMove.targetSquare.y);
             const pieceOwner = getPieceOwner(pendingMove.piece);
             const viewerSide = viewerOrientation;
+            const spriteSize = Math.max(64, Math.round(CELL_SIZE * 1.4 * pieceScale * PIECE_SIZE_MULTIPLIER));
+            const btnSize = Math.round(boardSize * 0.42);
 
-            const popW = Math.max(240, Math.round(CELL_SIZE * 4.5));
-            const popH = 200;
-            const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-
-            const rawLeft = disp.x * CELL_SIZE + CELL_SIZE * 0.55;
-            const rawTop = disp.y * CELL_SIZE - CELL_SIZE * 0.15;
-            const left = clamp(rawLeft, 8, boardSize - popW - 8);
-            const top = clamp(rawTop, 8, boardSize - popH - 8);
-
-            const spriteSize = Math.max(60, Math.round(CELL_SIZE * 1.3 * pieceScale * PIECE_SIZE_MULTIPLIER));
+            const doPromote = () => executeMove(
+              pendingMove.sourceSquare,
+              pendingMove.targetSquare,
+              promotePiece(pendingMove.piece) as PieceCode,
+              false,
+            );
+            const doKeep = () => executeMove(
+              pendingMove.sourceSquare,
+              pendingMove.targetSquare,
+              pendingMove.piece,
+              false,
+            );
 
             return (
-              <div className="absolute inset-0 z-[200] pointer-events-auto">
-                {/* invisible blocker to prevent accidental board taps while choosing */}
-                <div className="absolute inset-0 bg-transparent" />
-
+              // Full-board overlay: covers entire board so taps always hit buttons regardless of CSS scale transforms
+              <div
+                style={{
+                  position: "absolute", inset: 0, zIndex: 200,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
+                  background: "rgba(0,0,0,0.45)",
+                  touchAction: "none",
+                }}
+              >
+                {/* 成り button */}
                 <div
-                  className="absolute bg-white rounded-2xl shadow-2xl border border-slate-200 p-2"
-                  style={{ left, top, width: popW }}
-                >
-                  <div className="flex gap-3">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    executeMove(
-                      pendingMove.sourceSquare,
-                      pendingMove.targetSquare,
-                      promotePiece(pendingMove.piece) as PieceCode,
-                      false
-                    );
+                  role="button"
+                  style={{
+                    width: btnSize, height: btnSize,
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                    gap: 8,
+                    background: "#fef3c7", border: "3px solid #d97706", borderRadius: 20,
+                    cursor: "pointer", userSelect: "none", WebkitUserSelect: "none",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
                   }}
-                      className="flex-1 flex flex-col items-center justify-center gap-2 p-3 bg-amber-100 hover:bg-amber-200 rounded-xl transition-colors border border-amber-300 min-h-[90px]"
+                  onClick={(e) => { e.stopPropagation(); doPromote(); }}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); doPromote(); }}
                 >
-                    {/* position:relative ラッパーで PieceSprite の absolute 座標を封じ込める */}
-                    <div style={{ position: "relative", width: spriteSize, height: spriteSize, flexShrink: 0 }}>
-                      <PieceSprite
-                        piece={promotePiece(pendingMove.piece) as PieceCode}
-                        x={0}
-                        y={0}
-                        size={spriteSize}
-                        cellSize={spriteSize}
-                        orientationMode="sprite"
-                        owner={pieceOwner}
-                        viewerSide={viewerSide}
-                      />
-                    </div>
-                      <span className="font-extrabold text-amber-900 text-5xl leading-none">成</span>
-                </button>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    executeMove(pendingMove.sourceSquare, pendingMove.targetSquare, pendingMove.piece, false);
-                  }}
-                      className="flex-1 flex flex-col items-center justify-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-300 min-h-[90px]"
-                >
-                    <div style={{ position: "relative", width: spriteSize, height: spriteSize, flexShrink: 0 }}>
-                      <PieceSprite
-                        piece={pendingMove.piece}
-                        x={0}
-                        y={0}
-                        size={spriteSize}
-                        cellSize={spriteSize}
-                        orientationMode="sprite"
-                        owner={pieceOwner}
-                        viewerSide={viewerSide}
-                      />
-                    </div>
-                      <span className="font-extrabold text-slate-700 text-5xl leading-none">不成</span>
-                    </button>
+                  <div style={{ position: "relative", width: spriteSize, height: spriteSize, flexShrink: 0 }}>
+                    <PieceSprite
+                      piece={promotePiece(pendingMove.piece) as PieceCode}
+                      x={0} y={0}
+                      size={spriteSize} cellSize={spriteSize}
+                      orientationMode="sprite"
+                      owner={pieceOwner} viewerSide={viewerSide}
+                    />
                   </div>
+                  <span style={{ fontWeight: 900, color: "#92400e", fontSize: 44, lineHeight: 1 }}>成</span>
+                </div>
+
+                {/* 不成 button */}
+                <div
+                  role="button"
+                  style={{
+                    width: btnSize, height: btnSize,
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                    gap: 8,
+                    background: "#f1f5f9", border: "3px solid #94a3b8", borderRadius: 20,
+                    cursor: "pointer", userSelect: "none", WebkitUserSelect: "none",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                  }}
+                  onClick={(e) => { e.stopPropagation(); doKeep(); }}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); doKeep(); }}
+                >
+                  <div style={{ position: "relative", width: spriteSize, height: spriteSize, flexShrink: 0 }}>
+                    <PieceSprite
+                      piece={pendingMove.piece}
+                      x={0} y={0}
+                      size={spriteSize} cellSize={spriteSize}
+                      orientationMode="sprite"
+                      owner={pieceOwner} viewerSide={viewerSide}
+                    />
+                  </div>
+                  <span style={{ fontWeight: 900, color: "#374151", fontSize: 44, lineHeight: 1 }}>不成</span>
                 </div>
               </div>
             );

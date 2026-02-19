@@ -1,5 +1,17 @@
 import React, { useCallback, useMemo } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+
+const LESSON_ICONS_IMG = require("../../assets/lesson-icons.png");
+// 2x2 sprite sheet, each icon is 64x64 in a 128x128 image
+// order: [star, round, crown, heart]
+const ICON_POSITIONS = [
+  { col: 0, row: 0 }, // star     (top-left)
+  { col: 1, row: 0 }, // round    (top-right)
+  { col: 0, row: 1 }, // crown    (bottom-left)
+  { col: 1, row: 1 }, // heart    (bottom-right)
+] as const;
+const ICON_SRC_SIZE = 64;   // each icon is 64x64 in the source PNG
+const ICON_RENDER = 82;     // render size on screen
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { getFlatRoadmapItems, type FlatRoadmapItem } from "../data/roadmap";
@@ -23,7 +35,9 @@ function shortenTitle(s: string) {
 
 const LESSON_BROWN = "#6d4c41";
 const LESSON_BROWN_DARK = "#3e2723";
-const BOARD_BG = "#eecfa1";
+const BOARD_BG = "#FFEEDB";
+
+
 
 export function RoadmapHomeScreen({ navigation }: Props) {
   const { progress, isLoaded } = useProgress();
@@ -56,15 +70,10 @@ export function RoadmapHomeScreen({ navigation }: Props) {
       const isNext = !item.locked && item.lessonId === nextLessonId;
       const dx = offsets[index % offsets.length] ?? 0;
 
-      const fill = item.locked ? "#f3f4f6" : isNext ? LESSON_BROWN : done ? "#795548" : "#8d6e63";
-      const ring = item.locked ? "#d1d5db" : isNext ? LESSON_BROWN_DARK : done ? LESSON_BROWN_DARK : LESSON_BROWN_DARK;
-      const ringW = isNext ? 4 : done ? 3 : 2;
-      // Center icon policy:
-      // - locked: 🔒
-      // - playable (next/available/completed): ▶
-      // Completed is shown via ring/badge, not by swapping the center icon.
-      const icon = item.locked ? "🔒" : "▶";
-      const iconColor = item.locked ? "#6b7280" : "#fff";
+      // Orange coin icon: cycle through 4 types; locked uses muted coin
+      const iconPos = ICON_POSITIONS[index % ICON_POSITIONS.length];
+      // locked: desaturate with low opacity; done: slight dim
+      const coinOpacity = item.locked ? 0.45 : done ? 0.8 : 1;
 
       return (
         <View style={[styles.nodeRow, { transform: [{ translateX: dx }] }]}>
@@ -82,18 +91,31 @@ export function RoadmapHomeScreen({ navigation }: Props) {
             }}
             onPress={() => navigation.navigate("LessonLaunch", { lessonId: item.lessonId })}
             hitSlop={10}
-            style={({ pressed }) => [
-              styles.bubble,
-              { backgroundColor: fill, borderColor: ring, borderWidth: ringW },
-              isNext && styles.bubbleNext,
-              done && !isNext && !item.locked && styles.bubbleDone,
-              pressed && !item.locked && { opacity: 0.92, transform: [{ scale: 0.99 }] },
-              item.locked && { opacity: 0.7 },
-            ]}
+            style={({ pressed }) => ({
+              width: ICON_RENDER,
+              height: ICON_RENDER,
+              borderRadius: 999,
+              alignItems: "center" as const,
+              justifyContent: "center" as const,
+              opacity: coinOpacity,
+              transform: pressed && !item.locked ? [{ scale: 0.93 }] : [],
+            })}
           >
-            <Text style={[styles.bubbleIcon, { color: iconColor }]}>{icon}</Text>
+            {/* Sprite crop: overflow:hidden clips to one icon */}
+            <View style={{ width: ICON_RENDER, height: ICON_RENDER, overflow: "hidden", borderRadius: 999 }}>
+              <Image
+                source={LESSON_ICONS_IMG}
+                style={{
+                  width: ICON_RENDER * 2,
+                  height: ICON_RENDER * 2,
+                  marginLeft: -(iconPos.col * ICON_RENDER),
+                  marginTop: -(iconPos.row * ICON_RENDER),
+                }}
+                resizeMode="stretch"
+              />
+            </View>
             {done && !item.locked ? (
-              <View pointerEvents="none" style={styles.doneBadge}>
+              <View pointerEvents="none" style={[styles.doneBadge, { bottom: 0 }]}>
                 <Text style={styles.doneBadgeText}>✓</Text>
               </View>
             ) : null}
@@ -105,7 +127,7 @@ export function RoadmapHomeScreen({ navigation }: Props) {
         </View>
       );
     },
-    [completedSet, navigation, nextLessonId, offsets],
+    [completedSet, navigation, nextLessonId, offsets, sakura],
   );
 
   return (
@@ -228,7 +250,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   startTagText: { fontSize: 11, fontWeight: "900", color: LESSON_BROWN_DARK, letterSpacing: 0.4 },
-  continueBtn: { backgroundColor: LESSON_BROWN, borderBottomColor: LESSON_BROWN_DARK },
+  continueBtn: { backgroundColor: "#DB6010", borderBottomColor: "#a04508" },
 });
 
 

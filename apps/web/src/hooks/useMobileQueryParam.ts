@@ -3,15 +3,9 @@
 import { useEffect, useState } from "react";
 
 export function useMobileQueryParam(): boolean {
-  const [mobile, setMobile] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      return sp.get("mobile") === "1";
-    } catch {
-      return false;
-    }
-  });
+  // Always initialize false so SSR and first client render match (avoids hydration mismatch).
+  // The actual value is read after mount via useEffect.
+  const [mobile, setMobile] = useState<boolean>(false);
 
   useEffect(() => {
     try {

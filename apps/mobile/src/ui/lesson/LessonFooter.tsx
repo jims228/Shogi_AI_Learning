@@ -12,7 +12,7 @@ export const LESSON_FOOTER_HEIGHT =
   LESSON_SPACING.footerPaddingBottom +
   1;
 
-const SLIDE_DISTANCE = LESSON_FOOTER_HEIGHT + 20;
+const SLIDE_DISTANCE = LESSON_FOOTER_HEIGHT + 80;
 
 type Props = {
   nextLabel: string;

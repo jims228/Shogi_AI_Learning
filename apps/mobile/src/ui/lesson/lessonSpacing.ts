@@ -19,7 +19,7 @@ export const LESSON_SPACING = {
 
 export const LESSON_COLORS = {
   progressBg: "#e5e7eb",
-  progressFill: "#22c55e",
+  progressFill: "#DB6010",
   dialogueBg: "#ffffff",
   dialogueBorder: "#e5e7eb",
 } as const;
