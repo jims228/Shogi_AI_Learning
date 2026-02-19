@@ -255,7 +255,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.bg },
+  root: { flex: 1, backgroundColor: "#FFEEDB" },
   content: { flex: 1, paddingBottom: LESSON_FOOTER_HEIGHT, overflow: "visible" },
   topSection: { overflow: "visible" },
   contentTopSpacer: { height: 2 },
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   },
   webViewWrap: {
     borderRadius: 8,
-    backgroundColor: "#ffffff",
+    backgroundColor: "transparent",
   },
   webViewHidden: { opacity: 0 },
   webView: {

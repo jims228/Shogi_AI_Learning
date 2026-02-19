@@ -69,14 +69,14 @@ const styles = StyleSheet.create({
   // Tail pointing left toward the character (rotated square)
   tail: {
     position: "absolute",
-    left: -6,
-    bottom: 14,
+    left: -5,
+    top: 28,
     width: LESSON_SPACING.dialogueTailSize,
     height: LESSON_SPACING.dialogueTailSize,
     backgroundColor: LESSON_COLORS.dialogueBg,
     borderLeftWidth: 1,
     borderBottomWidth: 1,
     borderColor: LESSON_COLORS.dialogueBorder,
-    transform: [{ rotate: "-45deg" }],
+    transform: [{ rotate: "45deg" }],
   },
 });

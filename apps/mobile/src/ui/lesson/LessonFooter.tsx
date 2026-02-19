@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: "#FFEEDB",
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },

@@ -29,7 +29,7 @@ export default function RiveAvatarPage() {
     <>
       <style>{`
         html, body {
-          background: #fff !important;
+          background: transparent !important;
           background-image: none !important;
           margin: 0 !important;
           padding: 0 !important;
@@ -49,7 +49,7 @@ export default function RiveAvatarPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#ffffff",
+          backgroundColor: "transparent",
         }}
         aria-label="Rive character"
       >
