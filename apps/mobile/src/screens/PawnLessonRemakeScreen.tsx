@@ -10,7 +10,6 @@ import { useSettings } from "../state/settings";
 import { Screen, PrimaryButton } from "../ui/components";
 import {
   LessonHeader,
-  InstructionTitle,
   DialogueRow,
   BoardArea,
   LessonFooter,
@@ -280,7 +279,6 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
         <View style={styles.content}>
           <View style={styles.topSection}>
             <View style={styles.contentTopSpacer} />
-            <InstructionTitle text="パズルを解いてください" />
             {dialogueRowNode}
           </View>
           <BoardArea style={styles.boardArea}>
@@ -344,14 +342,14 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FFEEDB" },
-  content: { flex: 1, paddingBottom: LESSON_FOOTER_HEIGHT, overflow: "visible" },
+  content: { flex: 1, paddingBottom: LESSON_FOOTER_HEIGHT, overflow: "visible", marginTop: -12 },
   topSection: { overflow: "visible" },
-  contentTopSpacer: { height: 2 },
+  contentTopSpacer: { height: 0 },
   boardArea: {
     flex: 1,
     minHeight: 0,
     paddingVertical: 0,
-    marginTop: -70,
+    marginTop: -90,
   },
   boardSlot: {
     alignItems: "center",

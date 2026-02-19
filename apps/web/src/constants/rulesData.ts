@@ -681,7 +681,7 @@ export const PAWN_LESSON_2_TAREFU_STEPS: TrainingStep[] = [
     // 先手番で先手の持ち駒に歩が1枚ある表示用SFEN
     sfen: "position sfen 7kl/6gb1/8p/5pp2/9/9/9/7R1/4K4 b P 1",
     // 正解マス：ここでは 2三 を正解にする
-    checkMove: (m: AnyMove) => l2_isPawnDrop(m) && isMasu(m.to, 2, 3),
+    checkMove: (m: AnyMove) => l2_isPawnDrop(m) && isMasu(m.to, 2, 4),
     successMessage: "ナイス！そこに打つのが垂れ歩。『次に突いて成る』狙いを作れるよ。",
   },
 
