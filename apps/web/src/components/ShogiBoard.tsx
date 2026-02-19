@@ -204,6 +204,74 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     return ["P", "L", "N", "S", "B", "R"].includes(base) && !piece.startsWith("+");
   };
 
+  // Basic move legality check (piece movement + line blocking).
+  // Used to avoid showing promotion dialog on impossible destinations.
+  const isLegalPieceMove = useCallback((from: Square, to: Square, piece: PieceCode) => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    if (dx === 0 && dy === 0) return false;
+
+    const owner = getPieceOwner(piece);
+    const forwardSign = owner === "sente" ? -1 : 1;
+    const nx = dx;
+    const ny = dy * forwardSign; // normalize: ny=+1 means "forward" for both sides
+
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const promoted = piece.startsWith("+");
+    const base = piece.replace("+", "").toUpperCase();
+
+    const isPathClear = () => {
+      const stepX = Math.sign(dx);
+      const stepY = Math.sign(dy);
+      const steps = Math.max(absDx, absDy);
+      for (let i = 1; i < steps; i += 1) {
+        const x = from.x + stepX * i;
+        const y = from.y + stepY * i;
+        if (board[y]?.[x]) return false;
+      }
+      return true;
+    };
+
+    const isGoldLike = () =>
+      (ny === 1 && absDx <= 1) ||
+      (ny === 0 && absDx === 1) ||
+      (ny === -1 && nx === 0);
+
+    if (promoted && ["P", "L", "N", "S"].includes(base)) return isGoldLike();
+    if (promoted && base === "B") {
+      const bishopMove = absDx === absDy && isPathClear();
+      const kingOrthogonal = (absDx === 1 && absDy === 0) || (absDx === 0 && absDy === 1);
+      return bishopMove || kingOrthogonal;
+    }
+    if (promoted && base === "R") {
+      const rookMove = (dx === 0 || dy === 0) && isPathClear();
+      const kingDiagonal = absDx === 1 && absDy === 1;
+      return rookMove || kingDiagonal;
+    }
+
+    switch (base) {
+      case "P":
+        return nx === 0 && ny === 1;
+      case "L":
+        return nx === 0 && ny > 0 && isPathClear();
+      case "N":
+        return absDx === 1 && ny === 2;
+      case "S":
+        return (ny === 1 && absDx <= 1) || (ny === -1 && absDx === 1);
+      case "G":
+        return isGoldLike();
+      case "K":
+        return absDx <= 1 && absDy <= 1;
+      case "B":
+        return absDx === absDy && isPathClear();
+      case "R":
+        return (dx === 0 || dy === 0) && isPathClear();
+      default:
+        return false;
+    }
+  }, [board]);
+
   const isTouchDoubleTap = useCallback((square: Square) => {
     const now = performance.now();
     const previous = touchTapRef.current;
@@ -229,13 +297,15 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   const handleHandClick = useCallback((base: PieceBase, side: "b" | "w") => {
     if (!canEdit) return;
+    const handOwner = side === "b" ? "sente" : "gote";
+    if (handOwner !== viewerOrientation) return;
     if (selectedHand && selectedHand.base === base && selectedHand.side === side) {
       updateSelectedHand(null);
     } else {
       updateSelectedHand({ base, side });
       setSelectedSquare(null);
     }
-  }, [canEdit, selectedHand, updateSelectedHand]);
+  }, [canEdit, selectedHand, updateSelectedHand, viewerOrientation]);
 
   const executeMove = useCallback((source: Square, target: Square, pieceCode: PieceCode, isDrop: boolean) => {
     if (!onBoardChange) return;
@@ -298,10 +368,20 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         setSelectedSquare(null);
         return false;
       }
+      // 自分の駒だけ操作可能
+      if (getPieceOwner(sourcePiece) !== viewerOrientation) {
+        setSelectedSquare(null);
+        return true;
+      }
 
       const targetPiece = board[target.y][target.x];
       if (targetPiece && getPieceOwner(targetPiece) === getPieceOwner(sourcePiece)) {
         return false;
+      }
+
+      // そもそも駒の利きとして成立しない移動なら、成り/不成は出さない（移動もしない）。
+      if (!isLegalPieceMove(selectedSquare, target, sourcePiece)) {
+        return true;
       }
 
       const owner = getPieceOwner(sourcePiece);
@@ -328,7 +408,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     }
 
     return false;
-  }, [board, onBoardChange, selectedHand, selectedSquare, autoPromote, canPromotePiece, executeMove]);
+  }, [board, onBoardChange, selectedHand, selectedSquare, autoPromote, canPromotePiece, executeMove, isLegalPieceMove, viewerOrientation]);
 
   const togglePromotionAt = useCallback((square: Square) => {
     if (!canEdit || !onBoardChange) return;
@@ -350,12 +430,24 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
     const pieceAtTarget = board[square.y]?.[square.x];
     if (pieceAtTarget) {
+      // 相手の駒は選択不可
+      if (getPieceOwner(pieceAtTarget) !== viewerOrientation) {
+        setSelectedSquare(null);
+        updateSelectedHand(null);
+        return;
+      }
+      // 同じ駒を再タップしたら選択解除
+      if (selectedSquare && selectedSquare.x === square.x && selectedSquare.y === square.y) {
+        setSelectedSquare(null);
+        updateSelectedHand(null);
+        return;
+      }
       setSelectedSquare({ ...square });
       updateSelectedHand(null);
     } else {
       setSelectedSquare(null);
     }
-  }, [attemptAction, board, onBoardChange, updateSelectedHand]);
+  }, [attemptAction, board, onBoardChange, selectedSquare, updateSelectedHand, viewerOrientation]);
 
   const handleBoardClick = useCallback((event: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!canEdit) return;
@@ -603,6 +695,11 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
                   background: "rgba(0,0,0,0.45)",
                   touchAction: "none",
+                }}
+                onClick={() => setPendingMove(null)}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  setPendingMove(null);
                 }}
               >
                 {/* 成り button */}
@@ -855,12 +952,15 @@ const HandArea: React.FC<HandAreaProps> = ({
     return (
       <div
         key={`${side}-${base}`}
-        className={`relative transition-all rounded-md ${canEdit && isSelected ? "bg-amber-300 shadow-md scale-110" : ""}`}
+        className="relative transition-transform"
         data-testid={base === "P" ? `hand-piece-${owner}-P` : undefined}
         style={{
           width: cellSize,
           height: cellSize,
           cursor: canEdit ? "pointer" : "default",
+          WebkitTapHighlightColor: "transparent",
+          WebkitUserSelect: "none",
+          userSelect: "none",
         }}
         onClick={() => canEdit && onHandClick?.(base, side)}
       >
@@ -874,6 +974,8 @@ const HandArea: React.FC<HandAreaProps> = ({
           orientationMode={orientationMode}
           owner={owner}
           viewerSide={viewerSide}
+          style={canEdit && isSelected ? { opacity: 0.55 } : undefined}
+          scaleMultiplier={canEdit && isSelected ? 1.15 : undefined}
         />
         {count > 1 && (
           <span className="absolute -top-1 -right-1 rounded-full bg-[#fef1d6] px-1 text-xs font-semibold text-[#2b2b2b] border border-black/10">
