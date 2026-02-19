@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -156,14 +156,21 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
 
   const dialogueMessage = stepDescription || stepTitle || "問題に答えてね。";
 
-  // NOTE: __avatarCorrect() の Rive アニメーションが正解時にキャラ位置をずらす原因だったため無効化。
-  // アニメーション復活させる場合はキャラを position:absolute で固定してから再検討する。
+  // NOTE: __avatarCorrect() の Rive アニメーションがキャラ位置をずらす原因のため無効化。
+  // Riveファイル側のアニメーション修正後に再度有効化する。
+  const bounceAnim = useRef(new Animated.Value(1)).current;
 
-  // おじいちゃん: /m/rive-avatar (Web側で白背景強制済み) を WebView で表示。
+  // おじいちゃん: /m/rive-avatar を WebView で表示。
   // useMemo で安定化: isCorrect など無関係な state が変わっても再レンダーしない。
   // これにより topSection のレイアウト再計算が起きず、キャラ位置がブレない。
   const characterSlot = useMemo(() => (
-    <View style={[styles.riveWrap, { marginLeft: -MASCOT_PULL_LEFT, marginTop: MASCOT_OFFSET_Y }]}>
+    <Animated.View
+      style={[
+        styles.riveWrap,
+        { marginLeft: -MASCOT_PULL_LEFT, marginTop: MASCOT_OFFSET_Y },
+        { transform: [{ scale: bounceAnim }] },
+      ]}
+    >
       <WebView
         ref={(r) => {
           avatarWebViewRef.current = r;
@@ -182,8 +189,8 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
           ? { cacheMode: "LOAD_NO_CACHE" as const, textZoom: 100, overScrollMode: "never" as const }
           : null)}
       />
-    </View>
-  ), [riveAvatarUrl]);
+    </Animated.View>
+  ), [riveAvatarUrl, bounceAnim]);
 
   // dialogueMessage が変わった時だけ DialogueRow を再レンダー。
   // isCorrect などが変わっても topSection のレイアウト計算を走らせない。
@@ -294,9 +301,13 @@ const styles = StyleSheet.create({
   riveWrap: {
     width: MASCOT_SIZE,
     height: MASCOT_SIZE,
+    overflow: "hidden",   // アニメーション中にWebViewが膨らんでも外に漏れない
+    flexShrink: 0,
   },
   riveWebViewContainer: {
     backgroundColor: "transparent",
+    width: MASCOT_SIZE,
+    height: MASCOT_SIZE,
   },
   riveWebView: {
     width: MASCOT_SIZE,

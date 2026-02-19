@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     minHeight: LESSON_SPACING.footerButtonMinHeight,
   },
   nextBtn: {
-    backgroundColor: "#6d4c41",
-    borderBottomColor: "#3e2723",
+    backgroundColor: "#DB6010",
+    borderBottomColor: "#a04508",
   },
 });

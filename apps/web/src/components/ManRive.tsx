@@ -23,7 +23,7 @@ export function ManRive({ correctSignal, className, style }: ManRiveProps) {
     autoplay: true,
     layout: new Layout({
       fit: Fit.Contain,
-      alignment: Alignment.Center,
+      alignment: Alignment.BottomCenter,
     }),
   });
 

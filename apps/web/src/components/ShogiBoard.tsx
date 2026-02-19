@@ -388,17 +388,20 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     const y = isGoteView ? 8 - rawY : rawY;
     const square = { x, y };
 
-    if ("touches" in event && isTouchDoubleTap(square)) {
+    // ダブルタップ直接昇格は純粋な盤面編集モード（onMove なし）のみ有効。
+    // レッスン/パズルモード（onMove あり）では誤タップで駒が成ってしまうため無効化。
+    if ("touches" in event && isTouchDoubleTap(square) && !onMove) {
       togglePromotionAt(square);
       return;
     }
 
     handleEditSquareClick(square);
     onSquareClick?.(square.x, square.y);
-  }, [canEdit, pendingMove, isGoteView, isTouchDoubleTap, togglePromotionAt, handleEditSquareClick, onSquareClick]);
+  }, [canEdit, pendingMove, isGoteView, isTouchDoubleTap, togglePromotionAt, handleEditSquareClick, onSquareClick, onMove]);
 
   const handleBoardDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!canEdit) return;
+    // レッスン/パズルモード（onMove あり）では直接昇格を無効化
+    if (!canEdit || onMove) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const xRel = event.clientX - rect.left;
     const yRel = event.clientY - rect.top;
@@ -411,7 +414,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     const y = isGoteView ? 8 - rawY : rawY;
 
     togglePromotionAt({ x, y });
-  }, [canEdit, isGoteView, togglePromotionAt]);
+  }, [canEdit, isGoteView, togglePromotionAt, onMove]);
 
   const effectiveLastMove = mode === "edit" ? null : lastMove;
   const effectiveBestMove = mode === "edit" ? null : bestmove;

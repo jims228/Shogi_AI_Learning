@@ -34,21 +34,27 @@ export default function RiveAvatarPage() {
           margin: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
+          width: 210px !important;
+          height: 210px !important;
         }
         body::before, body::after {
           content: none !important;
           display: none !important;
         }
+        canvas {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 210px !important;
+          height: 210px !important;
+        }
       `}</style>
       <div
         style={{
-          width: "100%",
-          height: "100%",
-          minHeight: 210,
-          minWidth: 210,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          position: "relative",
+          width: 210,
+          height: 210,
+          overflow: "hidden",
           backgroundColor: "transparent",
         }}
         aria-label="Rive character"

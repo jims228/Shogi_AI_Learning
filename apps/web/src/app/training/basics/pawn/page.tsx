@@ -127,6 +127,7 @@ export default function PawnTrainingPage() {
           <AutoScaleToFit minScale={0.3} maxScale={2.4} className="w-full h-full" overflowHidden={false}>
             <WoodBoardFrame paddingClassName="p-0" className="overflow-hidden">
               <ShogiBoard
+                key={currentStepIndex}
                 board={isBoardReady ? board : createEmptyBoard()}
                 hands={hands}
                 mode="edit"
@@ -169,6 +170,7 @@ export default function PawnTrainingPage() {
           <WoodBoardFrame paddingClassName="p-3" className="inline-block">
             <div style={{ ["--piece-sprite-scale" as any]: 1.2, ["--piece-offset-y" as any]: -3 }}>
               <ShogiBoard
+                key={currentStepIndex}
                 board={isBoardReady ? board : createEmptyBoard()}
                 hands={hands}
                 mode="edit"
@@ -191,6 +193,7 @@ export default function PawnTrainingPage() {
           <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
             <div className="relative w-full h-full">
               <ShogiBoard
+                key={currentStepIndex}
                 board={isBoardReady ? board : createEmptyBoard()}
                 hands={hands}
                 mode="edit"
