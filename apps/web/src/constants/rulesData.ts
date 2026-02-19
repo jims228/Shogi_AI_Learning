@@ -691,9 +691,9 @@ export const PAWN_LESSON_2_TAREFU_STEPS: TrainingStep[] = [
     description:
       "垂れ歩を打ったら、次は『突いて成る』のが狙い。\n歩を前に進めて、成れるなら成ってください。",
     // Step1 で 2三 に歩を打った後の局面（表示用）
-    sfen: "position sfen 7kl/6gb1/8p/5ppP1/9/9/9/7R1/4K4 b P 1",
+    sfen: "position sfen 7kl/6gb1/8p/5ppP1/9/9/9/7R1/4K4 b 1",
     // 「成った歩で動いた」＋到達マスが 2二（典型）
-    checkMove: (m: AnyMove) => l2_isPromotedPawnMove(m) && isMasu(m.to, 2, 2),
+    checkMove: (m: AnyMove) => l2_isPromotedPawnMove(m) && isMasu(m.to, 2, 3),
     successMessage: "OK！垂れ歩 → 突いて成る、がつながったね。",
   },
 ];
