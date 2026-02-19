@@ -22,7 +22,8 @@ const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
 const MASCOT_PULL_LEFT = 30;
 const MASCOT_OFFSET_Y = 8;
-const BOARD_SAFETY = Platform.OS === "android" ? -50 : 0;
+/** 正の値=盤面サイズを縮小して確実に収める。0=そのまま */
+const BOARD_SAFETY = Platform.OS === "android" ? 20 : 0;
 const INSET = Platform.OS === "android" ? 4 : 2;
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
@@ -253,8 +254,8 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
       message={dialogueMessage}
       characterSlot={characterSlot}
       characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
-      style={{ paddingRight: 8, gap: 10, height: MASCOT_SIZE }}
-      bubbleStyle={{ marginBottom: 50, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
+    style={{ paddingRight: 8, gap: 10, height: 165 }}
+    bubbleStyle={{ marginBottom: 20, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
     />
   ), [dialogueMessage, characterSlot]);
 
@@ -332,7 +333,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     paddingVertical: 0,
-    marginTop: -80,
+    marginTop: -100,
   },
   boardSlot: {
     alignItems: "center",
