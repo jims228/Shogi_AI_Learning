@@ -110,8 +110,21 @@ export default function TarefuTrainingPage() {
 
   if (isEmbed) {
     return (
-      <div className="w-full h-full flex items-center justify-center p-2">
-        <AutoScaleToFit minScale={0.25} maxScale={2.4} className="w-full h-full" overflowHidden={true}>
+      <>
+        <style jsx global>{`
+          html, body, #__next {
+            background: transparent !important;
+            background-image: none !important;
+          }
+          body::before,
+          body::after {
+            content: none !important;
+            display: none !important;
+            background-image: none !important;
+          }
+        `}</style>
+        <div className="w-full h-full flex items-center justify-center p-2 bg-transparent">
+          <AutoScaleToFit minScale={0.25} maxScale={2.4} className="w-full h-full" overflowHidden={true}>
           <WoodBoardFrame paddingClassName="p-1">
             <ShogiBoard
               key={currentStepIndex}
@@ -127,8 +140,9 @@ export default function TarefuTrainingPage() {
               handsPlacement="default"
             />
           </WoodBoardFrame>
-        </AutoScaleToFit>
-      </div>
+          </AutoScaleToFit>
+        </div>
+      </>
     );
   }
 

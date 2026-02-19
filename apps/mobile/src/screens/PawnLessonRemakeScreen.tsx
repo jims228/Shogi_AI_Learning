@@ -10,6 +10,7 @@ import { useSettings } from "../state/settings";
 import { Screen, PrimaryButton } from "../ui/components";
 import {
   LessonHeader,
+  InstructionTitle,
   DialogueRow,
   BoardArea,
   LessonFooter,
@@ -22,8 +23,9 @@ const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
 const MASCOT_PULL_LEFT = 30;
 const MASCOT_OFFSET_Y = 8;
-/** 正の値=盤面サイズを縮小して確実に収める。0=そのまま */
-const BOARD_SAFETY = Platform.OS === "android" ? 20 : 0;
+const BOARD_SAFETY = Platform.OS === "android" ? -50 : 0;
+// 盤面スケールは変えず、持ち駒ぶんの表示高さだけ追加する
+const BOARD_VIEWPORT_EXTRA = Platform.OS === "android" ? 120 : 0;
 const INSET = Platform.OS === "android" ? 4 : 2;
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonLaunch">;
@@ -90,8 +92,9 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
           var css = document.createElement('style');
           css.type = 'text/css';
           css.appendChild(document.createTextNode(
-            'html, body { margin:0 !important; padding:0 !important; height:100% !important; overflow:hidden !important; background:transparent !important; }' +
-            '#__next, #root { height:100% !important; }'
+            'html, body { margin:0 !important; padding:0 !important; height:100% !important; overflow:hidden !important; background:transparent !important; background-image:none !important; }' +
+            '#__next, #root { height:100% !important; background:transparent !important; background-image:none !important; }' +
+            'body::before, body::after { content:none !important; display:none !important; background-image:none !important; }'
           ));
           (document.head || document.documentElement).appendChild(css);
         } catch (e) {}
@@ -254,8 +257,8 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
       message={dialogueMessage}
       characterSlot={characterSlot}
       characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
-    style={{ paddingRight: 8, gap: 10, height: 165 }}
-    bubbleStyle={{ marginBottom: 20, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
+      style={{ paddingRight: 8, gap: 10, height: MASCOT_SIZE }}
+      bubbleStyle={{ marginBottom: 80, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
     />
   ), [dialogueMessage, characterSlot]);
 
@@ -276,6 +279,8 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
         <LessonHeader progress={progress} lives={lives} onClose={onClose} />
         <View style={styles.content}>
           <View style={styles.topSection}>
+            <View style={styles.contentTopSpacer} />
+            <InstructionTitle text="パズルを解いてください" />
             {dialogueRowNode}
           </View>
           <BoardArea style={styles.boardArea}>
@@ -294,13 +299,25 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
                   <Text style={styles.loadingText}>盤面を読み込み中…</Text>
                 </View>
               )}
-              <View style={[styles.webViewWrap, { width: boardSize, height: boardSize, padding: INSET }, loading && styles.webViewHidden]}>
+              <View
+                style={[
+                  styles.webViewWrap,
+                  { width: boardSize, height: boardSize + BOARD_VIEWPORT_EXTRA, padding: INSET },
+                  loading && styles.webViewHidden,
+                ]}
+              >
                 <WebView
                   ref={(r) => {
                     webViewRef.current = r;
                   }}
                   source={{ uri: url }}
-                  style={[styles.webView, { width: boardSize - INSET * 2, height: boardSize - INSET * 2 }]}
+                  style={[
+                    styles.webView,
+                    {
+                      width: boardSize - INSET * 2,
+                      height: boardSize + BOARD_VIEWPORT_EXTRA - INSET * 2,
+                    },
+                  ]}
                   cacheEnabled={false}
                   showsVerticalScrollIndicator={false}
                   showsHorizontalScrollIndicator={false}
@@ -329,11 +346,12 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FFEEDB" },
   content: { flex: 1, paddingBottom: LESSON_FOOTER_HEIGHT, overflow: "visible" },
   topSection: { overflow: "visible" },
+  contentTopSpacer: { height: 2 },
   boardArea: {
     flex: 1,
     minHeight: 0,
     paddingVertical: 0,
-    marginTop: -100,
+    marginTop: -70,
   },
   boardSlot: {
     alignItems: "center",
