@@ -18,8 +18,8 @@ import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
 import { buildPositionFromUsi } from "@/lib/board";
-import { postMobileLessonCompleteOnce, getMobileParamsFromUrl } from "@/lib/mobileBridge";
-import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { useMobileParams } from "@/hooks/useMobileQueryParam";
 import { createEmptyBoard } from "@/lib/board";
 
 const normalizeUsiPosition = (s: string) => {
@@ -65,10 +65,8 @@ export function LessonRunner({
 }: Props) {
   const router = useRouter();
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
-  const mobileFromUrl = useMobileQueryParam();
+  const { mobile: mobileFromUrl, embed: isEmbed } = useMobileParams();
   const isMobileWebView = mobile ?? mobileFromUrl;
-  const [isEmbed, setIsEmbed] = useState(false);
-  useEffect(() => { setIsEmbed(getMobileParamsFromUrl().embed); }, []);
 
   const postToRn = useCallback((msg: { type: string; [k: string]: unknown }) => {
     try {

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getMobileParamsFromUrl } from "@/lib/mobileBridge";
 
+/** Returns just the `mobile` flag (legacy compat). */
 export function useMobileQueryParam(): boolean {
-  // Always initialize false so SSR and first client render match (avoids hydration mismatch).
-  // The actual value is read after mount via useEffect.
   const [mobile, setMobile] = useState<boolean>(false);
 
   useEffect(() => {
@@ -17,5 +17,31 @@ export function useMobileQueryParam(): boolean {
   }, []);
 
   return mobile;
+}
+
+/**
+ * Returns { mobile, embed, noai, lid } all from a SINGLE effect.
+ * This prevents the race condition where isMobileWebView becomes true
+ * before isEmbed, which would briefly show MobileLessonShell instead of
+ * the embed-only board.
+ */
+export function useMobileParams() {
+  const [params, setParams] = useState({
+    mobile: false,
+    embed: false,
+    noai: false,
+    lid: undefined as string | undefined,
+  });
+
+  useEffect(() => {
+    try {
+      const p = getMobileParamsFromUrl();
+      setParams({ mobile: p.mobile, embed: p.embed, noai: p.noai, lid: p.lid });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  return params;
 }
 

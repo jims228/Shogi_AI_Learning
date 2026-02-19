@@ -10,11 +10,11 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 import { UkiCaptureShogiGame, type UkiCaptureResult } from "@/components/training/minigames/UkiCaptureShogiGame";
-import { postMobileLessonCompleteOnce, getMobileParamsFromUrl } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
-import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
+import { useMobileParams } from "@/hooks/useMobileQueryParam";
 
 function postToRn(msg: { type: string; [k: string]: unknown }) {
   try {
@@ -25,9 +25,7 @@ function postToRn(msg: { type: string; [k: string]: unknown }) {
 
 export default function UkiCapturePage() {
   const isDesktop = useMediaQuery("(min-width: 820px)");
-  const isMobileWebView = useMobileQueryParam();
-  const [isEmbed, setIsEmbed] = useState(false);
-  useEffect(() => { setIsEmbed(getMobileParamsFromUrl().embed); }, []);
+  const { mobile: isMobileWebView, embed: isEmbed } = useMobileParams();
 
   const [correctSignal, setCorrectSignal] = useState(0);
   const [secLeft, setSecLeft] = useState(60);

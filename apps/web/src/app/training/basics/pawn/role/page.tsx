@@ -14,11 +14,11 @@ import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { PAWN_LESSON_1_ROLE_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
-import { postMobileLessonCompleteOnce, getMobileParamsFromUrl } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
-import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
+import { useMobileParams } from "@/hooks/useMobileQueryParam";
 import { createEmptyBoard } from "@/lib/board";
 
 const normalizeUsiPosition = (s: string) => {
@@ -39,9 +39,7 @@ function postToRn(msg: { type: string; [k: string]: unknown }) {
 
 export default function PawnRolePage() {
   const router = useRouter();
-  const isMobileWebView = useMobileQueryParam();
-  const [isEmbed, setIsEmbed] = useState(false);
-  useEffect(() => { setIsEmbed(getMobileParamsFromUrl().embed); }, []);
+  const { mobile: isMobileWebView, embed: isEmbed } = useMobileParams();
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [board, setBoard] = useState<any[][]>(() => createEmptyBoard());
