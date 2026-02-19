@@ -111,24 +111,23 @@ export default function TarefuTrainingPage() {
   if (isEmbed) {
     return (
       <div className="w-full h-full flex items-center justify-center p-2">
-        <div className="aspect-square" style={{ width: "100%", maxWidth: "100vh", maxHeight: "100%" }}>
-          <AutoScaleToFit minScale={0.3} maxScale={2.4} className="w-full h-full" overflowHidden={false}>
-            <WoodBoardFrame paddingClassName="p-0" className="overflow-hidden">
-              <ShogiBoard
-                key={currentStepIndex}
-                board={isBoardReady ? board : createEmptyBoard()}
-                hands={hands}
-                mode="edit"
-                onMove={handleMove}
-                onBoardChange={setBoard}
-                onHandsChange={setHands}
-                orientation="sente"
-                showCoordinates={false}
-                showHands={false}
-              />
-            </WoodBoardFrame>
-          </AutoScaleToFit>
-        </div>
+        <AutoScaleToFit minScale={0.25} maxScale={2.4} className="w-full h-full" overflowHidden={false}>
+          <WoodBoardFrame paddingClassName="p-1">
+            <ShogiBoard
+              key={currentStepIndex}
+              board={isBoardReady ? board : createEmptyBoard()}
+              hands={hands}
+              mode="edit"
+              onMove={handleMove}
+              onBoardChange={setBoard}
+              onHandsChange={setHands}
+              orientation="sente"
+              showCoordinates={false}
+              showHands={true}
+              handsPlacement="default"
+            />
+          </WoodBoardFrame>
+        </AutoScaleToFit>
       </div>
     );
   }
