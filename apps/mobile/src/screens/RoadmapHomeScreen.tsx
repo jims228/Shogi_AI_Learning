@@ -48,7 +48,7 @@ export function RoadmapHomeScreen({ navigation }: Props) {
     return next?.lessonId ?? null;
   }, [completedSet, items]);
 
-  const offsets = useMemo(() => [-30, 0, 30, 0, -18, 18, 0], []);
+  const offsets = useMemo(() => [-60, -30, 0, 30, 60, 30, 0, -30], []);
 
   const renderItem = useCallback(
     ({ item, index }: { item: FlatRoadmapItem; index: number }) => {
@@ -56,15 +56,15 @@ export function RoadmapHomeScreen({ navigation }: Props) {
       const isNext = !item.locked && item.lessonId === nextLessonId;
       const dx = offsets[index % offsets.length] ?? 0;
 
-      const fill = item.locked ? "#f3f4f6" : isNext ? LESSON_BROWN : done ? theme.colors.surface : theme.colors.surface;
-      const ring = item.locked ? "#d1d5db" : isNext ? LESSON_BROWN_DARK : done ? LESSON_BROWN_DARK : theme.colors.border;
+      const fill = item.locked ? "#f3f4f6" : isNext ? LESSON_BROWN : done ? "#795548" : "#8d6e63";
+      const ring = item.locked ? "#d1d5db" : isNext ? LESSON_BROWN_DARK : done ? LESSON_BROWN_DARK : LESSON_BROWN_DARK;
       const ringW = isNext ? 4 : done ? 3 : 2;
       // Center icon policy:
       // - locked: 🔒
       // - playable (next/available/completed): ▶
       // Completed is shown via ring/badge, not by swapping the center icon.
       const icon = item.locked ? "🔒" : "▶";
-      const iconColor = item.locked ? "#6b7280" : isNext ? "#fff" : LESSON_BROWN_DARK;
+      const iconColor = item.locked ? "#6b7280" : "#fff";
 
       return (
         <View style={[styles.nodeRow, { transform: [{ translateX: dx }] }]}>
@@ -138,13 +138,12 @@ export function RoadmapHomeScreen({ navigation }: Props) {
       ) : null}
 
         <View style={styles.roadmapWrap}>
-          <View pointerEvents="none" style={styles.pathLine} />
           <FlatList
             data={items}
             keyExtractor={(l) => l.lessonId}
             contentContainerStyle={{ paddingTop: theme.spacing.lg, paddingBottom: 80 }}
             renderItem={renderItem}
-            ItemSeparatorComponent={() => <View style={{ height: 22 }} />}
+            ItemSeparatorComponent={() => <View style={{ height: 28 }} />}
           />
         </View>
 
@@ -182,17 +181,6 @@ const styles = StyleSheet.create({
   cardSub: { marginTop: 8, color: theme.colors.textMuted, fontWeight: "700", lineHeight: 18 },
 
   roadmapWrap: { flex: 1, marginTop: theme.spacing.xs },
-  pathLine: {
-    position: "absolute",
-    left: "50%",
-    top: 0,
-    bottom: 0,
-    width: 6,
-    marginLeft: -3,
-    backgroundColor: theme.colors.surfaceTint,
-    borderRadius: 999,
-    opacity: 0.7,
-  },
 
   nodeRow: { alignItems: "center", justifyContent: "center" },
   bubble: {
@@ -203,7 +191,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...theme.shadow.card,
   },
-  bubbleDone: { backgroundColor: theme.colors.surfaceTint },
+  bubbleDone: {},
   bubbleNext: {
     shadowColor: LESSON_BROWN,
     shadowOpacity: 0.25,
