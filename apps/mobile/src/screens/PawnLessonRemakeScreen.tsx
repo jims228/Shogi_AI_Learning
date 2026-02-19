@@ -10,7 +10,6 @@ import { useSettings } from "../state/settings";
 import { Screen, PrimaryButton } from "../ui/components";
 import {
   LessonHeader,
-  InstructionTitle,
   DialogueRow,
   BoardArea,
   LessonFooter,
@@ -255,7 +254,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
       characterSlot={characterSlot}
       characterWidth={MASCOT_SIZE - MASCOT_PULL_LEFT}
       style={{ paddingRight: 8, gap: 10, height: MASCOT_SIZE }}
-      bubbleStyle={{ marginBottom: 80, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
+      bubbleStyle={{ marginBottom: 50, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
     />
   ), [dialogueMessage, characterSlot]);
 
@@ -276,8 +275,6 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
         <LessonHeader progress={progress} lives={lives} onClose={onClose} />
         <View style={styles.content}>
           <View style={styles.topSection}>
-            <View style={styles.contentTopSpacer} />
-            <InstructionTitle text="パズルを解いてください" />
             {dialogueRowNode}
           </View>
           <BoardArea style={styles.boardArea}>
@@ -331,12 +328,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FFEEDB" },
   content: { flex: 1, paddingBottom: LESSON_FOOTER_HEIGHT, overflow: "visible" },
   topSection: { overflow: "visible" },
-  contentTopSpacer: { height: 2 },
   boardArea: {
     flex: 1,
     minHeight: 0,
     paddingVertical: 0,
-    marginTop: -40,
+    marginTop: -80,
   },
   boardSlot: {
     alignItems: "center",
