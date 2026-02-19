@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Alert, Animated, Easing, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -18,6 +18,7 @@ import {
 import { theme } from "../ui/theme";
 
 const TOTAL_STEPS = 5;
+const MAX_LIVES = 5;
 const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
 const MASCOT_PULL_LEFT = 30;
@@ -40,10 +41,11 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   const [stepDescription, setStepDescription] = useState("");
   const [isCorrect, setIsCorrect] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [lives, setLives] = useState(MAX_LIVES);
   const [boardSlotSize, setBoardSlotSize] = useState({ w: 0, h: 0 });
   const { width: windowWidth } = useWindowDimensions();
 
-  const progress = (stepIndex + 1) / TOTAL_STEPS;
+  const progress = stepIndex / TOTAL_STEPS;
   const isLastStep = stepIndex >= TOTAL_STEPS - 1;
   const nextLabel = isLastStep ? "レッスン完了！" : "次へ";
 
@@ -142,6 +144,41 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
         if (msg?.type === "lessonCorrect") {
           setIsCorrect(true);
         }
+        if (msg?.type === "lessonWrong") {
+          setLives((prev) => {
+            const next = prev - 1;
+            if (next <= 0) {
+              // ゲームオーバーダイアログ (少し遅延して表示)
+              setTimeout(() => {
+                Alert.alert(
+                  "ゲームオーバー",
+                  "ライフがなくなりました。もう一度挑戦しますか？",
+                  [
+                    {
+                      text: "やめる",
+                      style: "cancel",
+                      onPress: () => navigation.goBack(),
+                    },
+                    {
+                      text: "もう一度",
+                      onPress: () => {
+                        setLives(MAX_LIVES);
+                        setStepIndex(0);
+                        setIsCorrect(false);
+                        webViewRef.current?.injectJavaScript(
+                          "typeof window.__rnLessonRestart === 'function' && window.__rnLessonRestart(); true;"
+                        );
+                        webViewRef.current?.reload();
+                      },
+                    },
+                  ]
+                );
+              }, 300);
+              return 0;
+            }
+            return next;
+          });
+        }
         if (msg?.type === "stepChanged") {
           if (typeof msg.stepIndex === "number") setStepIndex(msg.stepIndex);
           setStepTitle(msg.title ?? "");
@@ -151,7 +188,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
         // ignore
       }
     },
-    []
+    [navigation]
   );
 
   const dialogueMessage = stepDescription || stepTitle || "問題に答えてね。";
@@ -207,7 +244,7 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   return (
     <Screen pad={false} edges={["top", "bottom", "left", "right"]}>
       <View style={styles.root}>
-        <LessonHeader progress={progress} onClose={onClose} />
+        <LessonHeader progress={progress} lives={lives} onClose={onClose} />
         <View style={styles.content}>
           <View style={styles.topSection}>
             <View style={styles.contentTopSpacer} />

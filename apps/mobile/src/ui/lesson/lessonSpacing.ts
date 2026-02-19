@@ -5,7 +5,7 @@
 export const LESSON_SPACING = {
   headerPaddingHorizontal: 16,
   headerPaddingVertical: 12,
-  progressBarHeight: 11,
+  progressBarHeight: 17,
   progressBarRadius: 6,
   sectionGap: 14,
   instructionPaddingVertical: 8,

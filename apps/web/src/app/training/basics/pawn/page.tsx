@@ -84,7 +84,8 @@ export default function PawnTrainingPage() {
           showToast({ title: "正解！", description: currentLesson.successMessage });
         }
       } else {
-        showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
+        if (isEmbed) postToRn({ type: "lessonWrong" });
+        else showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
 
         setTimeout(() => {
           const initial = buildPositionFromUsi(normalizeUsiPosition(currentLesson.sfen));

@@ -1,12 +1,14 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 
 import { PrimaryButton } from "../components/PrimaryButton";
-import { theme } from "../theme";
 import { LESSON_SPACING } from "./lessonSpacing";
 
-/** footer の高さ概算: paddingTop + buttonMinHeight + paddingBottom + border */
+const SUCCESS_MSG_HEIGHT = 32;
+
+/** footer の高さ概算: successMsg + paddingTop + buttonMinHeight + paddingBottom + border */
 export const LESSON_FOOTER_HEIGHT =
+  SUCCESS_MSG_HEIGHT +
   LESSON_SPACING.footerPaddingTop +
   LESSON_SPACING.footerButtonMinHeight +
   LESSON_SPACING.footerPaddingBottom +
@@ -40,6 +42,9 @@ export function LessonFooter({ nextLabel, onNext, disabled }: Props) {
     <Animated.View
       style={[styles.footer, { transform: [{ translateY: slideAnim }] }]}
     >
+      <View style={styles.successRow}>
+        <Text style={styles.successText}>正解！やったね！</Text>
+      </View>
       <View style={styles.inner}>
         <PrimaryButton
           title={nextLabel}
@@ -55,25 +60,42 @@ export function LessonFooter({ nextLabel, onNext, disabled }: Props) {
 
 const styles = StyleSheet.create({
   footer: {
-    // position: absolute でレイアウトフローから切り離す → 上のコンテンツが押されない
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#FFEEDB",
+    backgroundColor: "#FFE0C0",
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: "#F0C090",
+  },
+  successRow: {
+    height: SUCCESS_MSG_HEIGHT,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: LESSON_SPACING.footerPaddingHorizontal,
+    paddingBottom: 4,
+  },
+  successIcon: {
+    fontSize: 22,
+  },
+  successText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#5B2908",
+    letterSpacing: 0.3,
   },
   inner: {
     paddingHorizontal: LESSON_SPACING.footerPaddingHorizontal,
-    paddingTop: LESSON_SPACING.footerPaddingTop,
+    paddingTop: 0,
     paddingBottom: LESSON_SPACING.footerPaddingBottom,
   },
   button: {
     minHeight: LESSON_SPACING.footerButtonMinHeight,
   },
   nextBtn: {
-    backgroundColor: "#DB6010",
-    borderBottomColor: "#a04508",
+    backgroundColor: "#F07828",
+    borderBottomColor: "#b85510",
   },
 });
