@@ -69,7 +69,7 @@ export default function PawnTrainingPage() {
       console.error("SFEN Parse Error", e);
     }
     setIsCorrect(false);
-    if (isEmbed) postToRn({ type: "stepChanged", stepIndex: currentStepIndex, title: currentLesson.title, description: currentLesson.description });
+    if (isEmbed) postToRn({ type: "stepChanged", stepIndex: currentStepIndex, totalSteps: PAWN_LESSON_0_STEPS.length, title: currentLesson.title, description: currentLesson.description });
   }, [currentLesson, currentStepIndex, isEmbed]);
 
   const handleMove = useCallback(

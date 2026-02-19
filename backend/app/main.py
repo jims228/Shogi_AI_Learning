@@ -1,12 +1,15 @@
-import os, re
-from typing import Any, Dict, Optional
+import asyncio
+import json
+import os
+import re
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 import httpx
-from typing import List
 
-ENGINE_URL = os.getenv("ENGINE_URL", "http://engine:8081")
+ENGINE_URL = os.getenv("ENGINE_URL", "http://localhost:8082")
 app = FastAPI(title="Shogi Teacher API")
 
 app.add_middleware(
@@ -47,6 +50,57 @@ async def analyze(position: str = Body(embed=True)) -> JSONResponse:
         return JSONResponse({"ok": False, "error":"engine_timeout","detail": str(e)}, status_code=504)
     except Exception as e:
         return JSONResponse({"ok": False, "error":"backend_exception","detail": str(e)}, status_code=500)
+
+class BatchStreamIn(BaseModel):
+    usi: str
+    moves: List[str]
+    time_budget_ms: int = 60000
+
+async def _analyze_position(client: httpx.AsyncClient, position: str, timeout: float = 15.0) -> Dict[str, Any]:
+    try:
+        r = await client.post(f"{ENGINE_URL}/analyze", json={"position": position}, timeout=timeout)
+        try:
+            data = r.json()
+        except Exception:
+            data = {"raw": r.text}
+        return {
+            "ok": r.status_code == 200,
+            "bestmove": _best(data),
+            "multipv": data.get("multipv"),
+            "score": data.get("score"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+def _build_position_at_ply(usi: str, ply: int) -> str:
+    """USI文字列からply手目までの局面文字列を生成する"""
+    # "startpos moves m1 m2 ..." or "sfen ... moves m1 m2 ..."
+    if "moves" in usi:
+        base, moves_part = usi.split("moves", 1)
+        moves = moves_part.strip().split()
+        subset = moves[:ply]
+        if subset:
+            return base.rstrip() + " moves " + " ".join(subset)
+        return base.rstrip()
+    return usi
+
+@app.post("/api/analysis/batch-stream")
+async def batch_stream(inp: BatchStreamIn):
+    """全手順を順次解析してNDJSON形式でストリーミング返却する"""
+    total = len(inp.moves) + 1  # 初期局面 + 各手
+
+    async def generate() -> AsyncGenerator[str, None]:
+        async with httpx.AsyncClient() as client:
+            for ply in range(total):
+                position = _build_position_at_ply(inp.usi, ply)
+                result = await _analyze_position(client, position)
+                payload = json.dumps({"ply": ply, "result": result}, ensure_ascii=False)
+                yield payload + "\n"
+                # 過負荷防止のため少し待機
+                await asyncio.sleep(0.05)
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
+
 
 class ExplainIn(BaseModel):
     position: str

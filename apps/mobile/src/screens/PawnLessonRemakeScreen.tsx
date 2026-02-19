@@ -4,9 +4,10 @@ import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import type { RootStackParamList } from "../navigation/RootNavigator";
+import { getRoadmapLessons } from "../data/roadmap";
 import { useProgress } from "../state/progress";
 import { useSettings } from "../state/settings";
-import { Screen } from "../ui/components";
+import { Screen, PrimaryButton } from "../ui/components";
 import {
   LessonHeader,
   InstructionTitle,
@@ -17,7 +18,6 @@ import {
 } from "../ui/lesson";
 import { theme } from "../ui/theme";
 
-const TOTAL_STEPS = 5;
 const MAX_LIVES = 5;
 const MASCOT_SIZE = 210;
 /** 画面左にはみ出す量 (正=左にずらす) */
@@ -36,7 +36,13 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   const avatarWebViewRef = useRef<WebView | null>(null);
   const completedOnceRef = useRef(false);
 
+  const lesson = useMemo(
+    () => getRoadmapLessons().find((l) => l.id === lessonId) ?? null,
+    [lessonId]
+  );
+
   const [stepIndex, setStepIndex] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(5);
   const [stepTitle, setStepTitle] = useState("");
   const [stepDescription, setStepDescription] = useState("");
   const [isCorrect, setIsCorrect] = useState(false);
@@ -45,14 +51,15 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
   const [boardSlotSize, setBoardSlotSize] = useState({ w: 0, h: 0 });
   const { width: windowWidth } = useWindowDimensions();
 
-  const progress = stepIndex / TOTAL_STEPS;
-  const isLastStep = stepIndex >= TOTAL_STEPS - 1;
+  const progress = totalSteps > 0 ? stepIndex / totalSteps : 0;
+  const isLastStep = stepIndex >= totalSteps - 1;
   const nextLabel = isLastStep ? "レッスン完了！" : "次へ";
 
   const url = useMemo(() => {
     const base = settings.webBaseUrl;
-    return `${base}/training/basics/pawn?mobile=1&noai=1&embed=1&lid=${encodeURIComponent(lessonId)}`;
-  }, [lessonId, settings.webBaseUrl]);
+    const href = lesson?.href ?? "/training/basics/pawn";
+    return `${base}${href}?mobile=1&noai=1&embed=1&lid=${encodeURIComponent(lessonId)}`;
+  }, [lessonId, lesson?.href, settings.webBaseUrl]);
 
   const riveAvatarUrl = useMemo(() => `${settings.webBaseUrl}/m/rive-avatar`, [settings.webBaseUrl]);
 
@@ -144,6 +151,15 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
         if (msg?.type === "lessonCorrect") {
           setIsCorrect(true);
         }
+        // ミニゲーム等: lessonComplete はレッスン完了として完了フッターを表示
+        if (msg?.type === "lessonComplete") {
+          if (!completedOnceRef.current) {
+            completedOnceRef.current = true;
+            markCompleted(lessonId);
+          }
+          setIsCorrect(true); // フッターを表示してユーザーが「次へ」を押して戻る
+          return;
+        }
         if (msg?.type === "lessonWrong") {
           setLives((prev) => {
             const next = prev - 1;
@@ -181,8 +197,10 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
         }
         if (msg?.type === "stepChanged") {
           if (typeof msg.stepIndex === "number") setStepIndex(msg.stepIndex);
+          if (typeof msg.totalSteps === "number" && msg.totalSteps > 0) setTotalSteps(msg.totalSteps);
           setStepTitle(msg.title ?? "");
           setStepDescription(msg.description ?? "");
+          setIsCorrect(false);
         }
       } catch {
         // ignore
@@ -240,6 +258,17 @@ export function PawnLessonRemakeScreen({ navigation, route }: Props) {
       bubbleStyle={{ marginBottom: 80, flex: 0, alignSelf: "flex-end", maxWidth: "60%", marginLeft: -48 }}
     />
   ), [dialogueMessage, characterSlot]);
+
+  // レッスンが見つからない or href が null (locked) の場合はエラー画面
+  if (!lesson || !lesson.href) {
+    return (
+      <Screen>
+        <Text style={styles.errorTitle}>このレッスンは準備中です</Text>
+        <Text style={styles.errorDesc}>{lessonId}</Text>
+        <PrimaryButton title="戻る" onPress={() => navigation.goBack()} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen pad={false} edges={["top", "bottom", "left", "right"]}>
@@ -350,5 +379,22 @@ const styles = StyleSheet.create({
     width: MASCOT_SIZE,
     height: MASCOT_SIZE,
     backgroundColor: "transparent",
+  },
+  errorTitle: {
+    marginTop: 40,
+    paddingHorizontal: 24,
+    fontSize: 18,
+    fontWeight: "900",
+    color: theme.colors.text,
+    textAlign: "center",
+  },
+  errorDesc: {
+    marginTop: 8,
+    marginBottom: 24,
+    paddingHorizontal: 24,
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

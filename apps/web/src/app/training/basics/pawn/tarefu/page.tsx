@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 
@@ -14,7 +14,8 @@ import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { PAWN_LESSON_2_TAREFU_STEPS } from "@/constants/rulesData";
 import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi } from "@/lib/board";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce, getMobileParamsFromUrl } from "@/lib/mobileBridge";
+import { createEmptyBoard } from "@/lib/board";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
@@ -29,11 +30,21 @@ const normalizeUsiPosition = (s: string) => {
   return `position sfen ${t}`;
 };
 
+function postToRn(msg: { type: string; [k: string]: unknown }) {
+  try {
+    const w = typeof window !== "undefined" ? (window as any) : null;
+    if (w?.ReactNativeWebView?.postMessage) w.ReactNativeWebView.postMessage(JSON.stringify(msg));
+  } catch { /* ignore */ }
+}
+
 export default function TarefuTrainingPage() {
   const router = useRouter();
+  const isMobileWebView = useMobileQueryParam();
+  const [isEmbed, setIsEmbed] = useState(false);
+  useEffect(() => { setIsEmbed(getMobileParamsFromUrl().embed); }, []);
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [board, setBoard] = useState<any[][]>([]);
+  const [board, setBoard] = useState<any[][]>(() => createEmptyBoard());
   const [hands, setHands] = useState<any>({ b: {}, w: {} });
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctSignal, setCorrectSignal] = useState(0);
@@ -42,7 +53,6 @@ export default function TarefuTrainingPage() {
 
   // レイアウト判定（Scaffoldと揃える）
   const isDesktop = useMediaQuery("(min-width: 820px)");
-  const isMobileWebView = useMobileQueryParam();
 
   useEffect(() => {
     if (!currentLesson) return;
@@ -54,7 +64,8 @@ export default function TarefuTrainingPage() {
       console.error("SFEN Parse Error", e);
     }
     setIsCorrect(false);
-  }, [currentLesson]);
+    if (isEmbed) postToRn({ type: "stepChanged", stepIndex: currentStepIndex, totalSteps: PAWN_LESSON_2_TAREFU_STEPS.length, title: currentLesson.title, description: currentLesson.description });
+  }, [currentLesson, currentStepIndex, isEmbed]);
 
   const handleMove = useCallback(
     (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => {
@@ -63,9 +74,11 @@ export default function TarefuTrainingPage() {
       if (correct) {
         setIsCorrect(true);
         setCorrectSignal((v) => v + 1);
-        showToast({ title: "正解！", description: currentLesson.successMessage });
+        if (isEmbed) postToRn({ type: "lessonCorrect" });
+        else showToast({ title: "正解！", description: currentLesson.successMessage });
       } else {
-        showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
+        if (isEmbed) postToRn({ type: "lessonWrong" });
+        else showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
 
         setTimeout(() => {
           const initial = buildPositionFromUsi(normalizeUsiPosition(currentLesson.sfen));
@@ -74,7 +87,7 @@ export default function TarefuTrainingPage() {
         }, 900);
       }
     },
-    [currentLesson],
+    [currentLesson, isEmbed],
   );
 
   const handleNext = () => {
@@ -85,7 +98,42 @@ export default function TarefuTrainingPage() {
     }
   };
 
+  const handleNextRef = useRef(handleNext);
+  handleNextRef.current = handleNext;
+  useEffect(() => {
+    if (!isEmbed || typeof window === "undefined") return;
+    (window as any).__rnLessonNext = () => handleNextRef.current();
+    return () => { delete (window as any).__rnLessonNext; };
+  }, [isEmbed]);
+
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
+
+  const isBoardReady = Array.isArray(board) && board.length === 9;
+
+  if (isEmbed) {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-2">
+        <div className="aspect-square" style={{ width: "100%", maxWidth: "100vh", maxHeight: "100%" }}>
+          <AutoScaleToFit minScale={0.3} maxScale={2.4} className="w-full h-full" overflowHidden={false}>
+            <WoodBoardFrame paddingClassName="p-0" className="overflow-hidden">
+              <ShogiBoard
+                key={currentStepIndex}
+                board={isBoardReady ? board : createEmptyBoard()}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation="sente"
+                showCoordinates={false}
+                showHands={false}
+              />
+            </WoodBoardFrame>
+          </AutoScaleToFit>
+        </div>
+      </div>
+    );
+  }
 
   const nextButton = isCorrect ? (
     <button

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle, Lightbulb, RotateCcw } from "lucide-react";
 
@@ -18,8 +18,9 @@ import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import type { LessonStep, PracticeProblem } from "@/lib/training/lessonTypes";
 import { isExpectedMove, type BoardMove } from "@/lib/training/moveJudge";
 import { buildPositionFromUsi } from "@/lib/board";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce, getMobileParamsFromUrl } from "@/lib/mobileBridge";
 import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
+import { createEmptyBoard } from "@/lib/board";
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -66,6 +67,15 @@ export function LessonRunner({
   const isDesktop = useMediaQuery(`(min-width: ${desktopMinWidthPx}px)`);
   const mobileFromUrl = useMobileQueryParam();
   const isMobileWebView = mobile ?? mobileFromUrl;
+  const [isEmbed, setIsEmbed] = useState(false);
+  useEffect(() => { setIsEmbed(getMobileParamsFromUrl().embed); }, []);
+
+  const postToRn = useCallback((msg: { type: string; [k: string]: unknown }) => {
+    try {
+      const w = typeof window !== "undefined" ? (window as any) : null;
+      if (w?.ReactNativeWebView?.postMessage) w.ReactNativeWebView.postMessage(JSON.stringify(msg));
+    } catch { /* ignore */ }
+  }, []);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [guidedSubIndex, setGuidedSubIndex] = useState(0);
@@ -311,9 +321,9 @@ export function LessonRunner({
           goNext();
         }, 200);
       } else {
-        // nextButton: wait user
-        // Mobile WebView: show inline success banner under the explanation (avoid overlay/toast on mascot).
-        if (!isMobileWebView) {
+        if (isEmbed) {
+          postToRn({ type: "lessonCorrect" });
+        } else if (!isMobileWebView) {
           showToast({ title: "正解！", description: "次へ進もう。" });
         }
       }
@@ -323,12 +333,15 @@ export function LessonRunner({
     // wrong
     if (step.type === "practice") markMistakeIfNeeded();
 
-    const wrongHint =
-      step.type === "guided"
-        ? step.substeps[guidedSubIndex]?.wrongHint
-        : "その手ではありません。もう一度考えてみましょう。";
-
-    showToast({ title: "惜しい！", description: wrongHint ?? "その手ではありません。もう一度考えてみましょう。" });
+    if (isEmbed) {
+      postToRn({ type: "lessonWrong" });
+    } else {
+      const wrongHint =
+        step.type === "guided"
+          ? step.substeps[guidedSubIndex]?.wrongHint
+          : "その手ではありません。もう一度考えてみましょう。";
+      showToast({ title: "惜しい！", description: wrongHint ?? "その手ではありません。もう一度考えてみましょう。" });
+    }
     window.setTimeout(() => resetCurrentPosition(), 650);
   };
 
@@ -391,7 +404,58 @@ export function LessonRunner({
     return base;
   }, [guidedSubIndex, practiceIndex, reviewIndex, reviewQueue.length, step, stepIndex, steps.length]);
 
+  // embed: stepChanged 通知 & __rnLessonNext 公開
+  const goNextRef = useRef(goNext);
+  goNextRef.current = goNext;
+  useEffect(() => {
+    if (!isEmbed || typeof window === "undefined") return;
+    (window as any).__rnLessonNext = () => goNextRef.current();
+    return () => { delete (window as any).__rnLessonNext; };
+  }, [isEmbed]);
+
+  useEffect(() => {
+    if (!isEmbed || !step) return;
+    postToRn({
+      type: "stepChanged",
+      stepIndex,
+      totalSteps: steps.length,
+      title: step.title ?? title,
+      description: currentPrompt,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmbed, stepIndex, guidedSubIndex, practiceIndex, reviewIndex]);
+
   if (!step) return <div className="p-10">読み込み中...</div>;
+
+  const isBoardReady = Array.isArray(board) && board.length === 9;
+
+  // embed mode: board only
+  if (isEmbed) {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-2">
+        <div className="aspect-square" style={{ width: "100%", maxWidth: "100vh", maxHeight: "100%" }}>
+          <AutoScaleToFit minScale={0.3} maxScale={2.4} className="w-full h-full" overflowHidden={false}>
+            <WoodBoardFrame paddingClassName="p-0" className="overflow-hidden">
+              <ShogiBoard
+                key={`${stepIndex}-${guidedSubIndex}-${practiceIndex}-${reviewIndex}`}
+                board={isBoardReady ? board : createEmptyBoard()}
+                hands={hands}
+                mode="edit"
+                onMove={handleMove}
+                onBoardChange={setBoard}
+                onHandsChange={setHands}
+                orientation={orientation}
+                showCoordinates={false}
+                showHands={false}
+                hintSquares={hintSquares}
+                hintArrows={hintArrows as any}
+              />
+            </WoodBoardFrame>
+          </AutoScaleToFit>
+        </div>
+      </div>
+    );
+  }
 
   const boardElementDesktop = (
     <div className="w-full h-full flex items-start justify-center overflow-auto">

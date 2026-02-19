@@ -24,7 +24,7 @@ import { formatUsiMoveJapanese, usiMoveToCoords, type PieceBase, type PieceCode 
 import { buildUsiPositionForPly } from "@/lib/usi";
 import type { EngineAnalyzeResponse, EngineMultipvItem } from "@/lib/annotateHook";
 import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/analysisUtils";
-import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye, ArrowLeft, Pencil, ArrowLeftRight } from "lucide-react";
+import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye, ArrowLeft, Pencil, ArrowLeftRight, GraduationCap, BookOpen } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
 import EvalGraph from "@/components/annotate/EvalGraph";
 import { useBatchAnalysis } from "@/hooks/useBatchAnalysis";
@@ -285,7 +285,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     } catch {
         return null;
     }
-  }, [previewPv, previewMoves, previewStep, usi, safeCurrentPly]);
+  }, [previewSequence, previewStep, usi, safeCurrentPly]);
 
   const displayedBoard = previewState ? previewState.board : (snapshotOverrides[safeCurrentPly] ?? baseBoard);
   const fallbackHands = useMemo<HandsState>(() => ({ b: {}, w: {} }), []);
@@ -581,8 +581,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   }, [handlePlyChange, maxPly, previewSequence]);
   
   const navDisabled = isEditMode;
-  const canGoPrev = previewPv ? previewStep > 0 : safeCurrentPly > 0;
-  const canGoNext = previewPv ? previewStep < previewMoves.length : safeCurrentPly < maxPly;
+  const canGoPrev = previewSequence ? previewStep > 0 : safeCurrentPly > 0;
+  const canGoNext = previewSequence ? previewStep < previewSequence.length : safeCurrentPly < maxPly;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -818,7 +818,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     setEditHistory([]);
     setExplanation("");
     setGameDigest("");
-    setPreviewPv(null);
+    setPreviewSequence(null);
     setPreviewStep(0);
     stopEngineAnalysis();
     resetBatchData(); 
@@ -828,7 +828,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
     if (isEditMode) {
       setEditHistory([]);
       setExplanation("");
-      setPreviewPv(null);
+      setPreviewSequence(null);
       setPreviewStep(0);
     } else {
       // 編集モードでない場合はここでは何もしない（継続解析のため）

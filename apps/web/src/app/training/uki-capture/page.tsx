@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Lightbulb } from "lucide-react";
 
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
@@ -10,28 +10,54 @@ import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 import { UkiCaptureShogiGame, type UkiCaptureResult } from "@/components/training/minigames/UkiCaptureShogiGame";
-import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
+import { postMobileLessonCompleteOnce, getMobileParamsFromUrl } from "@/lib/mobileBridge";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobileCoachText } from "@/components/mobile/MobileCoachText";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
 import { useMobileQueryParam } from "@/hooks/useMobileQueryParam";
 
+function postToRn(msg: { type: string; [k: string]: unknown }) {
+  try {
+    const w = typeof window !== "undefined" ? (window as any) : null;
+    if (w?.ReactNativeWebView?.postMessage) w.ReactNativeWebView.postMessage(JSON.stringify(msg));
+  } catch { /* ignore */ }
+}
+
 export default function UkiCapturePage() {
   const isDesktop = useMediaQuery("(min-width: 820px)");
   const isMobileWebView = useMobileQueryParam();
+  const [isEmbed, setIsEmbed] = useState(false);
+  useEffect(() => { setIsEmbed(getMobileParamsFromUrl().embed); }, []);
 
   const [correctSignal, setCorrectSignal] = useState(0);
   const [secLeft, setSecLeft] = useState(60);
   const [score, setScore] = useState<UkiCaptureResult>({ gain: 0, loss: 0, net: 0, captures: 0 });
 
   const prevCapturesRef = useRef(0);
+  const completeSentRef = useRef(false);
 
-  const onTick = useCallback((s: number) => setSecLeft(s), []);
+  const onTick = useCallback((s: number) => {
+    setSecLeft(s);
+    if (s <= 0 && isEmbed && !completeSentRef.current) {
+      completeSentRef.current = true;
+      postMobileLessonCompleteOnce();
+      postToRn({ type: "lessonComplete" });
+    }
+  }, [isEmbed]);
   const onScore = useCallback((r: UkiCaptureResult) => {
     setScore(r);
-    if (r.captures > prevCapturesRef.current) setCorrectSignal((v) => v + 1);
+    if (r.captures > prevCapturesRef.current) {
+      setCorrectSignal((v) => v + 1);
+      if (isEmbed) postToRn({ type: "lessonCorrect" });
+    }
     prevCapturesRef.current = r.captures;
-  }, []);
+  }, [isEmbed]);
+
+  // embed: 初期stepChanged送信
+  useEffect(() => {
+    if (!isEmbed) return;
+    postToRn({ type: "stepChanged", stepIndex: 0, totalSteps: 1, title: "浮き駒を取る", description: "操作駒は飛車。守られていない浮き駒を素早く取ろう！" });
+  }, [isEmbed]);
 
   // 左カラム（盤）: Scaffoldが与える高さに必ず収める
   const boardElement = (
@@ -158,6 +184,27 @@ export default function UkiCapturePage() {
         </p>
       </div>
     ) : null;
+
+  if (isEmbed) {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-2">
+        <div className="aspect-square" style={{ width: "100%", maxWidth: "100vh", maxHeight: "100%" }}>
+          <AutoScaleToFit minScale={0.3} maxScale={2.4} className="w-full h-full" overflowHidden={false}>
+            <WoodBoardFrame paddingClassName="p-0" className="overflow-hidden">
+              <UkiCaptureShogiGame
+                durationSec={60}
+                targetCount={4}
+                playerPiece="R"
+                playerStart={{ x: 4, y: 7 }}
+                onTick={onTick}
+                onScore={onScore}
+              />
+            </WoodBoardFrame>
+          </AutoScaleToFit>
+        </div>
+      </div>
+    );
+  }
 
   if (isMobileWebView) {
     // NOTE: This is a minigame (not LessonRunner). We still unify the mobile layout (coach + board + CTA),
