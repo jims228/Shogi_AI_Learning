@@ -784,3 +784,215 @@ export const PAWN_LESSON_3_TSUGIFU_STEPS: TrainingStep[] = [
     ],
   },
 ];
+
+// --- Shogi rules foundation lessons (for roadmap rules_* entries) ---
+const r_piece = (m: AnyMove) => (typeof m.piece === "string" ? m.piece : "");
+const r_hasFrom = (m: AnyMove) => !!m.from && !m.drop;
+const r_dxdy = (m: AnyMove) => {
+  if (!m.from) return { dx: 99, dy: 99 };
+  return { dx: m.to.x - m.from.x, dy: m.to.y - m.from.y };
+};
+const r_oneStepAny = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  return Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && !(dx === 0 && dy === 0);
+};
+const r_pawnForwardOne = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  return r_piece(m).toUpperCase() === "P" && dx === 0 && Math.abs(dy) === 1;
+};
+const r_lanceLike = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  return r_piece(m).toUpperCase() === "L" && dx === 0 && Math.abs(dy) >= 1;
+};
+const r_knightLike = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  return r_piece(m).toUpperCase() === "N" && Math.abs(dx) === 1 && Math.abs(dy) === 2;
+};
+const r_silverLike = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  return r_piece(m).toUpperCase() === "S" && Math.abs(dx) <= 1 && Math.abs(dy) === 1;
+};
+const r_goldLike = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  if (r_piece(m).toUpperCase() !== "G") return false;
+  return Math.abs(dx) + Math.abs(dy) >= 1 && Math.abs(dx) <= 1 && Math.abs(dy) <= 1;
+};
+const r_bishopLike = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  return r_piece(m).toUpperCase().replace("+", "") === "B" && Math.abs(dx) === Math.abs(dy) && Math.abs(dx) >= 1;
+};
+const r_rookLike = (m: AnyMove) => {
+  if (!r_hasFrom(m)) return false;
+  const { dx, dy } = r_dxdy(m);
+  return r_piece(m).toUpperCase().replace("+", "") === "R" && ((dx === 0 && dy !== 0) || (dx !== 0 && dy === 0));
+};
+
+export const DEFAULT_SHOGI_RULES_LESSON_ID = "rules_00_board_pieces_win";
+
+export const SHOGI_RULES_LESSON_STEPS: Record<string, TrainingStep[]> = {
+  rules_00_board_pieces_win: [
+    {
+      step: 1,
+      title: "盤・駒・勝ち条件",
+      description: "王様（玉）を1マス動かしてみよう。王手を続けて詰ませるのが勝ちです。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/4K4/9 b - 1",
+      checkMove: (m: AnyMove) => r_piece(m).toUpperCase() === "K" && r_oneStepAny(m),
+      successMessage: "OK！王を詰ませるのが勝ち条件です。",
+    },
+  ],
+  rules_01_capture_and_hands: [
+    {
+      step: 1,
+      title: "駒の取り方・持ち駒",
+      description: "歩で前の相手駒を取ってみよう。取った駒は持ち駒になります。",
+      sfen: "position sfen 4k4/9/9/9/9/4p4/4P4/9/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_pawnForwardOne(m),
+      successMessage: "ナイス！取った駒は次に“打つ”ことができます。",
+    },
+  ],
+  rules_02_pawn_move_single: [
+    {
+      step: 1,
+      title: "歩の動き（1枚）",
+      description: "歩は前に1マス。1手だけ進めてみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/4P4/9/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_pawnForwardOne(m),
+      successMessage: "正解！歩は前に1マスです。",
+    },
+  ],
+  rules_03_lance_knight_silver_gold: [
+    {
+      step: 1,
+      title: "香・桂・銀・金の動き",
+      description: "香車を前に動かしてみよう（まずは近接駒の導入）。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/L8/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_lanceLike(m),
+      successMessage: "OK！香車は前へまっすぐ進みます。",
+    },
+    {
+      step: 2,
+      title: "香・桂・銀・金の動き",
+      description: "桂馬を“L字”に跳ねてみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/1N7/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_knightLike(m),
+      successMessage: "ナイス！桂馬は1つ飛び越えて動けます。",
+    },
+    {
+      step: 3,
+      title: "香・桂・銀・金の動き",
+      description: "銀か金を1手動かして、違いを体感しよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/4S4/4G4/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_silverLike(m) || r_goldLike(m),
+      successMessage: "OK！銀と金は利きが少し違います。",
+    },
+  ],
+  rules_04_bishop_rook_range: [
+    {
+      step: 1,
+      title: "角・飛の動き",
+      description: "角を斜めに動かしてみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/2B6/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_bishopLike(m),
+      successMessage: "正解！角は斜めの遠距離駒です。",
+    },
+    {
+      step: 2,
+      title: "角・飛の動き",
+      description: "飛車を縦か横に動かしてみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/2R6/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_rookLike(m),
+      successMessage: "正解！飛車は縦横の遠距離駒です。",
+    },
+  ],
+  rules_05_promotion_basics: [
+    {
+      step: 1,
+      title: "成りの基本",
+      description: "敵陣で歩を進めて、成りの発生を体験しよう。",
+      sfen: "position sfen 4k4/9/9/4P4/9/9/9/9/4K4 b - 1",
+      checkMove: (m: AnyMove) => r_piece(m).toUpperCase().replace("+", "") === "P" && r_pawnForwardOne(m),
+      successMessage: "OK！成れる条件を満たすと成る/不成を選べます。",
+    },
+    {
+      step: 2,
+      title: "成りの基本",
+      description: "今回は“成る”を選んでみよう。",
+      sfen: "position sfen 4k4/9/4P4/9/9/9/9/9/4K4 b - 1",
+      checkMove: (m: AnyMove) => l2_isPromotedPawnMove(m),
+      successMessage: "正解！駒が成ると利きが強くなることがあります。",
+    },
+  ],
+  rules_06_drop_basics: [
+    {
+      step: 1,
+      title: "打つ（持ち駒を置く）",
+      description: "持ち駒の歩を盤上に打ってみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/9/4K4 b P 1",
+      checkMove: (m: AnyMove) => l2_isPawnDrop(m),
+      successMessage: "ナイス！持ち駒は“打つ”ことで再利用できます。",
+    },
+  ],
+  rules_07_nifu: [
+    {
+      step: 1,
+      title: "禁止事項：二歩",
+      description: "同じ筋に自分の歩がある場所には打てません。別の筋に歩を打とう。",
+      sfen: "position sfen 4k4/9/9/9/4P4/9/9/9/4K4 b P 1",
+      checkMove: (m: AnyMove) => l2_isPawnDrop(m) && !isMasu(m.to, 5, 5),
+      successMessage: "OK！同じ筋に歩を2枚置く二歩は禁止です。",
+    },
+  ],
+  rules_08_uchifuzume_intro: [
+    {
+      step: 1,
+      title: "禁止事項：打ち歩詰め（紹介）",
+      description: "打ち歩詰めという禁止ルールがあります。ここでは“存在”だけ覚えよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/4K4/9 b - 1",
+      checkMove: (m: AnyMove) => r_piece(m).toUpperCase() === "K" && r_oneStepAny(m),
+      successMessage: "了解！打ち歩詰めは実戦で必ず意識するルールです。",
+    },
+  ],
+  rules_09_check_and_responses: [
+    {
+      step: 1,
+      title: "王手と応手：逃げる",
+      description: "王手されたら、まず“逃げる”対応をしてみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/4K4/4r4 b - 1",
+      checkMove: (m: AnyMove) => r_piece(m).toUpperCase() === "K" && r_oneStepAny(m),
+      successMessage: "OK！受け方1つ目は“逃げる”。",
+    },
+    {
+      step: 2,
+      title: "王手と応手：取る",
+      description: "次は攻め駒を“取る”対応をしよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/3GK4/9 b - 1",
+      checkMove: (m: AnyMove) => r_piece(m).toUpperCase() === "G" && r_oneStepAny(m),
+      successMessage: "OK！受け方2つ目は“取る”。",
+    },
+    {
+      step: 3,
+      title: "王手と応手：合い駒",
+      description: "最後は“合い駒”で利きを遮ってみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/4K4/4r4 b G 1",
+      checkMove: (m: AnyMove) => m.drop === true,
+      successMessage: "ナイス！受け方3つ目は“合い駒”。",
+    },
+  ],
+  rules_10_sennichite_jishogi: [
+    {
+      step: 1,
+      title: "千日手・持将棋（紹介）",
+      description: "千日手・持将棋は引き分け系の重要ルールです。まずは名前を覚えよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/4K4/9 b - 1",
+      checkMove: (m: AnyMove) => r_piece(m).toUpperCase() === "K" && r_oneStepAny(m),
+      successMessage: "OK！実戦で出たときに判断できれば十分です。",
+    },
+  ],
+};

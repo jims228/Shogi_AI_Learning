@@ -2,6 +2,158 @@
   "version": 1,
   "lessons": [
     {
+      "index": -11,
+      "id": "rules_00_board_pieces_win",
+      "title": "盤・駒・勝ち条件（王を詰ます）",
+      "description": "盤面と駒、勝ち条件（王を詰ます）の基本を学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [],
+      "stars": 0
+    },
+    {
+      "index": -10,
+      "id": "rules_01_capture_and_hands",
+      "title": "駒の取り方・持ち駒",
+      "description": "駒を取るルールと持ち駒の扱いを学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_00_board_pieces_win"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -9,
+      "id": "rules_02_pawn_move_single",
+      "title": "歩の動き（まずは1枚だけ）",
+      "description": "歩を1枚だけ使って基本の動きを確認します。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_01_capture_and_hands"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -8,
+      "id": "rules_03_lance_knight_silver_gold",
+      "title": "香・桂・銀・金の動き（近接駒まとめ）",
+      "description": "近接系の駒の動きをまとめて学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_02_pawn_move_single"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -7,
+      "id": "rules_04_bishop_rook_range",
+      "title": "角・飛の動き（遠距離駒）",
+      "description": "角と飛車の長い利きと扱いを学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_03_lance_knight_silver_gold"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -6,
+      "id": "rules_05_promotion_basics",
+      "title": "成りの基本（成れる条件、成る/成らないの判断の入口）",
+      "description": "成れる条件と、成る/成らない判断の入口を学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_04_bishop_rook_range"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -5,
+      "id": "rules_06_drop_basics",
+      "title": "打つ（持ち駒を盤に置く）",
+      "description": "持ち駒を盤上へ打つ基本を学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_05_promotion_basics"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -4,
+      "id": "rules_07_nifu",
+      "title": "禁止事項：二歩",
+      "description": "同じ筋に歩を2枚置けない（二歩）を学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_06_drop_basics"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -3,
+      "id": "rules_08_uchifuzume_intro",
+      "title": "禁止事項：打ち歩詰め（まず存在だけでもOK）",
+      "description": "打ち歩詰めの存在と基本的な考え方を紹介します。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_07_nifu"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -2,
+      "id": "rules_09_check_and_responses",
+      "title": "王手と応手（受け方3種類：逃げる/取る/合い駒）",
+      "description": "王手に対する3つの受け方を学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_08_uchifuzume_intro"
+      ],
+      "stars": 0
+    },
+    {
+      "index": -1,
+      "id": "rules_10_sennichite_jishogi",
+      "title": "千日手・持将棋（紹介レベル）",
+      "description": "千日手と持将棋のルールを紹介レベルで学びます。",
+      "category": "rules",
+      "status": "available",
+      "order": 0,
+      "href": "/training/rules",
+      "prerequisites": [
+        "rules_09_check_and_responses"
+      ],
+      "stars": 0
+    },
+    {
       "index": 0,
       "id": "pawn",
       "title": "基本の駒の動き（歩）",
@@ -9,7 +161,7 @@
       "category": "basics",
       "status": "available",
       "order": 1,
-      "href": null,
+      "href": "/training/basics/pawn",
       "prerequisites": [],
       "stars": 0
     },
@@ -21,7 +173,7 @@
       "category": "basics",
       "status": "available",
       "order": 2,
-      "href": null,
+      "href": "/training/basics/lance",
       "prerequisites": [],
       "stars": 0
     },
@@ -33,7 +185,7 @@
       "category": "basics",
       "status": "available",
       "order": 3,
-      "href": null,
+      "href": "/training/basics/knight",
       "prerequisites": [],
       "stars": 0
     },
@@ -45,7 +197,7 @@
       "category": "basics",
       "status": "available",
       "order": 4,
-      "href": null,
+      "href": "/training/basics/silver",
       "prerequisites": [],
       "stars": 0
     },
@@ -57,7 +209,7 @@
       "category": "basics",
       "status": "available",
       "order": 5,
-      "href": null,
+      "href": "/training/basics/gold",
       "prerequisites": [],
       "stars": 0
     },
@@ -69,7 +221,7 @@
       "category": "basics",
       "status": "available",
       "order": 6,
-      "href": null,
+      "href": "/training/basics/bishop",
       "prerequisites": [],
       "stars": 0
     },
@@ -81,7 +233,7 @@
       "category": "basics",
       "status": "available",
       "order": 7,
-      "href": null,
+      "href": "/training/basics/rook",
       "prerequisites": [],
       "stars": 0
     },
@@ -93,7 +245,7 @@
       "category": "basics",
       "status": "available",
       "order": 8,
-      "href": null,
+      "href": "/training/basics/king",
       "prerequisites": [],
       "stars": 0
     },
@@ -105,7 +257,7 @@
       "category": "tsume-1",
       "status": "available",
       "order": 9,
-      "href": null,
+      "href": "/training/tsume-1/tsume1-001",
       "prerequisites": [],
       "stars": 0
     },
@@ -117,7 +269,7 @@
       "category": "tsume-2",
       "status": "available",
       "order": 10,
-      "href": null,
+      "href": "/training/tsume-2/tsume2-001",
       "prerequisites": [],
       "stars": 0
     },
@@ -129,7 +281,7 @@
       "category": "tsume-3",
       "status": "available",
       "order": 11,
-      "href": null,
+      "href": "/training/tsume-3/tsume3-001",
       "prerequisites": [],
       "stars": 0
     },
