@@ -138,6 +138,7 @@ export default function TarefuTrainingPage() {
               showCoordinates={false}
               showHands={true}
               handsPlacement="default"
+              compactHands={true}
             />
           </WoodBoardFrame>
           </AutoScaleToFit>

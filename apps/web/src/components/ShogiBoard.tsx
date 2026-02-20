@@ -43,6 +43,8 @@ export interface ShogiBoardProps {
 
   /** ★追加：持ち駒の表示位置 */
   handsPlacement?: HandsPlacement;
+  /** embed向け: 持ち駒欄の高さ/間隔を圧縮 */
+  compactHands?: boolean;
 }
 
 const BASE_CELL_SIZE = 50;
@@ -103,6 +105,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   onSelectedHandChange,
 
   handsPlacement = "default",
+  compactHands = false,
 }) => {
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -869,7 +872,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   // default: これまで通り上下
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className={compactHands ? "flex flex-col items-center gap-1" : "flex flex-col items-center gap-3"}>
       <HandArea
         side={topHandSide}
         hands={hands[topHandSide]}
@@ -882,6 +885,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
+        dense={compactHands}
       />
       {boardWithLabels}
       <HandArea
@@ -896,6 +900,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
         canEdit={canEdit}
         selectedHand={selectedHand}
         onHandClick={handleHandClick}
+        dense={compactHands}
       />
     </div>
   );
@@ -921,6 +926,8 @@ type HandAreaProps = {
 
   /** corners 用：ラベル小さくして圧縮表示 */
   compact?: boolean;
+  /** default 用：上下の持ち駒欄をやや圧縮 */
+  dense?: boolean;
 };
 
 const HandArea: React.FC<HandAreaProps> = ({
@@ -936,6 +943,7 @@ const HandArea: React.FC<HandAreaProps> = ({
   selectedHand,
   onHandClick,
   compact = false,
+  dense = false,
 }) => {
   const owner = side === "b" ? "sente" : "gote";
   const label = owner === "sente" ? "先手の持ち駒" : "後手の持ち駒";
@@ -991,11 +999,13 @@ const HandArea: React.FC<HandAreaProps> = ({
       className={
         compact
           ? "flex flex-col items-start justify-start gap-1"
-          : "flex flex-col items-center justify-center gap-1 min-h-[60px]"
+          : dense
+            ? "flex flex-col items-center justify-center gap-0.5 min-h-[44px]"
+            : "flex flex-col items-center justify-center gap-1 min-h-[60px]"
       }
     >
       {!compact && <span className="text-xs font-semibold text-[#5d4037]">{label}</span>}
-      <div className={compact ? "flex items-center justify-start gap-2" : "flex items-center justify-center gap-2"}>
+      <div className={compact ? "flex items-center justify-start gap-2" : dense ? "flex items-center justify-center gap-1.5" : "flex items-center justify-center gap-2"}>
         {items.length ? items : <span className="text-xs text-slate-500">--</span>}
       </div>
     </div>
