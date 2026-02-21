@@ -118,7 +118,20 @@ export default function PawnTrainingPage() {
   // No minHeight — the RN WebView container dictates the size; AutoScaleToFit scales down to fit.
   if (isEmbed) {
     return (
-      <div className="w-full h-full flex items-center justify-center p-2">
+      <>
+        <style jsx global>{`
+          html, body, #__next {
+            background: transparent !important;
+            background-image: none !important;
+          }
+          body::before,
+          body::after {
+            content: none !important;
+            display: none !important;
+            background-image: none !important;
+          }
+        `}</style>
+        <div className="w-full h-full flex items-center justify-center p-2 bg-transparent">
         <AutoScaleToFit minScale={0.25} maxScale={2.4} className="w-full h-full" overflowHidden={true}>
           <WoodBoardFrame paddingClassName="p-1">
             <ShogiBoard
@@ -137,7 +150,8 @@ export default function PawnTrainingPage() {
             />
           </WoodBoardFrame>
         </AutoScaleToFit>
-      </div>
+        </div>
+      </>
     );
   }
 
