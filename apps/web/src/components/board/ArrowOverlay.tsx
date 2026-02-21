@@ -107,7 +107,7 @@ export default function ArrowOverlay({
                 markerUnits="userSpaceOnUse"
                 markerWidth={s.headSize}
                 markerHeight={s.headSize}
-                refX={s.headSize}
+                refX={s.headSize * 0.4}
                 refY={s.headSize / 2}
                 orient="auto"
               >

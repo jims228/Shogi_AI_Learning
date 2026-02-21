@@ -157,10 +157,11 @@ export function arrowEndpoints(
   // startOff は 「矢印長の 40%」を上限にクランプ
   const startOff = Math.min(style.startCircleRadius, len * 0.4);
 
-  // endOff: 矢尻の根元まで line を引き戻す（headSize の 90%）
-  // marker の refX=headSize で矢尻先端が line 終点から headSize 先に来るため、
-  // line 終点を引き戻すことで矢尻先端が toCenter 付近に着地する。
-  const endOff = Math.min(style.headSize * 0.9, len * 0.4);
+  // endOff: line 終点を手前に引き戻す (線を短くする)。
+  // 矢尻先端は toCenter に留まるよう ArrowOverlay の refX で補正する。
+  //   refX = headSize - endOff → 矢尻先端が endOff 分だけ line 終点より先に突出
+  //   → 結果: 矢尻先端 = line終点 + endOff = toCenter に一致
+  const endOff = Math.min(style.headSize * 0.6, len * 0.4);
 
   return {
     x1: fc.cx + ux * startOff,
