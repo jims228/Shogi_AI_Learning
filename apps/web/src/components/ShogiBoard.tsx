@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import BoardHintsOverlay, { type HintArrow } from "./training/BoardHintsOverlay";
+import ArrowOverlay from "./board/ArrowOverlay";
+import { shogiToDisplay, type Arrow as ArrowDatum } from "@/lib/arrowGeometry";
 import { PieceSprite, type OrientationMode } from "./PieceSprite";
 import type { PieceBase, PieceCode } from "@/lib/sfen";
 import {
@@ -12,6 +14,10 @@ import {
   type BoardMatrix,
   type HandsState,
 } from "@/lib/board";
+
+// SSR では useLayoutEffect が使えないため、クライアントのみ useLayoutEffect を使う
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export type BoardMode = "view" | "edit";
 export type HandsPlacement = "default" | "corners";
@@ -112,21 +118,31 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   const touchTapRef = useRef<{ square: Square; timestamp: number } | null>(null);
 
   // Mobile sizing: scale via CSS variable only (no `zoom` on wrappers).
+  // useIsomorphicLayoutEffect でブラウザ描画前に同期読み取りし、
+  // ResizeObserver で data-mobile="1" 適用後の CSS 変数変化にも追従する。
   const [uiScale, setUiScale] = useState(1);
   const [pieceScale, setPieceScale] = useState(1);
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const v = window.getComputedStyle(el).getPropertyValue("--piece-scale");
-    const n = parseFloat(v);
-    if (Number.isFinite(n) && n > 0) {
-      setUiScale(n);
-    }
-    const pv = window.getComputedStyle(el).getPropertyValue("--piece-sprite-scale");
-    const pn = parseFloat(pv);
-    if (Number.isFinite(pn) && pn > 0) {
-      setPieceScale(pn);
-    }
+
+    const readScales = () => {
+      const v = window.getComputedStyle(el).getPropertyValue("--piece-scale");
+      const n = parseFloat(v);
+      if (Number.isFinite(n) && n > 0) setUiScale(n);
+
+      const pv = window.getComputedStyle(el).getPropertyValue("--piece-sprite-scale");
+      const pn = parseFloat(pv);
+      if (Number.isFinite(pn) && pn > 0) setPieceScale(pn);
+    };
+
+    readScales();
+
+    // ResizeObserver: 親の data-mobile="1" 適用後に CSS 変数が変わる場合に対応。
+    // 要素サイズの変化ではなく CSS 変数の変化を渡接私形でも掴う。
+    const obs = new ResizeObserver(readScales);
+    obs.observe(el);
+    return () => obs.disconnect();
   }, []);
 
   const CELL_SIZE = Math.round(BASE_CELL_SIZE * uiScale);
@@ -511,6 +527,24 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     togglePromotionAt({ x, y });
   }, [canEdit, isGoteView, togglePromotionAt, onMove]);
 
+  // ── 矢印の分離: from あり → ArrowOverlay / from なし → BoardHintsOverlay ──
+  const { moveArrowData, dropArrows } = useMemo(() => {
+    const move: ArrowDatum[] = [];
+    const drop: HintArrow[] = [];
+    for (const a of hintArrows) {
+      if (a.from) {
+        move.push({
+          id: `${a.from.file}${a.from.rank}-${a.to.file}${a.to.rank}`,
+          from: shogiToDisplay(a.from.file, a.from.rank, flipped),
+          to: shogiToDisplay(a.to.file, a.to.rank, flipped),
+        });
+      } else {
+        drop.push(a);
+      }
+    }
+    return { moveArrowData: move, dropArrows: drop };
+  }, [hintArrows, flipped]);
+
   const effectiveLastMove = mode === "edit" ? null : lastMove;
   const effectiveBestMove = mode === "edit" ? null : bestmove;
 
@@ -531,12 +565,18 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           className="relative overflow-visible"
           style={{ width: boardSize, height: boardSize }}
         >
+          {/* ★ 矢印オーバーレイ（move 系: from→to）
+              boardSize 不要 — absolute inset-0 w-full h-full で親追従 */}
+          <ArrowOverlay
+            arrows={moveArrowData}
+            className="z-[9998]"
+          />
+          {/* ヒントマス + drop 系矢印 */}
           <BoardHintsOverlay
             hintSquares={hintSquares ?? []}
-            hintArrows={hintArrows ?? []}
+            hintArrows={dropArrows}
             coordMode="shogi"
             className="absolute inset-0 z-[9999] text-amber-400"
-            boardPxSize={boardSize}
             flipped={flipped}
           />
           <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-0">
@@ -628,6 +668,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
               >
                 <PieceSprite
                   dataShogiPiece="1"
+                  dataBoardDisplayX={display.x}
+                  dataBoardDisplayY={display.y}
                   piece={piece.piece}
                   x={display.x}
                   y={display.y}
@@ -1000,12 +1042,12 @@ const HandArea: React.FC<HandAreaProps> = ({
         compact
           ? "flex flex-col items-start justify-start gap-1"
           : dense
-            ? "flex flex-col items-center justify-center gap-0.5 min-h-[44px]"
+            ? "flex flex-col items-center justify-center gap-0.5 h-[52px] shrink-0"
             : "flex flex-col items-center justify-center gap-1 min-h-[60px]"
       }
     >
       {!compact && <span className="text-xs font-semibold text-[#5d4037]">{label}</span>}
-      <div className={compact ? "flex items-center justify-start gap-2" : dense ? "flex items-center justify-center gap-1.5" : "flex items-center justify-center gap-2"}>
+      <div className={compact ? "flex items-center justify-start gap-2" : dense ? "flex items-center justify-center gap-1.5 min-h-[40px]" : "flex items-center justify-center gap-2"}>
         {items.length ? items : <span className="text-xs text-slate-500">--</span>}
       </div>
     </div>

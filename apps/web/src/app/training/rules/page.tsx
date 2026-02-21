@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 
@@ -8,7 +8,6 @@ import { ShogiBoard } from "@/components/ShogiBoard";
 import { ManRive } from "@/components/ManRive";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { LessonScaffold } from "@/components/training/lesson/LessonScaffold";
 import { MobileLessonShell } from "@/components/mobile/MobileLessonShell";
 import { MobilePrimaryCTA } from "@/components/mobile/MobilePrimaryCTA";
@@ -22,6 +21,9 @@ import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi, createEmptyBoard } from "@/lib/board";
 import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { useMobileParams } from "@/hooks/useMobileQueryParam";
+
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const normalizeUsiPosition = (s: string) => {
   const t = (s ?? "").trim();
@@ -41,10 +43,15 @@ function postToRn(msg: { type: string; [k: string]: unknown }) {
   }
 }
 
+const STEP1_GUIDE_IMAGE_STYLE = {
+  desktop: { top: 360, gap: 24, height: 234 },
+  mobile: { top: 278, gap: 16, height: 156 },
+  embed: { top: 252, gap: 14, height: 138 },
+} as const;
+
 export default function RulesTrainingPage() {
   const router = useRouter();
   const { mobile: isMobileWebView, embed: isEmbed, lid } = useMobileParams();
-  const isDesktop = useMediaQuery("(min-width: 820px)");
 
   const lessonId =
     lid && SHOGI_RULES_LESSON_STEPS[lid] ? lid : DEFAULT_SHOGI_RULES_LESSON_ID;
@@ -56,7 +63,38 @@ export default function RulesTrainingPage() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctSignal, setCorrectSignal] = useState(0);
 
+  // ── ハイドレーションガード ──
+  // SSR HTMLに誤レイアウト（web版）を出さない。
+  // useLayoutEffectはブラウザ描画前に発火するため、
+  // ユーザーにはshell→正しいレイアウトのみ見える。
+  const [hydrated, setHydrated] = useState(false);
+  useIsomorphicLayoutEffect(() => { setHydrated(true); }, []);
+
   const currentLesson = steps[currentStepIndex];
+  const showStep1TopImages = currentStepIndex === 0 && currentLesson?.title === "盤・駒・勝ち条件";
+
+  const renderStep1GuideImages = (preset: (typeof STEP1_GUIDE_IMAGE_STYLE)[keyof typeof STEP1_GUIDE_IMAGE_STYLE]) => {
+    if (!showStep1TopImages) return null;
+    return (
+      <div
+        className="pointer-events-none absolute left-1/2 z-40 -translate-x-1/2 flex items-center justify-center"
+        style={{ top: preset.top, gap: preset.gap }}
+      >
+        <img
+          src="/images/lesson/gold-move.png"
+          alt="金の動き"
+          className="block w-auto shrink-0 object-contain"
+          style={{ height: preset.height, width: "auto" }}
+        />
+        <img
+          src="/images/lesson/king-move.png"
+          alt="王の動き"
+          className="block w-auto shrink-0 object-contain"
+          style={{ height: preset.height, width: "auto" }}
+        />
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!currentLesson) return;
@@ -120,6 +158,8 @@ export default function RulesTrainingPage() {
     };
   }, [isEmbed]);
 
+  // SSR HTML / ハイドレーション前: ページ背景色のみ表示（誤レイアウトを防止）
+  if (!hydrated) return <div className="min-h-[100svh] w-full bg-[#f6f1e7]" />;
   if (!currentLesson) return <div className="p-10">読み込み中...</div>;
 
   const isBoardReady = Array.isArray(board) && board.length === 9;
@@ -139,25 +179,35 @@ export default function RulesTrainingPage() {
             background-image: none !important;
           }
         `}</style>
-        <div className="w-full h-full flex items-center justify-center p-2 bg-transparent">
-        <AutoScaleToFit minScale={0.25} maxScale={2.4} className="w-full h-full" overflowHidden={true}>
-          <WoodBoardFrame paddingClassName="p-1">
-            <ShogiBoard
-              key={`${lessonId}-${currentStepIndex}`}
-              board={isBoardReady ? board : createEmptyBoard()}
-              hands={hands}
-              mode="edit"
-              onMove={handleMove}
-              onBoardChange={setBoard}
-              onHandsChange={setHands}
-              orientation="sente"
-              showCoordinates={false}
-              showHands={true}
-              handsPlacement="default"
-              compactHands={true}
-            />
-          </WoodBoardFrame>
-        </AutoScaleToFit>
+        <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-2 bg-transparent">
+          <div className="relative w-full h-full">
+            {renderStep1GuideImages(STEP1_GUIDE_IMAGE_STYLE.embed)}
+            <AutoScaleToFit
+              minScale={0.25}
+              maxScale={2.4}
+              fitMode="width-only"
+              className="w-full h-full"
+              overflowHidden={true}
+            >
+              <WoodBoardFrame paddingClassName="p-1">
+                <ShogiBoard
+                  key={`${lessonId}-${currentStepIndex}`}
+                  board={isBoardReady ? board : createEmptyBoard()}
+                  hands={hands}
+                  hintArrows={currentLesson.hintArrows ?? []}
+                  mode="edit"
+                  onMove={handleMove}
+                  onBoardChange={setBoard}
+                  onHandsChange={setHands}
+                  orientation="sente"
+                  showCoordinates={false}
+                  showHands={true}
+                  handsPlacement="default"
+                  compactHands={true}
+                />
+              </WoodBoardFrame>
+            </AutoScaleToFit>
+          </div>
         </div>
       </>
     );
@@ -174,13 +224,15 @@ export default function RulesTrainingPage() {
   ) : null;
 
   const boardElement = (
-    <div className="w-full h-full flex items-center justify-center">
-      <div className="w-full" style={{ maxWidth: 760, aspectRatio: "1 / 1", minHeight: isDesktop ? 560 : 360 }}>
+    <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+      <div className="relative w-full min-h-[360px] min-[820px]:min-h-[560px]" style={{ maxWidth: 760, aspectRatio: "1 / 1" }}>
+        {renderStep1GuideImages(STEP1_GUIDE_IMAGE_STYLE.desktop)}
         <AutoScaleToFit minScale={0.7} maxScale={1.45} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-3" className="inline-block">
             <ShogiBoard
               board={board}
               hands={hands}
+              hintArrows={currentLesson.hintArrows ?? []}
               mode="edit"
               onMove={handleMove}
               onBoardChange={setBoard}
@@ -194,23 +246,23 @@ export default function RulesTrainingPage() {
   );
 
   const boardElementMobile = (
-    <div className="w-full h-full min-h-0 flex items-center justify-center">
-      <div className="w-full h-full aspect-square -translate-y-2">
+    <div className="w-full h-full min-h-0 flex flex-col items-center justify-center gap-2">
+      <div className="relative w-full h-full aspect-square -translate-y-2">
+        {renderStep1GuideImages(STEP1_GUIDE_IMAGE_STYLE.mobile)}
         <AutoScaleToFit minScale={0.5} maxScale={2.4} className="w-full h-full">
           <WoodBoardFrame paddingClassName="p-1" className="w-full h-full">
-            <div className="relative w-full h-full">
-              <ShogiBoard
-                board={board}
-                hands={hands}
-                mode="edit"
-                onMove={handleMove}
-                onBoardChange={setBoard}
-                onHandsChange={setHands}
-                orientation="sente"
-                handsPlacement="corners"
-                showCoordinates={false}
-              />
-            </div>
+            <ShogiBoard
+              board={board}
+              hands={hands}
+              hintArrows={currentLesson.hintArrows ?? []}
+              mode="edit"
+              onMove={handleMove}
+              onBoardChange={setBoard}
+              onHandsChange={setHands}
+              orientation="sente"
+              handsPlacement="corners"
+              showCoordinates={false}
+            />
           </WoodBoardFrame>
         </AutoScaleToFit>
       </div>
@@ -246,18 +298,20 @@ export default function RulesTrainingPage() {
           </div>
         )}
 
-        {isDesktop && nextButton}
+        {nextButton && <div className="hidden min-[820px]:block">{nextButton}</div>}
       </div>
     </div>
   );
 
   const mascotElement = (
     <div style={{ transform: "translateY(-12px)" }}>
-      <ManRive
-        correctSignal={correctSignal}
-        className="bg-transparent [&>canvas]:bg-transparent"
-        style={{ width: isDesktop ? 380 : 260, height: isDesktop ? 380 : 260 }}
-      />
+      <div className="w-[260px] h-[260px] min-[820px]:w-[380px] min-[820px]:h-[380px]">
+        <ManRive
+          correctSignal={correctSignal}
+          className="bg-transparent [&>canvas]:bg-transparent"
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
     </div>
   );
 
@@ -304,7 +358,7 @@ export default function RulesTrainingPage() {
       progress01={(currentStepIndex + 1) / steps.length}
       headerRight={<span>❤ 5</span>}
       desktopMinWidthPx={820}
-      mobileAction={!isDesktop ? nextButton : null}
+      mobileAction={nextButton}
     />
   );
 }

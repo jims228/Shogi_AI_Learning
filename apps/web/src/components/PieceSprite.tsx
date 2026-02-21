@@ -54,6 +54,10 @@ interface PieceSpriteProps {
   style?: React.CSSProperties;
   /** mobile-only flicker hardening hook (data attribute) */
   dataShogiPiece?: string;
+  /** board overlay alignment aid (optional data attributes) */
+  dataBoardDisplayX?: number;
+  /** board overlay alignment aid (optional data attributes) */
+  dataBoardDisplayY?: number;
   /** Extra CSS scale applied on top of the translate (e.g. 1.12 for selected pieces) */
   scaleMultiplier?: number;
 }
@@ -73,6 +77,8 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   className,
   style,
   dataShogiPiece,
+  dataBoardDisplayX,
+  dataBoardDisplayY,
   scaleMultiplier,
 }) => {
   const pieceSize = size ?? 46;
@@ -109,6 +115,8 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   return (
     <motion.div
       data-shogi-piece={dataShogiPiece}
+      data-board-display-x={typeof dataBoardDisplayX === "number" ? dataBoardDisplayX : undefined}
+      data-board-display-y={typeof dataBoardDisplayY === "number" ? dataBoardDisplayY : undefined}
       // Disable mount animation to prevent brief "all pieces disappear" flicker on Android WebView.
       initial={false}
       className={className}

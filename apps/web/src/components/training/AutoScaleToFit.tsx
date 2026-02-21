@@ -28,7 +28,7 @@ export function AutoScaleToFit({
 }: AutoScaleToFitProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const lastValidScaleRef = useRef<number>(1);  // 前回のスケール値を保持
+  const lastValidScaleRef = useRef<number>(1);
 
   const [containerSize, setContainerSize] = useState<Size>({ width: 0, height: 0 });
   const [contentSize, setContentSize] = useState<Size>({ width: 0, height: 0 });
@@ -39,15 +39,19 @@ export function AutoScaleToFit({
     if (!containerEl || !contentEl) return;
 
     const readSizes = () => {
+      const cw = containerEl.clientWidth;
+      const ch = containerEl.clientHeight;
+      const ow = contentEl.offsetWidth;
+      const oh = contentEl.offsetHeight;
       setContainerSize({
-        width: containerEl.clientWidth,
-        height: containerEl.clientHeight,
+        width: cw,
+        height: ch,
       });
 
       // transformの影響を受けない"素の"サイズ
       setContentSize({
-        width: contentEl.offsetWidth,
-        height: contentEl.offsetHeight,
+        width: ow,
+        height: oh,
       });
     };
 

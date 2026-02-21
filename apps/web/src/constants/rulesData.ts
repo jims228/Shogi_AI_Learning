@@ -834,6 +834,14 @@ const r_rookLike = (m: AnyMove) => {
   return r_piece(m).toUpperCase().replace("+", "") === "R" && ((dx === 0 && dy !== 0) || (dx !== 0 && dy === 0));
 };
 
+// ルール導入レッスンの見た目系設定（矢印など）をまとめて管理
+const RULES_UI = {
+  boardPiecesWin: {
+    // 4三 → 5二 へ金を動かすヒント矢印
+    step1HintArrows: [{ from: sq(4, 3), to: sq(5, 2), kind: "move" as "move" | "drop" }],
+  },
+};
+
 export const DEFAULT_SHOGI_RULES_LESSON_ID = "rules_00_board_pieces_win";
 
 export const SHOGI_RULES_LESSON_STEPS: Record<string, TrainingStep[]> = {
@@ -841,9 +849,10 @@ export const SHOGI_RULES_LESSON_STEPS: Record<string, TrainingStep[]> = {
     {
       step: 1,
       title: "盤・駒・勝ち条件",
-      description: "王様（玉）を1マス動かしてみよう。王手を続けて詰ませるのが勝ちです。",
-      sfen: "position sfen 4k4/9/9/9/9/9/9/4K4/9 b - 1",
-      checkMove: (m: AnyMove) => r_piece(m).toUpperCase() === "K" && r_oneStepAny(m),
+      description: "将棋は相手の王様を動けなくすれば勝ちじゃ！",
+      sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
+      hintArrows: RULES_UI.boardPiecesWin.step1HintArrows,
+      checkMove: (m: AnyMove) => r_hasFrom(m) && r_piece(m).toUpperCase() === "G" && isMasu(m.to, 5, 2),
       successMessage: "OK！王を詰ませるのが勝ち条件です。",
     },
   ],

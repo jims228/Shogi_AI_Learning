@@ -124,7 +124,7 @@ export default function TarefuTrainingPage() {
           }
         `}</style>
         <div className="w-full h-full flex items-center justify-center p-2 bg-transparent">
-          <AutoScaleToFit minScale={0.25} maxScale={2.4} className="w-full h-full" overflowHidden={true}>
+          <AutoScaleToFit minScale={0.25} maxScale={2.4} fitMode="width-only" className="w-full h-full" overflowHidden={true}>
           <WoodBoardFrame paddingClassName="p-1">
             <ShogiBoard
               key={currentStepIndex}

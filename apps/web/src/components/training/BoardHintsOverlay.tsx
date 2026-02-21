@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * BoardHintsOverlay — ヒントマスの強調 + ドロップ矢印の描画。
+ *
+ * ★ 盤→盤 の move 矢印は ArrowOverlay に移行済み。
+ *    このコンポーネントは hintSquares と drop 矢印のみ担当する。
+ */
+
 import React, { useId, useMemo, useEffect, useRef, useState } from "react";
 
 export type HintSquare = { file: number; rank: number };
@@ -16,16 +23,29 @@ type Props = {
   hintArrows?: HintArrow[];
   coordMode?: "shogi" | "ltr";
   className?: string;
+  /** @deprecated boardSize による固定 px は不要になった。props 自体は互換のため残すが無視する */
   boardPxSize?: number;
   flipped?: boolean;
 };
+
+// ドロップ矢印の見た目（drop 系のみ — move 系は ArrowOverlay 側で管理）
+const DROP_ARROW_STYLE = {
+  markerWidth: 0.9,
+  markerHeight: 0.9,
+  markerRefX: 1,
+  markerRefY: 0.5,
+  strokeWidth: 0.42,
+  strokeOpacity: 1,
+  dashArray: "1.0 0.55",
+  opacity: 0.98,
+} as const;
 
 export default function BoardHintsOverlay({
   hintSquares = [],
   hintArrows = [],
   coordMode = "shogi",
   className,
-  boardPxSize,
+  boardPxSize: _boardPxSize,  // 互換のため受け取るが使わない
   flipped = false,
 }: Props) {
   const rid = useId();
@@ -35,8 +55,8 @@ export default function BoardHintsOverlay({
   const [handMeasureTick, setHandMeasureTick] = useState(0);
 
   const needsHand = useMemo(
-    () => hintArrows.some(a => (a.dir === "hand") && (a.kind === "drop" || !a.from)),
-    [hintArrows]
+    () => hintArrows.some(a => a.dir === "hand" && (a.kind === "drop" || !a.from)),
+    [hintArrows],
   );
 
   useEffect(() => {
@@ -50,30 +70,18 @@ export default function BoardHintsOverlay({
     return () => window.clearInterval(id);
   }, [needsHand]);
 
-  useEffect(() => {
-    // removed verbose debug logging in production
-    return;
-  }, []);
   if (!hasAnything) return null;
 
+  // ── 座標変換 ──
+
   const toColRow = (sq: HintSquare) => {
-    // screen: left=9, right=1, top=1, bottom=9
     if (coordMode === "shogi") {
       if (!flipped) {
-        const col = 9 - sq.file; // 9..1 -> 0..8
-        const row = sq.rank - 1; // 1..9 -> 0..8
-        return { col, row };
-      } else {
-        // flipped 表示のときのマッピング
-        const col = sq.file - 1;
-        const row = 9 - sq.rank;
-        return { col, row };
+        return { col: 9 - sq.file, row: sq.rank - 1 };
       }
+      return { col: sq.file - 1, row: 9 - sq.rank };
     }
-    // ltr mode (left-to-right file increases)
-    const row = sq.rank - 1;
-    const col = sq.file - 1;
-    return { col, row };
+    return { col: sq.file - 1, row: sq.rank - 1 };
   };
 
   const squareRect = (sq: HintSquare) => {
@@ -86,51 +94,37 @@ export default function BoardHintsOverlay({
     return { cx: r.x + 0.5, cy: r.y + 0.5 };
   };
 
-  const dropStart = (t: { cx: number; cy: number }, dir?: HintArrow["dir"]) => {
-    // viewBox は 0..9。hand は「盤の下」から来るようにする（線は盤外から入ってくるのでOK）
-    // flipped のときは上下逆になるので上側から
-    if (dir === "hand") {
-      return { cx: t.cx, cy: flipped ? -0.8 : 9.8 };
-    }
-    // 既存互換（近い位置から降ってくる）
-    switch (dir) {
-      case "up": return { cx: t.cx, cy: t.cy - 1.2 };
-      case "down": return { cx: t.cx, cy: t.cy + 1.2 };
-      case "left": return { cx: t.cx - 1.2, cy: t.cy };
-      case "right": return { cx: t.cx + 1.2, cy: t.cy };
-      default: return { cx: t.cx, cy: t.cy + 1.2 };
-    }
-  };
-
   return (
     <div
       ref={wrapperRef}
       data-testid="board-hints-overlay"
       className={[
-        "pointer-events-none absolute inset-0",
+        // ★ boardPxSize による固定 px を廃止し、親 (containerRef, relative) に 100% 追従
+        "pointer-events-none absolute inset-0 w-full h-full",
         className ?? "",
       ].join(" ")}
-      style={{
-        ...(boardPxSize ? { width: `${boardPxSize}px`, height: `${boardPxSize}px` } : null as any),
-        overflow: "visible",
-      }}
       aria-hidden="true"
     >
       <svg
         data-testid="board-hints-overlay-svg"
         viewBox="0 0 9 9"
         preserveAspectRatio="none"
+        width="100%"
+        height="100%"
         className="absolute inset-0 w-full h-full"
         overflow="visible"
       >
+        {/* 不可視アンカー: viewBox 全域(0,0〜9,9)を確実に確立する */}
+        <rect x="0" y="0" width="9" height="9" fill="white" fillOpacity="0.002" />
+
         <defs>
           <marker
             id={markerId}
             markerUnits="userSpaceOnUse"
-            markerWidth="0.35"
-            markerHeight="0.35"
-            refX="1"
-            refY="0.5"
+            markerWidth={DROP_ARROW_STYLE.markerWidth}
+            markerHeight={DROP_ARROW_STYLE.markerHeight}
+            refX={DROP_ARROW_STYLE.markerRefX}
+            refY={DROP_ARROW_STYLE.markerRefY}
             orient="auto"
             viewBox="0 0 1 1"
           >
@@ -138,14 +132,9 @@ export default function BoardHintsOverlay({
           </marker>
 
           <style>{`
-            @keyframes hintBlink {
-              0%, 100% { opacity: .18; }
-              50%      { opacity: .75; }
-            }
             @keyframes hintDash {
               to { stroke-dashoffset: -2.0; }
             }
-            /* 点滅を無効化。矢印のダッシュだけ残す場合は下行を有効化 */
             .hintArrow { animation: hintDash 1.2s linear infinite; }
             @media (prefers-reduced-motion: reduce) {
               .hintSquare, .hintArrow { animation: none; opacity: .5; }
@@ -153,6 +142,7 @@ export default function BoardHintsOverlay({
           `}</style>
         </defs>
 
+        {/* ── ヒントマス ── */}
         {hintSquares.map((sq, i) => {
           const r = squareRect(sq);
           return (
@@ -165,73 +155,72 @@ export default function BoardHintsOverlay({
               height={r.h}
               rx={0.12}
               className="hintSquare"
-              vectorEffect="non-scaling-stroke"
               fill="currentColor"
               opacity={0.18}
             />
           );
         })}
 
+        {/* ── ドロップ矢印（from 無し） ── */}
         {hintArrows.map((a, i) => {
+          // from がある矢印は ArrowOverlay が担当するのでスキップ
+          if (a.from) return null;
+
           const t = squareCenter(a.to);
 
           const handStartFromDom = () => {
-            void handMeasureTick; // trigger re-eval when tick changes
+            void handMeasureTick;
             const wrap = wrapperRef.current;
             if (!wrap) return null;
             const wrapRect = wrap.getBoundingClientRect();
             const who = a.hand ?? "sente";
-            const el = document.querySelector(`[data-testid="hand-piece-${who}-P"]`) as HTMLElement | null;
+            const el = document.querySelector(
+              `[data-testid="hand-piece-${who}-P"]`,
+            ) as HTMLElement | null;
             if (!el) return null;
             const r = el.getBoundingClientRect();
             const cxPx = r.left + r.width / 2;
             const cyPx = r.top + r.height / 2;
-            const cx = ((cxPx - wrapRect.left) / wrapRect.width) * 9;
-            const cy = ((cyPx - wrapRect.top) / wrapRect.height) * 9;
-            return { cx, cy };
+            return {
+              cx: ((cxPx - wrapRect.left) / wrapRect.width) * 9,
+              cy: ((cyPx - wrapRect.top) / wrapRect.height) * 9,
+            };
           };
 
-          const dropStartFrom = () => {
-            // prefer DOM-derived hand start when dir==='hand' and element exists
-            if ((a.kind === "drop" || !a.from) && a.dir === "hand") {
+          const computeStart = () => {
+            if (a.dir === "hand") {
               const hs = handStartFromDom();
               if (hs) return hs;
               return { cx: t.cx, cy: flipped ? -0.8 : 9.8 };
             }
             switch (a.dir) {
-              case "up": return { cx: t.cx, cy: t.cy - 1.2 };
-              case "down": return { cx: t.cx, cy: t.cy + 1.2 };
-              case "left": return { cx: t.cx - 1.2, cy: t.cy };
+              case "up":    return { cx: t.cx,       cy: t.cy - 1.2 };
+              case "down":  return { cx: t.cx,       cy: t.cy + 1.2 };
+              case "left":  return { cx: t.cx - 1.2, cy: t.cy };
               case "right": return { cx: t.cx + 1.2, cy: t.cy };
-              default: return { cx: t.cx, cy: t.cy + 1.2 };
+              default:      return { cx: t.cx,       cy: t.cy + 1.2 };
             }
           };
 
-          const isDrop = a.kind === "drop" || !a.from;
-          const s = a.from ? squareCenter(a.from) : dropStartFrom();
-
-          if (!s) return null;
+          const s = computeStart();
           if (Math.abs(s.cx - t.cx) < 1e-6 && Math.abs(s.cy - t.cy) < 1e-6) return null;
-
-          const keyFrom = a.from ? `${a.from.file}-${a.from.rank}` : "drop";
 
           return (
             <line
               data-testid="hint-arrow"
-              key={`ar-${i}-${keyFrom}-${a.to.file}-${a.to.rank}`}
+              key={`ar-${i}-drop-${a.to.file}-${a.to.rank}`}
               x1={s.cx}
               y1={s.cy}
               x2={t.cx}
               y2={t.cy}
               className="hintArrow"
               stroke="currentColor"
-              strokeWidth={0.16}
-              vectorEffect="non-scaling-stroke"
-              strokeOpacity={0.95}
+              strokeWidth={DROP_ARROW_STYLE.strokeWidth}
+              strokeOpacity={DROP_ARROW_STYLE.strokeOpacity}
               strokeLinecap="round"
-              strokeDasharray="0.5 0.4"
+              strokeDasharray={DROP_ARROW_STYLE.dashArray}
               markerEnd={`url(#${markerId})`}
-              opacity={0.95}
+              opacity={DROP_ARROW_STYLE.opacity}
             />
           );
         })}
