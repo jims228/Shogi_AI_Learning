@@ -9,6 +9,13 @@ export type TrainingStep = {
     piece: string; 
     drop?: boolean 
   }) => boolean;
+  /** 任意: 正解にはしないが、解説演出だけ発火させる手 */
+  demoMoveCheck?: (move: {
+    from?: { x: number, y: number };
+    to: { x: number; y: number };
+    piece: string;
+    drop?: boolean;
+  }) => boolean;
   successMessage: string;
   // 既存：マスを光らせる
   hintSquares?: { file: number; rank: number }[];
@@ -42,6 +49,52 @@ export type TrainingStep = {
     // optional per-phase success message
     successMessage?: string;
   }[];
+
+  // ★追加：正解時に駒へモーションを付与（将来拡張しやすい汎用設定）
+  onCorrectPieceMotions?: {
+    target: {
+      /** 将棋座標（1..9） */
+      file: number;
+      /** 将棋座標（1..9） */
+      rank: number;
+      /** owner 省略時はどちらでも可 */
+      owner?: "sente" | "gote";
+      /** exact piece code (optional) */
+      piece?: string;
+      /** normalized base piece, e.g. K/G/P (optional) */
+      pieceBase?: "P" | "L" | "N" | "S" | "G" | "B" | "R" | "K";
+    };
+    motion: {
+      type: "shake-x";
+      amplitudePx?: number;
+      durationMs?: number;
+      delayMs?: number;
+      repeat?: number | "infinite";
+    };
+  }[];
+
+  // ★追加：正解後に段階的な解説（盤面更新/吹き出し文言更新）を行う
+  // 将来の「駒を動かしながら解説」用の一般化データ
+  postCorrectDemo?: {
+    /** このフレーム適用までの待機時間(ms) */
+    delayMs?: number;
+    /** 任意: この時点で盤面を差し替えるSFEN */
+    sfen?: string;
+    /** 任意: 吹き出し文言（成功メッセージ領域）を上書き */
+    comment?: string;
+    /** 任意: このフレーム適用時に正解状態へ遷移する */
+    markCorrect?: boolean;
+  }[];
+
+  // ★追加：着手後に選択問題へ進むステップ
+  // checkMove が true になったら question を表示し、correct=true の選択で正解扱い。
+  choiceQuestion?: {
+    prompt: string;
+    options: {
+      label: string;
+      correct: boolean;
+    }[];
+  };
 };
 
 // 安全なダミー SFEN（TODO を埋めるときの一時置換用）
@@ -839,6 +892,13 @@ const RULES_UI = {
   boardPiecesWin: {
     // 4三 → 5二 へ金を動かすヒント矢印
     step1HintArrows: [{ from: sq(4, 3), to: sq(5, 2), kind: "move" as "move" | "drop" }],
+    // 正解時に相手玉（5一）を小刻みに横振動
+    step1CorrectPieceMotions: [
+      {
+        target: { file: 5, rank: 1, owner: "gote" as const, pieceBase: "K" as const },
+        motion: { type: "shake-x" as const, amplitudePx: 4.2, durationMs: 520, delayMs: 200, repeat: 0 },
+      },
+    ],
   },
 };
 
@@ -852,8 +912,41 @@ export const SHOGI_RULES_LESSON_STEPS: Record<string, TrainingStep[]> = {
       description: "将棋は相手の王様を動けなくすれば勝ちじゃ！",
       sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
       hintArrows: RULES_UI.boardPiecesWin.step1HintArrows,
-      checkMove: (m: AnyMove) => r_hasFrom(m) && r_piece(m).toUpperCase() === "G" && isMasu(m.to, 5, 2),
+      onCorrectPieceMotions: RULES_UI.boardPiecesWin.step1CorrectPieceMotions,
+      demoMoveCheck: (m: AnyMove) =>
+        r_hasFrom(m) &&
+        r_piece(m).toUpperCase() === "G" &&
+        isMasu(m.to, 5, 2),
+      // このステップは「正解」扱いにしない（コメント演出のみ）
+      checkMove: (_m: AnyMove) => false,
+      postCorrectDemo: [
+        { delayMs: 0, comment: "もし、相手の王様が金をとってくるとどうなる？" },
+        { delayMs: 3000, sfen: "position sfen 9/4k4/4K4/9/9/9/9/9/9 b g 1" },
+        { delayMs: 3000, comment: "王様を取り返せる！", sfen: "position sfen 9/4K4/9/9/9/9/9/9/9 b Kg 1" },
+        { delayMs: 3000, comment: "王様がとられてしまうから、王様が動けなくなった時点で勝ち！", markCorrect: true },
+      ],
       successMessage: "OK！王を詰ませるのが勝ち条件です。",
+    },
+    {
+      step: 2,
+      title: "盤・駒・勝ち条件（確認問題）",
+      description: "同じ局面で 5二に金を動かしてから、ゲーム終了かどうかを答えよう。",
+      sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
+      hintArrows: RULES_UI.boardPiecesWin.step1HintArrows,
+      // まずは 5二に金を動かす
+      checkMove: (m: AnyMove) =>
+        r_hasFrom(m) &&
+        r_piece(m).toUpperCase() === "G" &&
+        isMasu(m.to, 5, 2),
+      // 着手後に二択を表示
+      choiceQuestion: {
+        prompt: "これでゲームは終了？",
+        options: [
+          { label: "終了", correct: true },
+          { label: "終わりじゃない", correct: false },
+        ],
+      },
+      successMessage: "正解！この形は終了（先手勝ち）です。",
     },
   ],
   rules_01_capture_and_hands: [

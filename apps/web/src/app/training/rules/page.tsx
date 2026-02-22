@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle, ArrowRight, Lightbulb } from "lucide-react";
 
 import { ShogiBoard } from "@/components/ShogiBoard";
+import type { PieceMotionRule } from "@/components/ShogiBoard";
 import { ManRive } from "@/components/ManRive";
 import { AutoScaleToFit } from "@/components/training/AutoScaleToFit";
 import { WoodBoardFrame } from "@/components/training/WoodBoardFrame";
@@ -21,6 +22,7 @@ import { showToast } from "@/components/ui/toast";
 import { buildPositionFromUsi, createEmptyBoard } from "@/lib/board";
 import { postMobileLessonCompleteOnce } from "@/lib/mobileBridge";
 import { useMobileParams } from "@/hooks/useMobileQueryParam";
+import { shogiToDisplay } from "@/lib/arrowGeometry";
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -62,6 +64,10 @@ export default function RulesTrainingPage() {
   const [hands, setHands] = useState<any>({ b: {}, w: {} });
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctSignal, setCorrectSignal] = useState(0);
+  const [coachComment, setCoachComment] = useState<string | null>(null);
+  const [activeChoice, setActiveChoice] = useState<{ prompt: string; options: { label: string; correct: boolean }[] } | null>(null);
+  const [interactionLocked, setInteractionLocked] = useState(false);
+  const postCorrectTimersRef = useRef<number[]>([]);
 
   // ── ハイドレーションガード ──
   // SSR HTMLに誤レイアウト（web版）を出さない。
@@ -71,6 +77,32 @@ export default function RulesTrainingPage() {
   useIsomorphicLayoutEffect(() => { setHydrated(true); }, []);
 
   const currentLesson = steps[currentStepIndex];
+  const visibleHintArrows = (isCorrect || !!coachComment) ? [] : (currentLesson?.hintArrows ?? []);
+  const successCoachText = coachComment ?? currentLesson?.successMessage ?? "";
+  const coachBubbleText = coachComment ?? currentLesson?.description ?? "";
+  const onCorrectPieceMotionRules: PieceMotionRule[] = (() => {
+    if (!(isCorrect || !!coachComment)) return [];
+    const defs = currentLesson?.onCorrectPieceMotions ?? [];
+    return defs.map((d, idx) => {
+      const p = shogiToDisplay(d.target.file, d.target.rank, false);
+      return {
+        match: {
+          x: p.x,
+          y: p.y,
+          owner: d.target.owner,
+          piece: d.target.piece,
+          pieceBase: d.target.pieceBase,
+        },
+        motion: {
+          type: d.motion.type,
+          amplitudePx: d.motion.amplitudePx,
+          durationMs: d.motion.durationMs,
+          delayMs: d.motion.delayMs,
+          repeat: d.motion.repeat,
+        },
+      } as PieceMotionRule;
+    });
+  })();
   const showStep1TopImages = currentStepIndex === 0 && currentLesson?.title === "盤・駒・勝ち条件";
 
   const renderStep1GuideImages = (preset: (typeof STEP1_GUIDE_IMAGE_STYLE)[keyof typeof STEP1_GUIDE_IMAGE_STYLE]) => {
@@ -98,6 +130,13 @@ export default function RulesTrainingPage() {
 
   useEffect(() => {
     if (!currentLesson) return;
+    // step切替時に正解後デモタイマーをクリア
+    postCorrectTimersRef.current.forEach((id) => window.clearTimeout(id));
+    postCorrectTimersRef.current = [];
+    setCoachComment(null);
+    setActiveChoice(null);
+    setInteractionLocked(false);
+
     try {
       const initial = buildPositionFromUsi(normalizeUsiPosition(currentLesson.sfen));
       setBoard(initial.board);
@@ -119,14 +158,113 @@ export default function RulesTrainingPage() {
 
   const handleMove = useCallback(
     (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => {
+      if (activeChoice) return;
+
+      const isDemoMove = currentLesson.demoMoveCheck?.(move as any) ?? false;
+
+      if (isDemoMove) {
+        setInteractionLocked(true);
+        // 正解にはしない。解説演出のみ実行。
+        postCorrectTimersRef.current.forEach((id) => window.clearTimeout(id));
+        postCorrectTimersRef.current = [];
+        const demo = currentLesson.postCorrectDemo ?? [];
+        let elapsed = 0;
+        demo.forEach((frame) => {
+          elapsed += frame.delayMs ?? 0;
+          const tid = window.setTimeout(() => {
+            if (frame.comment) {
+              setCoachComment(frame.comment);
+              if (isEmbed) {
+                postToRn({
+                  type: "stepChanged",
+                  stepIndex: currentStepIndex,
+                  totalSteps: steps.length,
+                  title: currentLesson.title,
+                  description: frame.comment,
+                });
+              }
+            }
+            if (frame.sfen) {
+              try {
+                const next = buildPositionFromUsi(normalizeUsiPosition(frame.sfen));
+                setBoard(next.board);
+                setHands((next as any).hands ?? { b: {}, w: {} });
+              } catch {
+                // ignore malformed demo sfen
+              }
+            }
+            if (frame.markCorrect) {
+              setIsCorrect(true);
+              setCorrectSignal((v) => v + 1);
+              if (isEmbed) postToRn({ type: "lessonCorrect" });
+              else if (!isMobileWebView) showToast({ title: "正解！", description: currentLesson.successMessage });
+            }
+          }, elapsed);
+          postCorrectTimersRef.current.push(tid);
+        });
+        return;
+      }
+
+      // 選択問題付きステップ: 指定手を指したら二択を表示（この時点では正解にしない）
+      if (currentLesson.choiceQuestion) {
+        const trigger = currentLesson.checkMove(move as any);
+        if (trigger) {
+          setActiveChoice(currentLesson.choiceQuestion);
+          setCoachComment(currentLesson.choiceQuestion.prompt);
+          setInteractionLocked(true);
+          return;
+        }
+      }
+
       const correct = currentLesson.checkMove(move as any);
 
       if (correct) {
         setIsCorrect(true);
         setCorrectSignal((v) => v + 1);
+
+        // 正解後デモ（コメント更新/盤面更新）を順次再生
+        postCorrectTimersRef.current.forEach((id) => window.clearTimeout(id));
+        postCorrectTimersRef.current = [];
+        const demo = currentLesson.postCorrectDemo ?? [];
+        let elapsed = 0;
+        demo.forEach((frame) => {
+          elapsed += frame.delayMs ?? 0;
+          const tid = window.setTimeout(() => {
+            if (frame.comment) {
+              setCoachComment(frame.comment);
+              if (isEmbed) {
+                postToRn({
+                  type: "stepChanged",
+                  stepIndex: currentStepIndex,
+                  totalSteps: steps.length,
+                  title: currentLesson.title,
+                  description: frame.comment,
+                });
+              }
+            }
+            if (frame.sfen) {
+              try {
+                const next = buildPositionFromUsi(normalizeUsiPosition(frame.sfen));
+                setBoard(next.board);
+                setHands((next as any).hands ?? { b: {}, w: {} });
+              } catch {
+                // ignore malformed demo sfen
+              }
+            }
+            if (frame.markCorrect) {
+              setIsCorrect(true);
+              setCorrectSignal((v) => v + 1);
+              if (isEmbed) postToRn({ type: "lessonCorrect" });
+              else if (!isMobileWebView) showToast({ title: "正解！", description: currentLesson.successMessage });
+            }
+          }, elapsed);
+          postCorrectTimersRef.current.push(tid);
+        });
+
         if (isEmbed) postToRn({ type: "lessonCorrect" });
         else if (!isMobileWebView) showToast({ title: "正解！", description: currentLesson.successMessage });
       } else {
+        setCoachComment(null);
         if (isEmbed) postToRn({ type: "lessonWrong" });
         else showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
 
@@ -137,8 +275,44 @@ export default function RulesTrainingPage() {
         }, 700);
       }
     },
-    [currentLesson, isEmbed, isMobileWebView],
+    [activeChoice, currentLesson, isEmbed, isMobileWebView],
   );
+
+  const handleChoiceAnswer = useCallback((correct: boolean) => {
+    if (!activeChoice) return;
+
+    if (correct) {
+      setIsCorrect(true);
+      setCorrectSignal((v) => v + 1);
+      setActiveChoice(null);
+      setInteractionLocked(true);
+      if (isEmbed) postToRn({ type: "lessonCorrect" });
+      else if (!isMobileWebView) showToast({ title: "正解！", description: currentLesson.successMessage });
+      return;
+    }
+
+    if (isEmbed) postToRn({ type: "lessonWrong" });
+    else showToast({ title: "惜しい！", description: "もう一度選んでみよう。" });
+  }, [activeChoice, currentLesson?.successMessage, isEmbed, isMobileWebView]);
+
+  const boardChoiceDialog = activeChoice && !isCorrect
+    ? {
+        prompt: activeChoice.prompt,
+        options: [
+          {
+            label: activeChoice.options[0]?.label ?? "",
+            onSelect: () => handleChoiceAnswer(Boolean(activeChoice.options[0]?.correct)),
+          },
+          {
+            label: activeChoice.options[1]?.label ?? "",
+            onSelect: () => handleChoiceAnswer(Boolean(activeChoice.options[1]?.correct)),
+          },
+        ] as [
+          { label: string; onSelect: () => void },
+          { label: string; onSelect: () => void },
+        ],
+      }
+    : null;
 
   const handleNext = () => {
     if (currentStepIndex < steps.length - 1) setCurrentStepIndex((p) => p + 1);
@@ -194,7 +368,10 @@ export default function RulesTrainingPage() {
                   key={`${lessonId}-${currentStepIndex}`}
                   board={isBoardReady ? board : createEmptyBoard()}
                   hands={hands}
-                  hintArrows={currentLesson.hintArrows ?? []}
+                  hintArrows={visibleHintArrows}
+                  pieceMotionRules={onCorrectPieceMotionRules}
+                  interactionDisabled={interactionLocked}
+                  choiceDialog={boardChoiceDialog}
                   mode="edit"
                   onMove={handleMove}
                   onBoardChange={setBoard}
@@ -232,7 +409,10 @@ export default function RulesTrainingPage() {
             <ShogiBoard
               board={board}
               hands={hands}
-              hintArrows={currentLesson.hintArrows ?? []}
+              hintArrows={visibleHintArrows}
+              pieceMotionRules={onCorrectPieceMotionRules}
+              interactionDisabled={interactionLocked}
+              choiceDialog={boardChoiceDialog}
               mode="edit"
               onMove={handleMove}
               onBoardChange={setBoard}
@@ -254,7 +434,10 @@ export default function RulesTrainingPage() {
             <ShogiBoard
               board={board}
               hands={hands}
-              hintArrows={currentLesson.hintArrows ?? []}
+              hintArrows={visibleHintArrows}
+              pieceMotionRules={onCorrectPieceMotionRules}
+              interactionDisabled={interactionLocked}
+              choiceDialog={boardChoiceDialog}
               mode="edit"
               onMove={handleMove}
               onBoardChange={setBoard}
@@ -283,7 +466,7 @@ export default function RulesTrainingPage() {
         <h1 className="text-xl font-bold text-[#3a2b17]">{currentLesson.title}</h1>
         <div className="mt-3 flex items-start gap-3 bg-amber-50/80 p-3 rounded-2xl text-amber-900 border border-amber-200/50">
           <Lightbulb className="w-5 h-5 shrink-0 mt-0.5" />
-          <p className="leading-relaxed font-medium text-sm">{currentLesson.description}</p>
+          <p className="leading-relaxed font-medium text-sm">{coachBubbleText}</p>
         </div>
 
         {isCorrect && (
@@ -293,7 +476,7 @@ export default function RulesTrainingPage() {
                 <CheckCircle className="w-5 h-5" />
               </div>
               <h3 className="text-base font-bold text-emerald-800 mb-1">Excellent!</h3>
-              <p className="text-emerald-700 text-sm">{currentLesson.successMessage}</p>
+              <p className="text-emerald-700 text-sm">{successCoachText}</p>
             </div>
           </div>
         )}
@@ -318,7 +501,7 @@ export default function RulesTrainingPage() {
   const mascotOverlay = isCorrect ? (
     <div className="bg-white/95 border border-emerald-100 rounded-2xl p-3 shadow-md w-56">
       <h3 className="text-sm font-bold text-emerald-800">正解！</h3>
-      <p className="text-sm text-emerald-700 mt-1">{currentLesson.successMessage}</p>
+      <p className="text-sm text-emerald-700 mt-1">{successCoachText}</p>
     </div>
   ) : null;
 
@@ -335,9 +518,9 @@ export default function RulesTrainingPage() {
         explanation={
           <MobileCoachText
             tag={`RULES ${currentStepIndex + 1}/${steps.length}`}
-            text={currentLesson.description}
+            text={coachBubbleText}
             isCorrect={isCorrect}
-            correctText="正解！次へ進もう。"
+            correctText={successCoachText || "正解！次へ進もう。"}
           />
         }
         actions={isCorrect ? <MobilePrimaryCTA onClick={handleNext} /> : null}

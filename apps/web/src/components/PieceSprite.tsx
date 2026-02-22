@@ -37,6 +37,18 @@ const PLAYER_ROW_OFFSET: Record<"player" | "opponent", 0 | 2> = {
 
 export type OrientationMode = "rotate" | "sprite";
 
+export type PieceMotionConfig = {
+  type: "shake-x";
+  /** 1サイクルの横ブレ幅(px) */
+  amplitudePx?: number;
+  /** 1サイクル時間(ms) */
+  durationMs?: number;
+  /** 開始までの遅延(ms) */
+  delayMs?: number;
+  /** 繰り返し回数。"infinite" で無限 */
+  repeat?: number | "infinite";
+};
+
 interface PieceSpriteProps {
   piece: PieceCode;
   x: number;
@@ -60,6 +72,8 @@ interface PieceSpriteProps {
   dataBoardDisplayY?: number;
   /** Extra CSS scale applied on top of the translate (e.g. 1.12 for selected pieces) */
   scaleMultiplier?: number;
+  /** Optional motion effect for future reusable piece animations */
+  motionConfig?: PieceMotionConfig;
 }
 
 export const PieceSprite: React.FC<PieceSpriteProps> = ({
@@ -80,6 +94,7 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   dataBoardDisplayX,
   dataBoardDisplayY,
   scaleMultiplier,
+  motionConfig,
 }) => {
   const pieceSize = size ?? 46;
   const cell = cellSize ?? pieceSize;
@@ -112,29 +127,65 @@ export const PieceSprite: React.FC<PieceSpriteProps> = ({
   const baseTransform = shouldRotate ? " rotate(180deg)" : "";
   const scaleStr = scaleMultiplier && scaleMultiplier !== 1 ? ` scale(${scaleMultiplier})` : "";
 
+  const shakeAmplitude = motionConfig?.type === "shake-x" ? (motionConfig.amplitudePx ?? 2.4) : 0;
+  const shakeDurationSec = motionConfig?.type === "shake-x" ? ((motionConfig.durationMs ?? 120) / 1000) : 0;
+  const shakeDelaySec = motionConfig?.type === "shake-x" ? ((motionConfig.delayMs ?? 0) / 1000) : 0;
+  const shakeRepeat = motionConfig?.type === "shake-x"
+    ? (motionConfig.repeat === "infinite" || motionConfig.repeat == null ? Infinity : motionConfig.repeat)
+    : 0;
+
   return (
-    <motion.div
+    <div
       data-shogi-piece={dataShogiPiece}
       data-board-display-x={typeof dataBoardDisplayX === "number" ? dataBoardDisplayX : undefined}
       data-board-display-y={typeof dataBoardDisplayY === "number" ? dataBoardDisplayY : undefined}
-      // Disable mount animation to prevent brief "all pieces disappear" flicker on Android WebView.
-      initial={false}
       className={className}
       style={{
         position: "absolute",
         left: 0,
         top: 0,
-        width: pieceSize,
-        height: pieceSize,
-        backgroundImage: `url(${SPRITE_URL})`,
-        backgroundRepeat: "no-repeat",
-        backgroundSize: `${bgWidth}px ${bgHeight}px`,
-        backgroundPosition: `${bgPosX}px ${bgPosY}px`,
         pointerEvents: "none",
-        transform: `translate3d(${left}px, ${top}px, 0)${baseTransform}${scaleStr}`,
+        transform: `translate3d(${left}px, ${top}px, 0)`,
         transformOrigin: "50% 50%",
         ...style,
       }}
-    />
+    >
+      <div
+        style={{
+          width: pieceSize,
+          height: pieceSize,
+          transform: `${baseTransform}${scaleStr}`,
+          transformOrigin: "50% 50%",
+        }}
+      >
+        <motion.div
+          // Disable mount animation to prevent brief flicker on Android WebView.
+          initial={false}
+          animate={
+            motionConfig?.type === "shake-x"
+              ? { x: [0, -shakeAmplitude, shakeAmplitude, -shakeAmplitude, shakeAmplitude, 0] }
+              : { x: 0 }
+          }
+          transition={
+            motionConfig?.type === "shake-x"
+              ? {
+                  duration: shakeDurationSec,
+                  delay: shakeDelaySec,
+                  ease: "linear",
+                  repeat: shakeRepeat,
+                }
+              : undefined
+          }
+          style={{
+            width: pieceSize,
+            height: pieceSize,
+            backgroundImage: `url(${SPRITE_URL})`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: `${bgWidth}px ${bgHeight}px`,
+            backgroundPosition: `${bgPosX}px ${bgPosY}px`,
+          }}
+        />
+      </div>
+    </div>
   );
 };

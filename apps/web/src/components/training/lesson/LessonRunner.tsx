@@ -184,6 +184,11 @@ export function LessonRunner({
     return [];
   }, [guidedSubIndex, hintEnabled, practiceIndex, practiceProblemsByStep, reviewIndex, reviewQueue, step]);
 
+  const visibleHintArrows = useMemo(() => {
+    if (isCorrect) return [];
+    return hintArrows;
+  }, [hintArrows, isCorrect]);
+
   const expectedMoves = useMemo(() => {
     if (!step) return [];
     if (step.type === "guided") return step.substeps[guidedSubIndex]?.expectedMoves ?? [];
@@ -459,7 +464,7 @@ export function LessonRunner({
               handsPlacement="default"
               compactHands={true}
               hintSquares={hintSquares}
-              hintArrows={hintArrows as any}
+              hintArrows={visibleHintArrows as any}
             />
           </WoodBoardFrame>
         </AutoScaleToFit>
@@ -491,7 +496,7 @@ export function LessonRunner({
                 orientation={orientation}
                 handsPlacement="corners"
                 hintSquares={hintSquares}
-                hintArrows={hintArrows as any}
+                hintArrows={visibleHintArrows as any}
               />
             </div>
           </WoodBoardFrame>
@@ -517,7 +522,7 @@ export function LessonRunner({
                 handsPlacement="corners"
                 showCoordinates={false}
                 hintSquares={hintSquares}
-                hintArrows={hintArrows as any}
+                hintArrows={visibleHintArrows as any}
               />
             </div>
           </WoodBoardFrame>

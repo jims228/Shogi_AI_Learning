@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import BoardHintsOverlay, { type HintArrow } from "./training/BoardHintsOverlay";
 import ArrowOverlay from "./board/ArrowOverlay";
 import { shogiToDisplay, type Arrow as ArrowDatum } from "@/lib/arrowGeometry";
-import { PieceSprite, type OrientationMode } from "./PieceSprite";
+import { PieceSprite, type OrientationMode, type PieceMotionConfig } from "./PieceSprite";
 import type { PieceBase, PieceCode } from "@/lib/sfen";
 import {
   boardToPlaced,
@@ -51,7 +51,32 @@ export interface ShogiBoardProps {
   handsPlacement?: HandsPlacement;
   /** embed向け: 持ち駒欄の高さ/間隔を圧縮 */
   compactHands?: boolean;
+  /** Optional piece motion rules for reusable effects (shake, etc.) */
+  pieceMotionRules?: PieceMotionRule[];
+  /** Disable all player interactions on board/hands */
+  interactionDisabled?: boolean;
+  /** Two-choice dialog shown on top of board (promotion-like frame) */
+  choiceDialog?: {
+    prompt: string;
+    options: [
+      { label: string; onSelect: () => void },
+      { label: string; onSelect: () => void },
+    ];
+  } | null;
 }
+
+export type PieceMotionRule = {
+  match: {
+    x?: number;
+    y?: number;
+    owner?: "sente" | "gote";
+    /** exact piece code, e.g. "K", "k", "+R" */
+    piece?: string;
+    /** normalized base piece (uppercase), e.g. "K", "G", "P" */
+    pieceBase?: PieceBase;
+  };
+  motion: PieceMotionConfig;
+};
 
 const BASE_CELL_SIZE = 50;
 const BASE_PIECE_SIZE = 49;
@@ -112,6 +137,9 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   handsPlacement = "default",
   compactHands = false,
+  pieceMotionRules = [],
+  interactionDisabled = false,
+  choiceDialog = null,
 }) => {
   const placedPieces = useMemo(() => boardToPlaced(board), [board]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -168,7 +196,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
   const viewerOrientation: "sente" | "gote" = orientation ?? (flipped ? "gote" : "sente");
   const isGoteView = viewerOrientation === "gote";
-  const canEdit = mode === "edit" && Boolean(onBoardChange);
+  const canEdit = mode === "edit" && Boolean(onBoardChange) && !interactionDisabled;
 
   useEffect(() => {
     if (!canEdit) {
@@ -656,10 +684,20 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           {placedPieces.map((piece, idx) => {
             const display = getDisplayPos(piece.x, piece.y);
             const pieceOwner = getPieceOwner(piece.piece);
+            const pieceBase = piece.piece.replace("+", "").toUpperCase() as PieceBase;
             const isViewerPiece = pieceOwner === viewerOrientation;
             const shiftY = isViewerPiece ? PIECE_OFFSET_Y_OWN_PX : PIECE_OFFSET_Y_OPPONENT_PX;
             const isMovingPiece =
               Boolean(selectedSquare) && selectedSquare!.x === piece.x && selectedSquare!.y === piece.y && canEdit;
+            const activeMotion = pieceMotionRules.find((r) => {
+              const m = r.match;
+              if (typeof m.x === "number" && m.x !== piece.x) return false;
+              if (typeof m.y === "number" && m.y !== piece.y) return false;
+              if (m.owner && m.owner !== pieceOwner) return false;
+              if (m.piece && m.piece !== piece.piece) return false;
+              if (m.pieceBase && m.pieceBase !== pieceBase) return false;
+              return true;
+            })?.motion;
             const stableKey = `sq:${piece.x}:${piece.y}:${piece.piece}`;
             return (
               <div
@@ -681,6 +719,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                   viewerSide={viewerOrientation}
                   style={isMovingPiece ? { opacity: 0.55 } : undefined}
                   scaleMultiplier={isMovingPiece ? 1.15 : undefined}
+                  motionConfig={activeMotion}
                 />
               </div>
             );
@@ -797,6 +836,80 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                     />
                   </div>
                   <span style={{ fontWeight: 900, color: "#374151", fontSize: 44, lineHeight: 1 }}>不成</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {choiceDialog && (() => {
+            const btnSize = Math.round(boardSize * 0.42);
+            return (
+              <div
+                style={{
+                  position: "absolute", inset: 0, zIndex: 210,
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
+                  background: "transparent",
+                  touchAction: "none",
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.preventDefault()}
+              >
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, transform: "translateY(24px)" }}>
+                  <div
+                    style={{
+                      maxWidth: Math.round(boardSize * 0.9),
+                      background: "rgba(255,247,237,0.96)",
+                      border: "2px solid #f59e0b",
+                      borderRadius: 14,
+                      padding: "10px 14px",
+                      color: "#7c2d12",
+                      fontWeight: 800,
+                      textAlign: "center",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                    }}
+                  >
+                    {choiceDialog.prompt}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 12 }}>
+                  {choiceDialog.options.map((opt) => (
+                    <div
+                      key={opt.label}
+                      role="button"
+                      style={{
+                        width: btnSize,
+                        height: btnSize,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "#fef3c7",
+                        border: "3px solid #d97706",
+                        borderRadius: 20,
+                        cursor: "pointer",
+                        userSelect: "none",
+                        WebkitUserSelect: "none",
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                        fontWeight: 900,
+                        color: "#7c2d12",
+                        fontSize: 22,
+                        lineHeight: 1.2,
+                        textAlign: "center",
+                        padding: 10,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        opt.onSelect();
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        opt.onSelect();
+                      }}
+                    >
+                      {opt.label}
+                    </div>
+                  ))}
+                  </div>
                 </div>
               </div>
             );
