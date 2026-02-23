@@ -37,6 +37,7 @@ export type TrainingStep = {
   // 各フェーズは独立した表示用 SFEN と正解判定を持ちます。
   scriptPhases?: {
     sfen: string;
+    delayMs?: number;
     hintSquares?: { file: number; rank: number }[];
     hintArrows?: {
       from?: { file: number; rank: number };
@@ -920,15 +921,107 @@ export const SHOGI_RULES_LESSON_STEPS: Record<string, TrainingStep[]> = {
       // このステップは「正解」扱いにしない（コメント演出のみ）
       checkMove: (_m: AnyMove) => false,
       postCorrectDemo: [
-        { delayMs: 0, comment: "もし、相手の王様が金をとってくるとどうなる？" },
-        { delayMs: 3000, sfen: "position sfen 9/4k4/4K4/9/9/9/9/9/9 b g 1" },
+        { delayMs: 0, comment: "もし相手が金を取り返して来たら？" },
+        { delayMs: 1500, sfen: "position sfen 9/4k4/4K4/9/9/9/9/9/9 b g 1" },
         { delayMs: 3000, comment: "王様を取り返せる！", sfen: "position sfen 9/4K4/9/9/9/9/9/9/9 b Kg 1" },
-        { delayMs: 3000, comment: "王様がとられてしまうから、王様が動けなくなった時点で勝ち！", markCorrect: true },
+        { delayMs: 3000, comment: "王様がとられてしまうから、\n王様が動けなくなった時点で勝ち！", markCorrect: true },
       ],
       successMessage: "OK！王を詰ませるのが勝ち条件です。",
     },
     {
       step: 2,
+      title: "盤・駒・勝ち条件",
+      description: "王様が動けない状態。。。\n世界はそれを「詰み」（つみ）と呼ぶんだぜ！！",
+      sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
+      hintArrows: RULES_UI.boardPiecesWin.step1HintArrows,
+      onCorrectPieceMotions: RULES_UI.boardPiecesWin.step1CorrectPieceMotions,
+      checkMove: (m: AnyMove) =>
+        r_hasFrom(m) &&
+        r_piece(m).toUpperCase() === "G" &&
+        isMasu(m.from, 4, 3) &&
+        isMasu(m.to, 5, 2),
+      successMessage: "相手の王様を「詰ます」ことが将棋の勝利条件なのじゃ",
+    },
+    {
+      step: 3,
+      title: "盤・駒・勝ち条件（実践）",
+      description: "金を5二に動かして、王様がどこにも逃げられないことを体験しよう。",
+      sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
+      hintArrows: RULES_UI.boardPiecesWin.step1HintArrows,
+      checkMove: (_m: AnyMove) => false,
+      scriptPhases: [
+        {
+          sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
+          hintArrows: [{ from: sq(4, 3), to: sq(5, 2), kind: "move" }],
+          checkMove: (m: AnyMove) =>
+            r_hasFrom(m) &&
+            r_piece(m).toUpperCase() === "G" &&
+            isMasu(m.from, 4, 3) &&
+            isMasu(m.to, 5, 2),
+          successMessage: "相手の王様はどこにも動けない。",
+        },
+        {
+          // 相手玉が41に逃げる → プレイヤーが金で取る
+          sfen: "position sfen 5k3/4G4/4K4/9/9/9/9/9/9 b - 1",
+          delayMs: 500,
+          hintArrows: [{ from: sq(5, 2), to: sq(4, 1), kind: "move" }],
+          checkMove: (m: AnyMove) =>
+            r_hasFrom(m) &&
+            r_piece(m).toUpperCase() === "G" &&
+            isMasu(m.from, 5, 2) &&
+            isMasu(m.to, 4, 1),
+          successMessage: "逃げても取れる！",
+        },
+        {
+          // 金を43へ戻し、相手玉は51から → もう一度52へ寄る
+          sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
+          hintArrows: [{ from: sq(4, 3), to: sq(5, 2), kind: "move" }],
+          checkMove: (m: AnyMove) =>
+            r_hasFrom(m) &&
+            r_piece(m).toUpperCase() === "G" &&
+            isMasu(m.from, 4, 3) &&
+            isMasu(m.to, 5, 2),
+          successMessage: "もう一度52へ寄ってみよう。",
+        },
+        {
+          // 相手玉が42に逃げる → プレイヤーが金で取る
+          sfen: "position sfen 9/4Gk3/4K4/9/9/9/9/9/9 b - 1",
+          delayMs: 500,
+          hintArrows: [{ from: sq(5, 2), to: sq(4, 2), kind: "move" }],
+          checkMove: (m: AnyMove) =>
+            r_hasFrom(m) &&
+            r_piece(m).toUpperCase() === "G" &&
+            isMasu(m.from, 5, 2) &&
+            isMasu(m.to, 4, 2),
+          successMessage: "斜めに逃げても取れる！",
+        },
+        {
+          // 追加: 4k4/9/4Gk... 局面（旧5番を6番へ）
+          sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",
+          hintArrows: [{ from: sq(4, 3), to: sq(5, 2), kind: "move" }],
+          checkMove: (m: AnyMove) =>
+            r_hasFrom(m) &&
+            r_piece(m).toUpperCase() === "G" &&
+            isMasu(m.from, 4, 3) &&
+            isMasu(m.to, 5, 2),
+          successMessage: "この形でも同じじゃ。",
+        },
+        {
+          // 相手玉が金を取る → プレイヤーが自玉で取り返す
+          sfen: "position sfen 9/4k4/4K4/9/9/9/9/9/9 b g 1",
+          hintArrows: [{ from: sq(5, 3), to: sq(5, 2), kind: "move" }],
+          checkMove: (m: AnyMove) =>
+            r_hasFrom(m) &&
+            r_piece(m).toUpperCase() === "K" &&
+            isMasu(m.from, 5, 3) &&
+            isMasu(m.to, 5, 2),
+          successMessage: "王様がどこに逃げても同じじゃ！",
+        },
+      ],
+      successMessage: "素晴らしい！王様を詰ませる感覚が掴めたかな？",
+    },
+    {
+      step: 4,
       title: "盤・駒・勝ち条件（確認問題）",
       description: "同じ局面で 5二に金を動かしてから、ゲーム終了かどうかを答えよう。",
       sfen: "position sfen 4k4/9/4KG3/9/9/9/9/9/9 b - 1",

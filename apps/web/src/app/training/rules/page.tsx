@@ -36,6 +36,11 @@ const normalizeUsiPosition = (s: string) => {
   return `position sfen ${t}`;
 };
 
+const normalizeHands = (hands: any) => ({
+  b: { ...(hands?.b ?? {}) },
+  w: { ...(hands?.w ?? {}) },
+});
+
 function postToRn(msg: { type: string; [k: string]: unknown }) {
   try {
     const w = typeof window !== "undefined" ? (window as any) : null;
@@ -67,6 +72,7 @@ export default function RulesTrainingPage() {
   const [coachComment, setCoachComment] = useState<string | null>(null);
   const [activeChoice, setActiveChoice] = useState<{ prompt: string; options: { label: string; correct: boolean }[] } | null>(null);
   const [interactionLocked, setInteractionLocked] = useState(false);
+  const [scriptPhaseIndex, setScriptPhaseIndex] = useState(0);
   const postCorrectTimersRef = useRef<number[]>([]);
 
   // ── ハイドレーションガード ──
@@ -77,7 +83,13 @@ export default function RulesTrainingPage() {
   useIsomorphicLayoutEffect(() => { setHydrated(true); }, []);
 
   const currentLesson = steps[currentStepIndex];
-  const visibleHintArrows = (isCorrect || !!coachComment) ? [] : (currentLesson?.hintArrows ?? []);
+  const scriptPhases = currentLesson?.scriptPhases ?? [];
+  const activeScriptPhase = scriptPhases.length > 0
+    ? scriptPhases[Math.min(scriptPhaseIndex, scriptPhases.length - 1)]
+    : null;
+  const visibleHintArrows = (isCorrect || !!coachComment)
+    ? []
+    : (activeScriptPhase?.hintArrows ?? currentLesson?.hintArrows ?? []);
   const successCoachText = coachComment ?? currentLesson?.successMessage ?? "";
   const coachBubbleText = coachComment ?? currentLesson?.description ?? "";
   const onCorrectPieceMotionRules: PieceMotionRule[] = (() => {
@@ -103,7 +115,9 @@ export default function RulesTrainingPage() {
       } as PieceMotionRule;
     });
   })();
-  const showStep1TopImages = currentStepIndex === 0 && currentLesson?.title === "盤・駒・勝ち条件";
+  const showStep1TopImages =
+    lessonId === "rules_00_board_pieces_win" &&
+    (currentStepIndex === 0 || currentStepIndex === 1 || currentStepIndex === 2);
 
   const renderStep1GuideImages = (preset: (typeof STEP1_GUIDE_IMAGE_STYLE)[keyof typeof STEP1_GUIDE_IMAGE_STYLE]) => {
     if (!showStep1TopImages) return null;
@@ -136,11 +150,13 @@ export default function RulesTrainingPage() {
     setCoachComment(null);
     setActiveChoice(null);
     setInteractionLocked(false);
+    setScriptPhaseIndex(0);
 
     try {
-      const initial = buildPositionFromUsi(normalizeUsiPosition(currentLesson.sfen));
+      const initialSfen = currentLesson.scriptPhases?.[0]?.sfen ?? currentLesson.sfen;
+      const initial = buildPositionFromUsi(normalizeUsiPosition(initialSfen));
       setBoard(initial.board);
-      setHands((initial as any).hands ?? { b: {}, w: {} });
+      setHands(normalizeHands((initial as any).hands));
     } catch (e) {
       console.error("SFEN Parse Error", e);
     }
@@ -158,7 +174,9 @@ export default function RulesTrainingPage() {
 
   const handleMove = useCallback(
     (move: { from?: { x: number; y: number }; to: { x: number; y: number }; piece: string; drop?: boolean }) => {
-      if (activeChoice) return;
+      if (activeChoice || isCorrect || interactionLocked) return;
+
+      const activeCheckMove = activeScriptPhase?.checkMove ?? currentLesson.checkMove;
 
       const isDemoMove = currentLesson.demoMoveCheck?.(move as any) ?? false;
 
@@ -188,7 +206,7 @@ export default function RulesTrainingPage() {
               try {
                 const next = buildPositionFromUsi(normalizeUsiPosition(frame.sfen));
                 setBoard(next.board);
-                setHands((next as any).hands ?? { b: {}, w: {} });
+                setHands(normalizeHands((next as any).hands));
               } catch {
                 // ignore malformed demo sfen
               }
@@ -196,6 +214,15 @@ export default function RulesTrainingPage() {
             if (frame.markCorrect) {
               setIsCorrect(true);
               setCorrectSignal((v) => v + 1);
+              if (isEmbed) {
+                postToRn({
+                  type: "stepChanged",
+                  stepIndex: currentStepIndex,
+                  totalSteps: steps.length,
+                  title: currentLesson.title,
+                  description: frame.comment ?? currentLesson.successMessage,
+                });
+              }
               if (isEmbed) postToRn({ type: "lessonCorrect" });
               else if (!isMobileWebView) showToast({ title: "正解！", description: currentLesson.successMessage });
             }
@@ -216,11 +243,52 @@ export default function RulesTrainingPage() {
         }
       }
 
-      const correct = currentLesson.checkMove(move as any);
+      const correct = activeCheckMove(move as any);
 
       if (correct) {
+        if (activeScriptPhase) {
+          if (activeScriptPhase.successMessage) setCoachComment(activeScriptPhase.successMessage);
+          const nextPhaseIndex = scriptPhaseIndex + 1;
+          if (nextPhaseIndex < scriptPhases.length) {
+            const applyNextPhase = () => {
+              try {
+                const next = buildPositionFromUsi(normalizeUsiPosition(scriptPhases[nextPhaseIndex].sfen));
+                setBoard(next.board);
+                setHands(normalizeHands((next as any).hands));
+              } catch {
+                // ignore malformed phase sfen
+              }
+              setScriptPhaseIndex(nextPhaseIndex);
+              setInteractionLocked(false);
+            };
+
+            const delayMs = Math.max(0, Number((scriptPhases[nextPhaseIndex] as any)?.delayMs ?? 0));
+            if (delayMs > 0) {
+              setInteractionLocked(true);
+              const tid = window.setTimeout(() => {
+                applyNextPhase();
+              }, delayMs);
+              postCorrectTimersRef.current.push(tid);
+            } else {
+              applyNextPhase();
+            }
+            return;
+          }
+        }
+
+        setCoachComment(currentLesson.successMessage);
         setIsCorrect(true);
         setCorrectSignal((v) => v + 1);
+        setInteractionLocked(true);
+        if (isEmbed) {
+          postToRn({
+            type: "stepChanged",
+            stepIndex: currentStepIndex,
+            totalSteps: steps.length,
+            title: currentLesson.title,
+            description: currentLesson.successMessage,
+          });
+        }
 
         // 正解後デモ（コメント更新/盤面更新）を順次再生
         postCorrectTimersRef.current.forEach((id) => window.clearTimeout(id));
@@ -246,7 +314,7 @@ export default function RulesTrainingPage() {
               try {
                 const next = buildPositionFromUsi(normalizeUsiPosition(frame.sfen));
                 setBoard(next.board);
-                setHands((next as any).hands ?? { b: {}, w: {} });
+                setHands(normalizeHands((next as any).hands));
               } catch {
                 // ignore malformed demo sfen
               }
@@ -254,6 +322,15 @@ export default function RulesTrainingPage() {
             if (frame.markCorrect) {
               setIsCorrect(true);
               setCorrectSignal((v) => v + 1);
+              if (isEmbed) {
+                postToRn({
+                  type: "stepChanged",
+                  stepIndex: currentStepIndex,
+                  totalSteps: steps.length,
+                  title: currentLesson.title,
+                  description: frame.comment ?? currentLesson.successMessage,
+                });
+              }
               if (isEmbed) postToRn({ type: "lessonCorrect" });
               else if (!isMobileWebView) showToast({ title: "正解！", description: currentLesson.successMessage });
             }
@@ -269,23 +346,44 @@ export default function RulesTrainingPage() {
         else showToast({ title: "惜しい！", description: "その手ではありません。もう一度考えてみましょう。" });
 
         setTimeout(() => {
-          const initial = buildPositionFromUsi(normalizeUsiPosition(currentLesson.sfen));
+          const initialSfen = activeScriptPhase?.sfen ?? currentLesson.sfen;
+          const initial = buildPositionFromUsi(normalizeUsiPosition(initialSfen));
           setBoard(initial.board);
-          setHands((initial as any).hands ?? { b: {}, w: {} });
+          setHands(normalizeHands((initial as any).hands));
         }, 700);
       }
     },
-    [activeChoice, currentLesson, isEmbed, isMobileWebView],
+    [
+      activeChoice,
+      activeScriptPhase,
+      currentLesson,
+      interactionLocked,
+      isCorrect,
+      isEmbed,
+      isMobileWebView,
+      scriptPhaseIndex,
+      scriptPhases,
+    ],
   );
 
   const handleChoiceAnswer = useCallback((correct: boolean) => {
     if (!activeChoice) return;
 
     if (correct) {
+      setCoachComment(currentLesson.successMessage);
       setIsCorrect(true);
       setCorrectSignal((v) => v + 1);
       setActiveChoice(null);
       setInteractionLocked(true);
+      if (isEmbed) {
+        postToRn({
+          type: "stepChanged",
+          stepIndex: currentStepIndex,
+          totalSteps: steps.length,
+          title: currentLesson.title,
+          description: currentLesson.successMessage,
+        });
+      }
       if (isEmbed) postToRn({ type: "lessonCorrect" });
       else if (!isMobileWebView) showToast({ title: "正解！", description: currentLesson.successMessage });
       return;
@@ -293,7 +391,7 @@ export default function RulesTrainingPage() {
 
     if (isEmbed) postToRn({ type: "lessonWrong" });
     else showToast({ title: "惜しい！", description: "もう一度選んでみよう。" });
-  }, [activeChoice, currentLesson?.successMessage, isEmbed, isMobileWebView]);
+  }, [activeChoice, currentLesson, isEmbed, isMobileWebView]);
 
   const boardChoiceDialog = activeChoice && !isCorrect
     ? {
@@ -312,6 +410,74 @@ export default function RulesTrainingPage() {
           { label: string; onSelect: () => void },
         ],
       }
+    : null;
+
+  const choicePanel = boardChoiceDialog
+    ? (() => {
+        const btnSize = "clamp(160px, 43vw, 240px)";
+        return (
+          <div
+            className="mx-auto"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                maxWidth: 420,
+                background: "rgba(255,247,237,0.96)",
+                border: "2px solid #f59e0b",
+                borderRadius: 14,
+                padding: "10px 14px",
+                color: "#7c2d12",
+                fontWeight: 800,
+                textAlign: "center",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+              }}
+            >
+              {boardChoiceDialog.prompt}
+            </div>
+
+            <div style={{ display: "flex", gap: 12 }}>
+              {boardChoiceDialog.options.map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  style={{
+                    width: btnSize,
+                    height: btnSize,
+                    minWidth: 160,
+                    minHeight: 160,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#fef3c7",
+                    border: "3px solid #d97706",
+                    borderRadius: 20,
+                    cursor: "pointer",
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                    fontWeight: 900,
+                    color: "#7c2d12",
+                    fontSize: 22,
+                    lineHeight: 1.2,
+                    textAlign: "center",
+                    padding: 10,
+                    whiteSpace: "nowrap",
+                  }}
+                  onClick={opt.onSelect}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()
     : null;
 
   const handleNext = () => {
@@ -371,7 +537,6 @@ export default function RulesTrainingPage() {
                   hintArrows={visibleHintArrows}
                   pieceMotionRules={onCorrectPieceMotionRules}
                   interactionDisabled={interactionLocked}
-                  choiceDialog={boardChoiceDialog}
                   mode="edit"
                   onMove={handleMove}
                   onBoardChange={setBoard}
@@ -385,6 +550,11 @@ export default function RulesTrainingPage() {
               </WoodBoardFrame>
             </AutoScaleToFit>
           </div>
+          {choicePanel ? (
+            <div className="fixed inset-x-2 z-[9999]" style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+              {choicePanel}
+            </div>
+          ) : null}
         </div>
       </>
     );
@@ -437,7 +607,6 @@ export default function RulesTrainingPage() {
               hintArrows={visibleHintArrows}
               pieceMotionRules={onCorrectPieceMotionRules}
               interactionDisabled={interactionLocked}
-              choiceDialog={boardChoiceDialog}
               mode="edit"
               onMove={handleMove}
               onBoardChange={setBoard}
@@ -507,25 +676,32 @@ export default function RulesTrainingPage() {
 
   if (isMobileWebView) {
     return (
-      <MobileLessonShell
-        mascot={
-          <ManRive
-            correctSignal={correctSignal}
-            className="bg-transparent [&>canvas]:bg-transparent"
-            style={{ width: 210, height: 210 }}
-          />
-        }
-        explanation={
-          <MobileCoachText
-            tag={`RULES ${currentStepIndex + 1}/${steps.length}`}
-            text={coachBubbleText}
-            isCorrect={isCorrect}
-            correctText={successCoachText || "正解！次へ進もう。"}
-          />
-        }
-        actions={isCorrect ? <MobilePrimaryCTA onClick={handleNext} /> : null}
-        board={boardElementMobile}
-      />
+      <>
+        <MobileLessonShell
+          mascot={
+            <ManRive
+              correctSignal={correctSignal}
+              className="bg-transparent [&>canvas]:bg-transparent"
+              style={{ width: 210, height: 210 }}
+            />
+          }
+          explanation={
+            <MobileCoachText
+              tag={`RULES ${currentStepIndex + 1}/${steps.length}`}
+              text={coachBubbleText}
+              isCorrect={isCorrect}
+              correctText={successCoachText || "正解！次へ進もう。"}
+            />
+          }
+          actions={isCorrect ? <MobilePrimaryCTA onClick={handleNext} /> : null}
+          board={boardElementMobile}
+        />
+        {choicePanel ? (
+          <div className="fixed inset-x-2 z-[9999]" style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+            {choicePanel}
+          </div>
+        ) : null}
+      </>
     );
   }
 
