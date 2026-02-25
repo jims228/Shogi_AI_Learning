@@ -98,6 +98,7 @@ export default function KingTrainingPage() {
             <ShogiBoard
               board={board}
               hands={hands}
+              hintStars={currentLesson.hintStars ?? []}
               mode="edit"
               onMove={handleMove}
               onBoardChange={setBoard}
@@ -119,6 +120,7 @@ export default function KingTrainingPage() {
               <ShogiBoard
                 board={board}
                 hands={hands}
+                hintStars={currentLesson.hintStars ?? []}
                 mode="edit"
                 onMove={handleMove}
                 onBoardChange={setBoard}

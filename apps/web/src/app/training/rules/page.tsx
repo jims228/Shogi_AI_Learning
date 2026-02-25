@@ -90,6 +90,9 @@ export default function RulesTrainingPage() {
   const visibleHintArrows = (isCorrect || !!coachComment)
     ? []
     : (activeScriptPhase?.hintArrows ?? currentLesson?.hintArrows ?? []);
+  const visibleHintStars = (isCorrect || !!coachComment)
+    ? []
+    : (activeScriptPhase?.hintStars ?? currentLesson?.hintStars ?? []);
   const successCoachText = coachComment ?? currentLesson?.successMessage ?? "";
   const coachBubbleText = coachComment ?? currentLesson?.description ?? "";
   const onCorrectPieceMotionRules: PieceMotionRule[] = (() => {
@@ -534,6 +537,7 @@ export default function RulesTrainingPage() {
                   key={`${lessonId}-${currentStepIndex}`}
                   board={isBoardReady ? board : createEmptyBoard()}
                   hands={hands}
+                  hintStars={visibleHintStars}
                   hintArrows={visibleHintArrows}
                   pieceMotionRules={onCorrectPieceMotionRules}
                   interactionDisabled={interactionLocked}
@@ -579,6 +583,7 @@ export default function RulesTrainingPage() {
             <ShogiBoard
               board={board}
               hands={hands}
+              hintStars={visibleHintStars}
               hintArrows={visibleHintArrows}
               pieceMotionRules={onCorrectPieceMotionRules}
               interactionDisabled={interactionLocked}
@@ -604,6 +609,7 @@ export default function RulesTrainingPage() {
             <ShogiBoard
               board={board}
               hands={hands}
+              hintStars={visibleHintStars}
               hintArrows={visibleHintArrows}
               pieceMotionRules={onCorrectPieceMotionRules}
               interactionDisabled={interactionLocked}

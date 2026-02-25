@@ -130,6 +130,7 @@ export default function TarefuTrainingPage() {
               key={currentStepIndex}
               board={isBoardReady ? board : createEmptyBoard()}
               hands={hands}
+              hintStars={currentLesson.hintStars ?? []}
               mode="edit"
               onMove={handleMove}
               onBoardChange={setBoard}
@@ -173,6 +174,7 @@ export default function TarefuTrainingPage() {
             <ShogiBoard
               board={board}
               hands={hands}
+              hintStars={currentLesson.hintStars ?? []}
               mode="edit"
               onMove={handleMove}
               onBoardChange={setBoard}
@@ -195,6 +197,7 @@ export default function TarefuTrainingPage() {
               <ShogiBoard
                 board={board}
                 hands={hands}
+                hintStars={currentLesson.hintStars ?? []}
                 mode="edit"
                 onMove={handleMove}
                 onBoardChange={setBoard}

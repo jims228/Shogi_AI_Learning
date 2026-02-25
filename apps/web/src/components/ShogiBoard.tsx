@@ -33,6 +33,7 @@ export interface ShogiBoardProps {
   onSquareClick?: (x: number, y: number) => void;
   highlightSquares?: { x: number; y: number }[];
   hintSquares?: { file: number; rank: number }[];
+  hintStars?: { file: number; rank: number }[];
   hintArrows?: HintArrow[];
   flipped?: boolean;
   orientation?: "sente" | "gote";
@@ -123,6 +124,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
   onSquareClick,
   highlightSquares,
   hintSquares,
+  hintStars,
   hintArrows = [],
   flipped = false,
   orientation = undefined,
@@ -241,6 +243,35 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
     return false;
   }, [hintSquares]);
+
+  const normalizedHintStars = useMemo(() => {
+    if (!hintStars || hintStars.length === 0) return [] as { x: number; y: number }[];
+
+    const out: { x: number; y: number }[] = [];
+
+    for (const h of hintStars) {
+      const file = h.file;
+      const rank = h.rank;
+      if (typeof file !== "number" || typeof rank !== "number") continue;
+
+      const c = { x: 9 - file, y: rank - 1 };
+      if (c.x < 0 || c.x > 8 || c.y < 0 || c.y > 8) continue;
+      out.push(c);
+    }
+
+    return out;
+  }, [hintStars]);
+
+  const [consumedHintStars, setConsumedHintStars] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setConsumedHintStars(new Set());
+  }, [hintStars]);
+
+  const visibleHintStars = useMemo(() => {
+    if (normalizedHintStars.length === 0) return normalizedHintStars;
+    return normalizedHintStars.filter((s) => !consumedHintStars.has(`${s.x},${s.y}`));
+  }, [normalizedHintStars, consumedHintStars]);
 
   const isPromotionZone = useCallback((y: number) => {
     return y <= 2;
@@ -386,6 +417,16 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     nextBoard[target.y][target.x] = pieceCode;
     onBoardChange(nextBoard);
 
+    const landedStarKey = `${target.x},${target.y}`;
+    if (normalizedHintStars.some((s) => s.x === target.x && s.y === target.y)) {
+      setConsumedHintStars((prev) => {
+        if (prev.has(landedStarKey)) return prev;
+        const next = new Set(prev);
+        next.add(landedStarKey);
+        return next;
+      });
+    }
+
     playPieceSound();
 
     onMove?.({ from: isDrop ? undefined : source, to: target, piece: pieceCode, drop: isDrop });
@@ -393,7 +434,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     setSelectedSquare(null);
     updateSelectedHand(null);
     setPendingMove(null);
-  }, [board, hands, onBoardChange, onHandsChange, onMove, selectedHand, playPieceSound, updateSelectedHand]);
+  }, [board, hands, normalizedHintStars, onBoardChange, onHandsChange, onMove, selectedHand, playPieceSound, updateSelectedHand]);
 
   const attemptAction = useCallback((target: Square) => {
     if (!onBoardChange) return false;
@@ -657,6 +698,8 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             const isSelected = selectedSquare && selectedSquare.x === x && selectedSquare.y === y;
             const isZone = showPromotionZone && isPromotionZone(y);
 
+            const hasHintStar = visibleHintStars.some((s) => s.x === x && s.y === y);
+
             return (
               <div
                 key={`hl-${x}-${y}`}
@@ -671,8 +714,26 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                     if (isZone) return "rgba(239, 68, 68, 0.25)";
                     return "transparent";
                   })(),
+                  overflow: "visible",
                 }}
-              />
+              >
+                {hasHintStar && (
+                  <img
+                    src="/images/lesson/star.png"
+                    alt=""
+                    draggable={false}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      height: "100%",
+                      padding: "10%",
+                      boxSizing: "border-box",
+                      zIndex: 9997,
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+              </div>
             );
           })}
           </div>

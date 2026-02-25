@@ -97,6 +97,7 @@ export default function Tsume1Lesson001Page() {
                 <ShogiBoard
                   board={board}
                   hands={hands}
+                  hintStars={currentLesson.hintStars ?? []}
                   mode="edit"
                   onMove={handleMove}
                   onBoardChange={setBoard}
@@ -214,6 +215,7 @@ export default function Tsume1Lesson001Page() {
              <ShogiBoard
                 board={board}
                 hands={hands}
+                hintStars={currentLesson.hintStars ?? []}
                 mode="edit" 
                 onMove={handleMove}
                 onBoardChange={setBoard} 

@@ -19,6 +19,8 @@ export type TrainingStep = {
   successMessage: string;
   // 既存：マスを光らせる
   hintSquares?: { file: number; rank: number }[];
+  // 追加：盤上マスに星マーカーを表示
+  hintStars?: { file: number; rank: number }[];
 
   // ★追加：成功しても自動で次のStepに進めない（false に設定すると止める）
   advanceOnSuccess?: boolean;
@@ -39,6 +41,7 @@ export type TrainingStep = {
     sfen: string;
     delayMs?: number;
     hintSquares?: { file: number; rank: number }[];
+    hintStars?: { file: number; rank: number }[];
     hintArrows?: {
       from?: { file: number; rank: number };
       to: { file: number; rank: number };
@@ -516,6 +519,7 @@ export const PAWN_LESSON_0_STEPS: TrainingStep[] = [
       "歩は前に1マスだけ進めます。まずは歩を1マス進めてみよう。",
     // buildPositionFromUsi() が受けられるように「position sfen ...」形式にする（安全）
     sfen: "position sfen 4k4/9/9/9/9/9/4P4/9/4K4 b - 1",
+    hintStars: [{ file: 5, rank: 6 }],
     checkMove: (move: TrainingMove) => isPawnMove(move) && movedOneStepStraight(move),
     successMessage: "OK！歩は前に1マスだね。",
   },
@@ -526,6 +530,7 @@ export const PAWN_LESSON_0_STEPS: TrainingStep[] = [
     description:
       "盤上に歩と金がいます。『歩』を前に1マス動かしてください（歩以外を動かしたら不正解）。",
     sfen: "position sfen 4k4/9/9/9/9/9/4P4/4G4/4K4 b - 1",
+    hintStars: [{ file: 5, rank: 6 }],
     checkMove: (move: TrainingMove) => {
       // 「歩を動かしたこと」だけを判定（座標依存しない）
       return isPawnMove(move) && movedOneStepStraight(move);
@@ -540,6 +545,7 @@ export const PAWN_LESSON_0_STEPS: TrainingStep[] = [
       "相手の陣地（相手側3段）に入ると『成る』ことができます。歩を進めて、成れるなら『成る』を選ぼう。",
     // 4段目に歩を置いて、1歩で敵陣（3段目）に入る位置
     sfen: "position sfen 4k4/9/9/4P4/9/9/9/9/4K4 b - 1",
+    hintStars: [{ file: 5, rank: 6 }],
     checkMove: (move: TrainingMove) => isPromotedPawnMove(move),
     successMessage: "ナイス！歩が成って『と金』になったよ。",
   },
@@ -550,6 +556,7 @@ export const PAWN_LESSON_0_STEPS: TrainingStep[] = [
     description:
       "成れる場面でも『不成』を選べます。今回は、歩を敵陣へ進めるけど『成らない』を選んでみよう。",
     sfen: "position sfen 4k4/9/9/4P4/9/9/9/9/4K4 b - 1",
+    hintStars: [{ file: 5, rank: 6 }],
     checkMove: (move: TrainingMove) => {
       // 成れても「成らない」＝結果が P のまま
       return isPawnMove(move) && !isPromotedPawnMove(move);
@@ -564,6 +571,7 @@ export const PAWN_LESSON_0_STEPS: TrainingStep[] = [
       "敵陣に入った『次の手』でも成れます。歩をもう1マス進めて、今度は『成る』を選ぼう。",
     // すでに敵陣（3段目）に歩がいる状態から、もう1回進めて成る
     sfen: "position sfen 4k4/9/4P4/9/9/9/9/9/4K4 b - 1",
+    hintStars: [{ file: 5, rank: 6 }],
     checkMove: (move: TrainingMove) => isPromotedPawnMove(move),
     successMessage: "正解！敵陣に入った後の手でも成れるよ。",
   },
@@ -1058,6 +1066,7 @@ export const SHOGI_RULES_LESSON_STEPS: Record<string, TrainingStep[]> = {
       title: "歩の動き（1枚）",
       description: "歩は前に1マス。1手だけ進めてみよう。",
       sfen: "position sfen 4k4/9/9/9/9/9/4P4/9/4K4 b - 1",
+      hintStars: [{ file: 5, rank: 6 }],
       checkMove: (m: AnyMove) => r_pawnForwardOne(m),
       successMessage: "正解！歩は前に1マスです。",
     },
