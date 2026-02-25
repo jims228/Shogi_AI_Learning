@@ -1137,6 +1137,14 @@ export const SHOGI_RULES_LESSON_STEPS: Record<string, TrainingStep[]> = {
     {
       step: 1,
       title: "打つ（持ち駒を置く）",
+      description: "持ち駒は、打ったあとに次の手で動ける場所にしか打てません。歩を打てるマスを見つけて打ってみよう。",
+      sfen: "position sfen 4k4/9/9/9/9/9/9/9/4K4 b P 1",
+      checkMove: (m: AnyMove) => l2_isPawnDrop(m),
+      successMessage: "ナイス！『打ったあとも動ける場所に打つ』が大事な基本です。",
+    },
+    {
+      step: 2,
+      title: "打つ（持ち駒を置く）",
       description: "持ち駒の歩を盤上に打ってみよう。",
       sfen: "position sfen 4k4/9/9/9/9/9/9/9/4K4 b P 1",
       checkMove: (m: AnyMove) => l2_isPawnDrop(m),

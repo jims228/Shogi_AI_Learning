@@ -277,6 +277,42 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
     return y <= 2;
   }, []);
 
+  const isLegalDropTarget = useCallback((target: Square, hand: SelectedHand) => {
+    if (!hand) return false;
+    if (board[target.y]?.[target.x]) return false;
+
+    const owner = hand.side === "b" ? "sente" : "gote";
+    const isSente = owner === "sente";
+    const base = hand.base;
+
+    if (base === "P" || base === "L") {
+      if ((isSente && target.y === 0) || (!isSente && target.y === 8)) return false;
+    }
+
+    if (base === "N") {
+      if ((isSente && target.y <= 1) || (!isSente && target.y >= 7)) return false;
+    }
+
+    return true;
+  }, [board]);
+
+  const legalDropSquares = useMemo(() => {
+    if (!selectedHand) return [] as Square[];
+
+    const targets: Square[] = [];
+    for (let y = 0; y < 9; y += 1) {
+      for (let x = 0; x < 9; x += 1) {
+        const target = { x, y };
+        if (isLegalDropTarget(target, selectedHand)) targets.push(target);
+      }
+    }
+    return targets;
+  }, [isLegalDropTarget, selectedHand]);
+
+  const legalDropSquareKeySet = useMemo(() => {
+    return new Set(legalDropSquares.map((sq) => `${sq.x},${sq.y}`));
+  }, [legalDropSquares]);
+
   const canPromotePiece = (piece: string) => {
     const base = piece.toUpperCase().replace("+", "");
     return ["P", "L", "N", "S", "B", "R"].includes(base) && !piece.startsWith("+");
@@ -441,7 +477,7 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
 
     // ケース1: 持ち駒を打つ
     if (selectedHand) {
-      if (board[target.y][target.x]) return false;
+      if (!isLegalDropTarget(target, selectedHand)) return false;
       const pieceCode = (selectedHand.side === "b" ? selectedHand.base : selectedHand.base.toLowerCase()) as PieceCode;
       executeMove({ x: -1, y: -1 }, target, pieceCode, true);
       return true;
@@ -649,6 +685,20 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
             flipped={flipped}
           />
           <svg width={boardSize} height={boardSize} className="absolute inset-0 pointer-events-none z-0">
+          {/* 合法打ち先ハイライト (SVG rect — 罫線と同じ座標系で確実に一致) */}
+          {selectedHand && legalDropSquares.map((sq) => {
+            const display = getDisplayPos(sq.x, sq.y);
+            return (
+              <rect
+                key={`drop-hl-${sq.x}-${sq.y}`}
+                x={display.x * CELL_SIZE}
+                y={display.y * CELL_SIZE}
+                width={CELL_SIZE}
+                height={CELL_SIZE}
+                fill="rgba(0,0,0,0.30)"
+              />
+            );
+          })}
           {[...Array(10)].map((_, i) => (
             <line
               key={`v-${i}`}
@@ -690,13 +740,14 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
           })}
           </div>
 
-          <div className="absolute inset-0 grid grid-cols-9 grid-rows-9 z-[5] pointer-events-none">
+          <div className="absolute inset-0 grid grid-cols-9 grid-rows-9 z-[15] pointer-events-none">
           {[...Array(81)].map((_, index) => {
             const x = index % 9;
             const y = Math.floor(index / 9);
             const display = getDisplayPos(x, y);
             const isSelected = selectedSquare && selectedSquare.x === x && selectedSquare.y === y;
             const isZone = showPromotionZone && isPromotionZone(y);
+            const isLegalDropHighlight = selectedHand ? legalDropSquareKeySet.has(`${x},${y}`) : false;
 
             const hasHintStar = visibleHintStars.some((s) => s.x === x && s.y === y);
 
@@ -711,9 +762,11 @@ export const ShogiBoard: React.FC<ShogiBoardProps> = ({
                     if (mode === "edit" && isSelected) return "rgba(251, 191, 36, 0.5)";
                     if (isHintSquare(x, y)) return "rgba(250, 204, 21, 0.28)";
                     if (isHighlighted(x, y)) return "rgba(59, 130, 246, 0.18)";
+                    if (isLegalDropHighlight) return "rgba(0, 0, 0, 0.35)";
                     if (isZone) return "rgba(239, 68, 68, 0.25)";
                     return "transparent";
                   })(),
+                  boxShadow: isLegalDropHighlight ? "inset 0 0 0 1px rgba(0,0,0,0.32)" : undefined,
                   overflow: "visible",
                 }}
               >
@@ -1187,6 +1240,10 @@ const HandArea: React.FC<HandAreaProps> = ({
           userSelect: "none",
         }}
         onClick={() => canEdit && onHandClick?.(base, side)}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          if (canEdit) onHandClick?.(base, side);
+        }}
       >
         <PieceSprite
           piece={piece}
