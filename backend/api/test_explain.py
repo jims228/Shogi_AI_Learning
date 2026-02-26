@@ -113,3 +113,54 @@ def test_render_explanation_advanced_level():
     assert isinstance(text, str)
     assert len(text) > 0
     assert "【根拠" in text  # advancedは根拠セクションが出る
+
+
+# ---------------------------------------------------------------------------
+# generate_shogi_explanation_payload: db_refs キーが含まれること
+# ---------------------------------------------------------------------------
+
+def test_generate_payload_has_db_refs_key():
+    """
+    /api/explain に相当する payload に db_refs キーが含まれること。
+    LLM 不要（USE_EXPLAIN_V2 は問わない）。
+    """
+    import asyncio
+    from backend.api.services.ai_service import AIService
+
+    req = {
+        "sfen": "position sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1",
+        "ply": 0,
+        "turn": "b",
+        "bestmove": "7g7f",
+        "score_cp": 50,
+        "pv": "7g7f 3c3d",
+        "explain_level": "beginner",
+    }
+    # USE_EXPLAIN_V2=1 でルールベース (LLMなし) に固定
+    old_v2 = os.environ.get("USE_EXPLAIN_V2")
+    old_rewrite = os.environ.get("USE_GEMINI_REWRITE")
+    try:
+        os.environ["USE_EXPLAIN_V2"] = "1"
+        os.environ["USE_GEMINI_REWRITE"] = "0"
+        # モジュールレベルの flag を再評価させる
+        import importlib
+        import backend.api.services.ai_service as svc
+        importlib.reload(svc)
+
+        payload = asyncio.run(svc.AIService.generate_shogi_explanation_payload(req))
+    finally:
+        if old_v2 is None:
+            os.environ.pop("USE_EXPLAIN_V2", None)
+        else:
+            os.environ["USE_EXPLAIN_V2"] = old_v2
+        if old_rewrite is None:
+            os.environ.pop("USE_GEMINI_REWRITE", None)
+        else:
+            os.environ["USE_GEMINI_REWRITE"] = old_rewrite
+
+    assert "db_refs" in payload, "payload must contain db_refs key"
+    db_refs = payload["db_refs"]
+    assert isinstance(db_refs, dict)
+    assert "hit" in db_refs
+    assert "items" in db_refs
+    assert isinstance(db_refs["items"], list)
