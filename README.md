@@ -89,6 +89,49 @@ Notes:
 - For cost estimation, set `OPENAI_PRICE_INPUT_USD_PER_1K` / `OPENAI_PRICE_OUTPUT_USD_PER_1K`
   (and Gemini equivalents if using Gemini).
 
+### 解説機能 (Gemini → 解説 JSON) を動かす手順
+
+1. `.env` に `GEMINI_API_KEY` と `GEMINI_MODEL` を設定
+   ```
+   GEMINI_API_KEY=your-key-here
+   GEMINI_MODEL=gemini-2.0-flash
+   ```
+2. バックエンドを起動 (`USE_EXPLAIN_V2=1` は省略可 — デフォルト OFF)
+   ```bash
+   GEMINI_API_KEY=... ./scripts/run_backend.sh
+   ```
+3. Web を起動して `/annotate` を開く
+4. 棋譜を貼り付け → 「解析」 → 手を選んで「解説」ボタンを押す
+5. 解説 JSON が右パネルに表示される。wkbk DB にヒットした局面は「類似パターン」バッジが付く
+
+**wkbk DB（shogi-extend 由来, 511件）の事前確認:**
+```bash
+python3 -c "
+import sys; sys.path.insert(0,'.')
+from backend.api.db.wkbk_db import db_stats
+print(db_stats())
+"
+```
+→ `{'articles_loaded': 511, 'explanations_loaded': N}` が表示されれば OK。
+
+> **著作権方針:** `db_refs` は shogi-extend 由来データを参照するが、元テキスト（title/description）の丸写しは禁止。
+> 返すのは `lineage_key`（カテゴリ）・`tags`・`author` 等のメタ情報と、先頭 80 文字以内の `short_note` のみ。
+> 詳細: [`docs/shogi_extend_db_report.md`](docs/shogi_extend_db_report.md)
+
+**wkbk explanations を生成する（任意）:**
+```bash
+python3 tools/generate_wkbk_explanations_gemini.py \
+  --provider gemini \
+  --only-lineage "詰将棋" \
+  --max-items 20 \
+  --max-requests 20 \
+  --max-estimated-cost-usd 0.20
+```
+生成済みデータは `tools/datasets/wkbk/wkbk_explanations.sqlite` にキャッシュされ、
+次回起動時に自動読み込みされて解説の `goal_summary` が表示される。
+
+---
+
 ### Run locally
 ```bash
 # Terminal 1 – Backend + engine proxy
