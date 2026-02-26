@@ -16,6 +16,8 @@ from backend.api.utils.shogi_explain_core import (
     render_rule_based_explanation,
 )
 
+from backend.api.db.wkbk_db import lookup_by_sfen
+
 from backend.api.utils.ai_explain_json import (
     ExplainJson,
     build_explain_json_from_facts,
@@ -201,6 +203,30 @@ class AIService:
         if explain_json is not None:
             payload["explanation_json"] = explain_json.model_dump()
         payload["verify"] = {"ok": len(verify_errors) == 0, "errors": verify_errors}
+
+        # --- DB 参照（wkbk / shogi-extend 由来） ---
+        sfen = (data.get("sfen") or "").strip()
+        try:
+            db_result = lookup_by_sfen(sfen)
+            db_refs: Dict[str, Any] = {"hit": db_result.hit, "items": []}
+            if db_result.hit:
+                db_refs["items"] = [
+                    {
+                        "key": db_result.key,
+                        "lineage_key": db_result.lineage_key,
+                        "tags": db_result.tags,
+                        "difficulty": db_result.difficulty,
+                        "category_hint": db_result.category_hint,
+                        "goal_summary": db_result.goal_summary,
+                        "author": db_result.author,
+                        "short_note": db_result.short_note,
+                    }
+                ]
+            payload["db_refs"] = db_refs
+        except Exception as e:
+            _LOG.debug("[ai_service] db_refs lookup failed (non-fatal): %s", e)
+            payload["db_refs"] = {"hit": False, "items": []}
+
         return payload
 
     @staticmethod
@@ -239,6 +265,27 @@ class AIService:
 
         history_str = " -> ".join(history[-5:]) if history else "初手"
 
+        # DB参照（wkbk / shogi-extend 由来）— faithfulness補助情報
+        # 注意: db_refs はあくまで補助。エンジン評価値/PV が最優先根拠。
+        # 著作権方針: タグ/カテゴリのみ渡す。元テキスト丸写し禁止。
+        db_hint_block = ""
+        try:
+            db_result = lookup_by_sfen(sfen)
+            if db_result.hit:
+                hint_lines = [f"- パターン種別: {db_result.category_hint} ({db_result.lineage_key})"]
+                if db_result.tags:
+                    hint_lines.append(f"- タグ: {', '.join(db_result.tags)}")
+                if db_result.difficulty is not None:
+                    hint_lines.append(f"- 難易度: {db_result.difficulty}/5")
+                if db_result.short_note:
+                    hint_lines.append(f"- 補足メモ: {db_result.short_note}")
+                if db_result.goal_summary:
+                    hint_lines.append(f"- 問題の狙い（要約）: {db_result.goal_summary}")
+                db_hint_block = "\n\n【参考パターン情報（補助のみ・断言不可）】\n" + "\n".join(hint_lines)
+                db_hint_block += "\n※この情報はヒント程度。エンジン評価値/PVが最優先根拠であること。"
+        except Exception:
+            pass  # DB参照失敗は非致命的
+
         prompt = f"""
 あなたはプロの将棋解説者です。以下の局面を**{perspective}視点**で、初心者にも分かりやすく解説してください。
 
@@ -247,12 +294,15 @@ class AIService:
 - 戦型目安: {strategy}
 - 形勢: {score_desc} (評価値: {score_cp if score_cp is not None else 'Mate'})
 - AI推奨手: {bestmove_jp} ({bestmove})
-- 直近の進行: {history_str}
+- 直近の進行: {history_str}{db_hint_block}
 
 【指示】
 1. 局面ダイジェスト
 2. この一手の狙い
 3. 次の方針
+【制約】
+- 評価値/PV 以外の事実を断言しない（根拠がない推測は「〜の可能性があります」と書く）
+- 参考パターン情報がある場合はヒントとして活用するが、パターン名を断言しない
 """
 
         model = genai.GenerativeModel(_get_gemini_model_name())
