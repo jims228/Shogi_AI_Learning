@@ -23,6 +23,7 @@ import { toStartposUSI } from "@/lib/ingest";
 import { formatUsiMoveJapanese, usiMoveToCoords, type PieceBase, type PieceCode } from "@/lib/sfen";
 import { buildUsiPositionForPly } from "@/lib/usi";
 import type { EngineAnalyzeResponse, EngineMultipvItem } from "@/lib/annotateHook";
+import type { DbRefs, ExplainJson } from "@/types/explain";
 import { AnalysisCache, buildMoveImpacts, getPrimaryEvalScore } from "@/lib/analysisUtils";
 import { FileText, RotateCcw, Search, Play, Sparkles, Upload, ChevronFirst, ChevronLeft, ChevronRight, ChevronLast, ArrowRight, BrainCircuit, X, ScrollText, Eye, ArrowLeft, Pencil, ArrowLeftRight, GraduationCap, BookOpen } from "lucide-react";
 import MoveListPanel from "@/components/annotate/MoveListPanel";
@@ -226,7 +227,8 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
   const [handsOverrides, setHandsOverrides] = useState<Record<number, HandsState>>({});
   const [editHistory, setEditHistory] = useState<{ board: BoardMatrix; hands: HandsState }[]>([]);
   const [explanation, setExplanation] = useState<string>("");
-  const [explanationJson, setExplanationJson] = useState<any | null>(null);
+  const [explanationJson, setExplanationJson] = useState<ExplainJson | null>(null);
+  const [dbRefs, setDbRefs] = useState<DbRefs | null>(null);
   const [gameDigest, setGameDigest] = useState<string>("");
   const [digestMetaSource, setDigestMetaSource] = useState<string>("");
   const [isExplaining, setIsExplaining] = useState(false);
@@ -674,6 +676,7 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
       const data = await res.json();
       setExplanation(data.explanation);
       if (data.explanation_json) setExplanationJson(data.explanation_json);
+      setDbRefs(data.db_refs ?? null);
     } catch {
       showToast({ title: "解説生成エラー", variant: "error" });
     } finally {
@@ -1202,6 +1205,18 @@ export default function AnalysisTab({ usi, setUsi, orientationMode = "sprite" }:
                     ) : (
                         <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-sans text-xs">
                             {explanation}
+                        </div>
+                    )}
+                    {dbRefs?.hit && dbRefs.items.length > 0 && (
+                        <div className="mt-2 rounded border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs text-blue-800">
+                            <span className="font-bold">類似パターン: </span>
+                            {dbRefs.items[0].category_hint ?? dbRefs.items[0].lineage_key}
+                            {dbRefs.items[0].tags?.length > 0 && (
+                                <span className="ml-1 text-blue-600">[{dbRefs.items[0].tags.join(", ")}]</span>
+                            )}
+                            {dbRefs.items[0].goal_summary && (
+                                <div className="mt-0.5 text-blue-700 italic">{dbRefs.items[0].goal_summary}</div>
+                            )}
                         </div>
                     )}
                 </div>
